@@ -1,0 +1,17 @@
+# Environment
+.env
+*.env
+
+# Keep examples
+!.env.example
+
+# IntelliJ
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
