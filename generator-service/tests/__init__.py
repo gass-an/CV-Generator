@@ -1,0 +1,1 @@
+"""Generator service tests."""

@@ -1,0 +1,1 @@
+"""HackAVP document generator service."""

@@ -1,0 +1,1 @@
+"""Document-generation business logic."""
