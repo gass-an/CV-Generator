@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     llm_model: str = ""
     llm_timeout_seconds: float = Field(default=120, gt=0)
 
+    worker_poll_interval_seconds: float = Field(default=1, gt=0)
+    worker_stale_job_timeout_seconds: float = Field(default=600, gt=0)
+
 
 @lru_cache
 def get_settings() -> Settings:
