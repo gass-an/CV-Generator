@@ -14,6 +14,9 @@ class Settings(BaseSettings):
 
     app_env: Literal["development", "test", "production"] = "development"
     log_level: str = "INFO"
+    database_url: str = (
+        "postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator"
+    )
 
     opt_api_base_url: str = ""
     opt_api_key: str | None = None

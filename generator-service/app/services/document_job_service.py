@@ -1,0 +1,62 @@
+import uuid
+from typing import Annotated, Any
+
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_session
+from app.core.exceptions import (
+    DocumentGenerationFailedError,
+    DocumentJobNotFoundError,
+    DocumentJobNotReadyError,
+)
+from app.models.document_job import DocumentJob, DocumentJobStatus
+from app.repositories.document_job_repository import DocumentJobRepository
+
+
+class DocumentJobService:
+    def __init__(
+        self,
+        session: AsyncSession,
+        repository: DocumentJobRepository | None = None,
+    ) -> None:
+        self._session = session
+        self._repository = repository or DocumentJobRepository(session)
+
+    async def create_cv_job(
+        self,
+        *,
+        avp_number: str,
+        resume_data: dict[str, Any],
+    ) -> DocumentJob:
+        async with self._session.begin():
+            return await self._repository.create_cv_job(
+                avp_number=avp_number,
+                resume_data=resume_data,
+            )
+
+    async def get_job(self, job_id: uuid.UUID) -> DocumentJob:
+        async with self._session.begin():
+            job = await self._repository.get_by_id(job_id)
+        if job is None:
+            raise DocumentJobNotFoundError(job_id)
+        return job
+
+    async def get_result(self, job_id: uuid.UUID) -> DocumentJob:
+        job = await self.get_job(job_id)
+        if job.status in {
+            DocumentJobStatus.PENDING,
+            DocumentJobStatus.PROCESSING,
+        }:
+            raise DocumentJobNotReadyError
+        if job.status is DocumentJobStatus.FAILED:
+            raise DocumentGenerationFailedError
+        if job.result_content is None or job.result_format is None:
+            raise DocumentGenerationFailedError
+        return job
+
+
+async def get_document_job_service(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> DocumentJobService:
+    return DocumentJobService(session)
