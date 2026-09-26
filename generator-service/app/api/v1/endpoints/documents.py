@@ -85,7 +85,7 @@ async def get_document_result(
         ) from error
     except DocumentGenerationFailedError as error:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_409_CONFLICT,
             detail={
                 "code": "document_generation_failed",
                 "message": "Document generation failed",

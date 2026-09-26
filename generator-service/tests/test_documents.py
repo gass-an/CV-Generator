@@ -109,7 +109,7 @@ async def test_failed_job_returns_safe_business_error(
 
     response = await api_client.get(f"/api/v1/documents/{job.id}")
 
-    assert response.status_code == 422
+    assert response.status_code == 409
     assert response.json()["detail"] == {
         "code": "document_generation_failed",
         "message": "Document generation failed",
