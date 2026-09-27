@@ -18,8 +18,7 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator"
     )
 
-    opt_api_base_url: str = ""
-    opt_api_key: str | None = None
+    opt_avp_base_url: str = "https://opt-nc.github.io/odata-avps"
 
     llm_base_url: str = ""
     llm_model: str = ""

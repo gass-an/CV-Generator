@@ -4,8 +4,9 @@ Backend de génération asynchrone du projet HackAVP. Les demandes de documents
 sont enregistrées comme jobs persistants dans PostgreSQL, puis traitées par un
 worker séparé de l'API.
 
-Le processor actuel génère uniquement un placeholder AsciiDoc. Il sera remplacé
-par la récupération réelle de l'AVP, les prompts et l'appel à llama.cpp.
+Le worker génère un CV AsciiDoc adapté à un numéro d'AVP exact. Il résout la
+fiche dans le sitemap open data officiel de l'OPT, récupère son Markdown, puis
+envoie ce contexte et le JSON Resume à une API llama.cpp compatible OpenAI.
 
 ## Prérequis
 
@@ -81,6 +82,19 @@ d'un worker ; elle sera enrichie seulement si le projet nécessite une politique
 de retry plus avancée.
 
 Le worker accepte `SIGINT` et `SIGTERM` et termine proprement entre deux jobs.
+Ses deux clients HTTP asynchrones sont créés une seule fois au démarrage et
+fermés lors de l'arrêt, avant la fermeture du moteur SQLAlchemy.
+
+Chaîne de génération :
+
+```text
+numéro AVP exact -> sitemap OPT -> fiche Markdown officielle
+                 -> prompt -> llama.cpp -> CV AsciiDoc
+```
+
+Le JSON Resume et le Markdown sont délimités séparément dans le prompt et
+traités comme des données non fiables. Le modèle reçoit l'instruction de ne
+jamais transformer une exigence de l'AVP en compétence du candidat.
 
 Pour arrêter PostgreSQL :
 
@@ -128,9 +142,14 @@ depuis un éventuel fichier `.env`. La différence entre développement et
 production est exclusivement portée par ces variables, notamment
 `DATABASE_URL`.
 
-Variables propres au worker :
+Configuration locale attendue :
 
 ```env
+DATABASE_URL=postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator
+OPT_AVP_BASE_URL=https://opt-nc.github.io/odata-avps
+LLM_BASE_URL=http://127.0.0.1:8080
+LLM_MODEL=nom-du-modele-charge
+LLM_TIMEOUT_SECONDS=120
 WORKER_POLL_INTERVAL_SECONDS=1
 WORKER_STALE_JOB_TIMEOUT_SECONDS=600
 ```
@@ -142,3 +161,29 @@ attente.
 Le JSON Resume contient des données personnelles. Il n'est ni exposé par
 l'endpoint de statut, ni destiné à être journalisé. Une politique de rétention
 sera ajoutée dans une étape ultérieure.
+
+## Test manuel de génération
+
+Terminal 1 :
+
+```bash
+cd generator-service/docker
+docker compose up -d
+cd ..
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+Terminal 2 :
+
+```bash
+cd generator-service
+python -m app.workers.document_worker
+```
+
+Créer un job via `POST /api/v1/documents/cv` avec un JSON Resume fictif et, par
+exemple, `"avp_number": "3134-26-1382/SR"`. Consulter ensuite
+`GET /api/v1/documents/{id}/status`, puis `GET /api/v1/documents/{id}`. Le job
+doit passer de `PENDING` à `PROCESSING`, puis `COMPLETED`, et retourner un
+contenu `asciidoc`. Un AVP absent, une source OPT ou un LLM inaccessible, ou une
+réponse LLM invalide termine le job en `FAILED` avec un code contrôlé.

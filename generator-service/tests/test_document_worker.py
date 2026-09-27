@@ -8,8 +8,28 @@ from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
 from app.processors.document_processor import DocumentJobData, GeneratedDocument
 from app.repositories.document_job_repository import DocumentJobRepository
 from app.services.document_worker_service import DocumentWorkerService
+from app.workers.document_worker import validate_worker_configuration
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
+
+
+@pytest.mark.parametrize(
+    ("llm_base_url", "llm_model", "missing_name"),
+    [
+        ("", "model", "LLM_BASE_URL"),
+        ("http://llama.example", "  ", "LLM_MODEL"),
+    ],
+)
+def test_worker_configuration_requires_llm_settings(
+    llm_base_url: str,
+    llm_model: str,
+    missing_name: str,
+) -> None:
+    with pytest.raises(RuntimeError, match=missing_name):
+        validate_worker_configuration(
+            llm_base_url=llm_base_url,
+            llm_model=llm_model,
+        )
 
 
 def make_job(

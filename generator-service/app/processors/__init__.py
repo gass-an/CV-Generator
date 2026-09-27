@@ -1,9 +1,9 @@
+from app.processors.cv_document_processor import CvDocumentProcessor
 from app.processors.document_processor import (
     DocumentJobData,
     DocumentProcessingError,
     DocumentProcessor,
     GeneratedDocument,
-    PlaceholderDocumentProcessor,
 )
 
 __all__ = [
@@ -11,5 +11,5 @@ __all__ = [
     "DocumentProcessingError",
     "DocumentProcessor",
     "GeneratedDocument",
-    "PlaceholderDocumentProcessor",
+    "CvDocumentProcessor",
 ]

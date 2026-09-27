@@ -1,27 +1,25 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Generator API" type="PythonConfigurationType" factoryName="Python">
-    <module name="CV-Generator" />
-    <option name="ENV_FILES" value="" />
+  <configuration default="false" name="Generator API" type="ShConfigurationType">
+    <option
+            name="SCRIPT_TEXT"
+            value="set -euo pipefail&#10;&#10;echo '==> Démarrage PostgreSQL'&#10;docker compose --env-file .env -f docker/docker-compose.yml up -d&#10;&#10;echo '==> Application des migrations'&#10;.venv/bin/python -m alembic upgrade head&#10;&#10;cleanup() {&#10;  echo '==> Arrêt API / worker'&#10;  kill &quot;${API_PID:-}&quot; &quot;${WORKER_PID:-}&quot; 2&gt;/dev/null || true&#10;  wait &quot;${API_PID:-}&quot; &quot;${WORKER_PID:-}&quot; 2&gt;/dev/null || true&#10;}&#10;&#10;trap cleanup EXIT INT TERM&#10;&#10;echo '==> Démarrage du worker'&#10;.venv/bin/python -m app.workers.document_worker &amp;&#10;WORKER_PID=$!&#10;&#10;echo '==> Démarrage de l API'&#10;.venv/bin/python -m uvicorn app.main:app --reload &amp;&#10;API_PID=$!&#10;&#10;wait -n &quot;$WORKER_PID&quot; &quot;$API_PID&quot;"
+    />
+    <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
+    <option name="SCRIPT_PATH" value="" />
+    <option name="SCRIPT_OPTIONS" value="" />
+    <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
+    <option
+            name="SCRIPT_WORKING_DIRECTORY"
+            value="$PROJECT_DIR$/generator-service"
+    />
+    <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
+    <option name="INTERPRETER_PATH" value="/bin/bash" />
     <option name="INTERPRETER_OPTIONS" value="" />
-    <option name="PARENT_ENVS" value="true" />
+    <option name="EXECUTE_IN_TERMINAL" value="false" />
+    <option name="EXECUTE_SCRIPT_FILE" value="false" />
     <envs>
       <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
-    <option name="SDK_HOME" value="$PROJECT_DIR$/generator-service/.venv/bin/python" />
-    <option name="SDK_NAME" value="Python 3.12 (CV-Generator)" />
-    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/generator-service" />
-    <option name="IS_MODULE_SDK" value="false" />
-    <option name="ADD_CONTENT_ROOTS" value="true" />
-    <option name="ADD_SOURCE_ROOTS" value="true" />
-    <option name="DEBUG_JUST_MY_CODE" value="true" />
-    <option name="RUN_TOOL" value="" />
-    <option name="SCRIPT_NAME" value="uvicorn" />
-    <option name="PARAMETERS" value="app.main:app --reload" />
-    <option name="SHOW_COMMAND_LINE" value="false" />
-    <option name="EMULATE_TERMINAL" value="false" />
-    <option name="MODULE_MODE" value="true" />
-    <option name="REDIRECT_INPUT" value="false" />
-    <option name="INPUT_FILE" value="" />
     <method v="2" />
   </configuration>
 </component>

@@ -30,11 +30,3 @@ class DocumentProcessingError(Exception):
 
 class DocumentProcessor(Protocol):
     async def process(self, job: DocumentJobData) -> GeneratedDocument: ...
-
-
-class PlaceholderDocumentProcessor:
-    """Temporary processor replaced by OPT and LLM integrations next."""
-
-    async def process(self, job: DocumentJobData) -> GeneratedDocument:
-        content = f"= CV généré\n\nAVP : {job.avp_number}\n"
-        return GeneratedDocument(content=content, format="asciidoc")
