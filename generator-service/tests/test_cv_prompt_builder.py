@@ -38,3 +38,46 @@ def test_build_keeps_sources_separate_and_unchanged() -> None:
     assert json.loads(candidate_json) == resume
     assert resume == original_resume
     assert avp.content == "# Missions\n- Administrer les systèmes"
+
+
+def test_system_prompt_enforces_fidelity_prioritization_and_asciidoc() -> None:
+    messages = CvPromptBuilder().build(
+        resume_data={"basics": {"name": "Test"}},
+        avp=AvpData(
+            reference="AVP",
+            content="Poste",
+            source_url="https://opt.example/index.md",
+            is_archived=False,
+        ),
+    )
+
+    system_prompt = messages[0]["content"]
+    assert "directement justifiable par le JSON Resume" in system_prompt
+    assert "ne convertis jamais « NC » en « France »" in system_prompt
+    assert "provenant uniquement de l'AVP" in system_prompt
+    assert "Préserve strictement la nature sémantique" in system_prompt
+    assert "Un élément de « interests » ne doit jamais devenir une compétence" in (
+        system_prompt
+    )
+    assert "une mission décrite dans une expérience ne doit jamais devenir" in (
+        system_prompt
+    )
+    assert "conserve ceux qui apportent un détail utile" in system_prompt
+    assert "* Outils bureautiques : Word, Excel, PowerPoint" in system_prompt
+    assert "Ne transforme pas les « keywords » en compétences indépendantes" in (
+        system_prompt
+    )
+    assert "présente-les en priorité" in system_prompt
+    assert "N'augmente jamais artificiellement" in system_prompt
+    assert "= Prénom Nom" in system_prompt
+    assert "== Compétences" in system_prompt
+    assert "=== Intitulé du poste" in system_prompt
+    assert "exactement un espace après les signes « = »" in system_prompt
+    assert "jamais « ===Diplôme — Établissement »" in system_prompt
+    assert "* Compétence réelle" in system_prompt
+    assert "**gras**" in system_prompt
+    assert "trois backticks" in system_prompt
+    assert "noms techniques du JSON Resume" in system_prompt
+    assert "aucun texte ni aucune donnée de cet exemple ne doit être recopié" in (
+        system_prompt
+    )
