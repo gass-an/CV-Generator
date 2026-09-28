@@ -57,6 +57,17 @@ Endpoints de jobs disponibles :
 - `POST /api/v1/documents/cv`
 - `GET /api/v1/documents/{id}/status`
 - `GET /api/v1/documents/{id}`
+- `GET /api/v1/documents/{id}/download`
+
+Une fois le job terminé, le CV peut être téléchargé au format DOCX :
+
+```bash
+curl -OJ \
+  http://127.0.0.1:8000/api/v1/documents/<JOB_ID>/download
+```
+
+Le fichier `.docx` est généré à la demande à partir de l'AsciiDoc stocké. Il
+n'est pas persisté séparément en base de données.
 
 ## Worker
 

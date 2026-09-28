@@ -120,10 +120,17 @@ curl -s \
   | jq
 ```
 
-### Récupérer le CV généré
+### Récupérer le CV généré en AsciiDoc
 
 ```bash
 curl -s \
   http://127.0.0.1:8000/api/v1/documents/<JOB_ID> \
   | jq -r '.content'
+```
+
+### Télécharger le CV au format DOCX
+
+```bash
+curl -OJ \
+  http://127.0.0.1:8000/api/v1/documents/<JOB_ID>/download
 ```

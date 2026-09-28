@@ -16,3 +16,7 @@ class DocumentJobNotReadyError(GeneratorServiceError):
 
 class DocumentGenerationFailedError(GeneratorServiceError):
     """Raised when a failed job's result is requested."""
+
+
+class DocumentResultUnavailableError(GeneratorServiceError):
+    """Raised when a completed job has no usable AsciiDoc result."""

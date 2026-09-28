@@ -9,6 +9,7 @@ from app.core.exceptions import (
     DocumentGenerationFailedError,
     DocumentJobNotFoundError,
     DocumentJobNotReadyError,
+    DocumentResultUnavailableError,
 )
 from app.main import app
 from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
@@ -70,6 +71,16 @@ class FakeDocumentJobService:
         if job.status is DocumentJobStatus.FAILED:
             raise DocumentGenerationFailedError
         return job
+
+    async def get_asciidoc_result(self, job_id: uuid.UUID) -> str:
+        job = await self.get_result(job_id)
+        if (
+            job.result_format != "asciidoc"
+            or job.result_content is None
+            or not job.result_content.strip()
+        ):
+            raise DocumentResultUnavailableError
+        return job.result_content
 
 
 @pytest.fixture

@@ -1,13 +1,15 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.core.exceptions import (
     DocumentGenerationFailedError,
     DocumentJobNotFoundError,
     DocumentJobNotReadyError,
+    DocumentResultUnavailableError,
 )
+from app.renderers import DocxRenderer, DocxRenderingError
 from app.schemas.document import (
     CreateCvDocumentRequest,
     DocumentJobCreatedResponse,
@@ -20,6 +22,10 @@ from app.services.document_job_service import (
 )
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+DOCX_MEDIA_TYPE = (
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+)
 
 DocumentService = Annotated[DocumentJobService, Depends(get_document_job_service)]
 
@@ -97,4 +103,56 @@ async def get_document_result(
         type=job.document_type,
         format=job.result_format,
         content=job.result_content,
+    )
+
+
+@router.get("/{job_id}/download")
+async def download_document(
+    job_id: uuid.UUID,
+    service: DocumentService,
+) -> Response:
+    try:
+        asciidoc = await service.get_asciidoc_result(job_id)
+        content = DocxRenderer().render(asciidoc)
+    except DocumentJobNotFoundError as error:
+        raise not_found_error() from error
+    except DocumentJobNotReadyError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "document_not_ready",
+                "message": "Document generation is not complete",
+            },
+        ) from error
+    except DocumentGenerationFailedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "document_generation_failed",
+                "message": "Document generation failed",
+            },
+        ) from error
+    except DocumentResultUnavailableError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "document_result_unavailable",
+                "message": "Document result is unavailable",
+            },
+        ) from error
+    except DocxRenderingError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "document_rendering_failed",
+                "message": "Document rendering failed",
+            },
+        ) from error
+
+    return Response(
+        content=content,
+        media_type=DOCX_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="cv-{job_id}.docx"',
+        },
     )

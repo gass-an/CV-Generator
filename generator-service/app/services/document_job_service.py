@@ -9,6 +9,7 @@ from app.core.exceptions import (
     DocumentGenerationFailedError,
     DocumentJobNotFoundError,
     DocumentJobNotReadyError,
+    DocumentResultUnavailableError,
 )
 from app.models.document_job import DocumentJob, DocumentJobStatus
 from app.repositories.document_job_repository import DocumentJobRepository
@@ -54,6 +55,16 @@ class DocumentJobService:
         if job.result_content is None or job.result_format is None:
             raise DocumentGenerationFailedError
         return job
+
+    async def get_asciidoc_result(self, job_id: uuid.UUID) -> str:
+        job = await self.get_result(job_id)
+        if (
+            job.result_format != "asciidoc"
+            or job.result_content is None
+            or not job.result_content.strip()
+        ):
+            raise DocumentResultUnavailableError
+        return job.result_content
 
 
 async def get_document_job_service(
