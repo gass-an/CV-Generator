@@ -12,7 +12,7 @@ et leurs correctifs sont appropriées.
 ## 1. Mettre à jour la branche principale
 
 ```bash
-git switch main
+git switch master
 git pull --ff-only
 git status
 ```
@@ -44,7 +44,7 @@ Conserver une section `[Unreleased]` vide au-dessus de la nouvelle version.
 
 ```bash
 git add CHANGELOG.md
-git commit -m "chore(release): préparer la version v0.1.0"
+git commit -m "chore(release): préparation de la version v0.1.0"
 ```
 
 D'autres fichiers peuvent faire partie de ce commit si la préparation de la

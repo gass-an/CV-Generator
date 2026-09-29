@@ -5,6 +5,9 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [Unreleased]
 
+
+## [0.1.0] - 2026-09-29
+
 ### Added
 
 - Création asynchrone de jobs de génération de CV via FastAPI.
