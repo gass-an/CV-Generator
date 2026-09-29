@@ -21,6 +21,7 @@ target_metadata = Base.metadata
 
 
 def do_run_migrations(connection: object) -> None:
+    """Configure Alembic et exécute les migrations sur une connexion synchrone."""
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
@@ -32,6 +33,7 @@ def do_run_migrations(connection: object) -> None:
 
 
 async def run_async_migrations() -> None:
+    """Ouvre le moteur async puis délègue l'exécution synchrone à Alembic."""
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -45,6 +47,7 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
+    """Lance les migrations en ligne dans une boucle asyncio dédiée."""
     asyncio.run(run_async_migrations())
 
 

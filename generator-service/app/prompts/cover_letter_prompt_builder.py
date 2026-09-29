@@ -8,6 +8,8 @@ from app.clients.llm_client import ChatMessage
 
 
 class CoverLetterPromptBuilder:
+    """Construit les messages du LLM pour une lettre fidèle en AsciiDoc."""
+
     def __init__(self) -> None:
         prompt_package = resources.files("app.prompts.cover_letter")
         self._system_prompt = prompt_package.joinpath("system.txt").read_text(
@@ -23,6 +25,7 @@ class CoverLetterPromptBuilder:
         resume_data: dict[str, Any],
         avp: AvpData,
     ) -> list[ChatMessage]:
+        """Injecte le JSON Resume et l'AVP séparément, en une seule substitution."""
         serialized_resume = json.dumps(
             resume_data,
             ensure_ascii=False,

@@ -17,7 +17,7 @@ git pull --ff-only
 git status
 ```
 
-Le working tree doit être propre avant de préparer la release.
+L'arbre de travail doit être propre avant de préparer la publication.
 
 ## 2. Choisir la version
 
@@ -29,16 +29,16 @@ v0.1.0
 
 ## 3. Mettre à jour le changelog
 
-Dans `CHANGELOG.md`, déplacer les éléments concernés de `## [Unreleased]` vers
+Dans `CHANGELOG.md`, déplacer les éléments concernés de `## [À venir]` vers
 une section datée, sans le préfixe `v` :
 
 ```markdown
-## [Unreleased]
+## [À venir]
 
 ## [0.1.0] - YYYY-MM-DD
 ```
 
-Conserver une section `[Unreleased]` vide au-dessus de la nouvelle version.
+Conserver une section `[À venir]` vide au-dessus de la nouvelle version.
 
 ## 4. Commiter la préparation
 
@@ -65,14 +65,14 @@ git push origin v0.1.0
 
 Le push du tag déclenche automatiquement le workflow GitHub de release. Ce
 workflow valide le backend, construit et publie l'image Docker, puis crée la
-GitHub Release. Il ne déploie rien sur la machine de production.
+version GitHub. Il ne déploie rien sur la machine de production.
 
 ## 7. Vérifier la publication sur GitHub
 
 Vérifier successivement :
 
 - le workflow dans GitHub Actions ;
-- la GitHub Release et ses notes générées ;
+- la version publiée sur GitHub et ses notes générées ;
 - le package publié dans GHCR.
 
 Pour `v0.1.0`, l'image attendue est :
@@ -122,7 +122,7 @@ docker compose \
   logs -f --tail=100
 ```
 
-## Rollback manuel
+## Retour arrière manuel
 
 Pour revenir, par exemple, de `v0.2.0` à `v0.1.0`, remplacer dans
 `deploy/.env` :
@@ -146,4 +146,4 @@ docker compose \
 ```
 
 L'utilisation d'une version explicite dans `deploy/.env`, plutôt que `latest`,
-garantit que ce rollback redéploie exactement la version choisie.
+garantit que ce retour arrière redéploie exactement la version choisie.

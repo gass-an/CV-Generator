@@ -4,7 +4,7 @@ Cette configuration déploie sur la machine de production :
 
 - PostgreSQL, avec un volume persistant et sans port publié ;
 - llama.cpp avec le GPU NVIDIA et un cache de modèle persistant ;
-- une migration Alembic one-shot ;
+- une migration Alembic exécutée une seule fois ;
 - l'API FastAPI, publiée uniquement sur `127.0.0.1:8000` ;
 - le worker de génération, sans port publié.
 
@@ -80,9 +80,9 @@ docker compose \
 Cette commande conserve les volumes PostgreSQL et llama.cpp. Ne pas ajouter
 `--volumes` sauf si leur suppression définitive est explicitement souhaitée.
 
-## Versions et rollback
+## Versions et retour arrière
 
-La procédure complète de publication, de déploiement et de rollback est la
+La procédure complète de publication, de déploiement et de retour arrière est la
 source de vérité dans [`RELEASING.md`](../RELEASING.md). Le déploiement utilise
 toujours `APP_VERSION` plutôt que `latest` afin de permettre un retour manuel à
 une image connue.

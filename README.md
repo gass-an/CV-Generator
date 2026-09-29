@@ -1,13 +1,24 @@
 # CV-Generator
 
-CV-Generator fournit une API et un worker de génération asynchrone de CV à
-partir d'un JSON Resume et d'une offre d'emploi AVP de l'OPT. Le résultat
-AsciiDoc est stocké dans PostgreSQL et peut être téléchargé au format DOCX.
+CV-Generator génère des CV et des lettres de motivation adaptés à un avis de
+vacance de poste (AVP) de l'OPT, à partir des seules informations d'un JSON
+Resume.
 
-Le backend se trouve dans `generator-service/`. La configuration du déploiement
-manuel de production se trouve dans `deploy/`.
+Le dépôt sépare :
 
-## Releases
+- le backend FastAPI et son worker dans `generator-service/` ;
+- le frontend React dans `generatorweb-service/`.
+
+Le backend enregistre chaque demande comme un job PostgreSQL. Un worker appelle
+ensuite llama.cpp, stocke le document source en AsciiDoc et permet son
+téléchargement au format DOCX généré à la demande.
+
+La [documentation du backend](generator-service/README.md) détaille
+l'installation et l'API. Les [exemples curl](generator-service/demo/curl-examples.md)
+permettent de tester les deux types de documents. Le
+[déploiement Docker](deploy/README.md) décrit l'installation de production.
+
+## Publication des versions
 
 La procédure de version, de publication et de déploiement manuel est décrite
 dans [RELEASING.md](RELEASING.md), qui constitue la source de vérité.

@@ -341,7 +341,9 @@ async def test_processor_error_fails_job_and_worker_can_process_next_job() -> No
 
     assert first_job.status is DocumentJobStatus.FAILED
     assert first_job.error_code == "unexpected_processing_error"
-    assert first_job.error_message == "Unexpected document processing error"
+    assert first_job.error_message == (
+        "Erreur inattendue pendant le traitement du document"
+    )
     assert "secret-token" not in first_job.error_message
     assert first_job.completed_at is not None
     assert second_job.status is DocumentJobStatus.COMPLETED

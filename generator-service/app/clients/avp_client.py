@@ -11,6 +11,8 @@ AVP_HEADER_SHORTCODE = "{{< avp-header >}}"
 
 @dataclass(frozen=True, slots=True)
 class AvpData:
+    """Contenu d'un AVP exact récupéré depuis la source officielle."""
+
     reference: str
     content: str
     source_url: str
@@ -18,15 +20,15 @@ class AvpData:
 
 
 class AvpClientError(Exception):
-    """Base error raised while reading the official AVP source."""
+    """Erreur générique d'accès à la source officielle des AVP."""
 
 
 class AvpNotFoundError(AvpClientError):
-    """The requested exact AVP is absent from the sitemap."""
+    """L'AVP exact demandé est absent du sitemap."""
 
 
 class AvpInvalidResponseError(AvpClientError):
-    """The official AVP source returned an unusable response."""
+    """La source officielle des AVP a retourné une réponse inexploitable."""
 
 
 def normalize_avp_number(avp_number: str) -> str:
@@ -34,6 +36,8 @@ def normalize_avp_number(avp_number: str) -> str:
 
 
 class AvpClient:
+    """Récupère un AVP exact dans le sitemap et les fichiers Markdown de l'OPT."""
+
     def __init__(
         self,
         *,
@@ -52,6 +56,7 @@ class AvpClient:
         self._http_client = http_client or httpx.AsyncClient(timeout=timeout)
 
     async def get_avp(self, avp_number: str) -> AvpData:
+        """Récupère l'AVP correspondant exactement au numéro fourni."""
         reference = avp_number.strip()
         slug = normalize_avp_number(avp_number)
         sitemap_url = f"{self._base_url}/sitemap.xml"
@@ -61,7 +66,7 @@ class AvpClient:
         markdown = await self._get_text(markdown_url, resource="markdown")
         content = markdown.replace(AVP_HEADER_SHORTCODE, "").strip()
         if not content:
-            raise AvpInvalidResponseError("AVP Markdown is empty")
+            raise AvpInvalidResponseError("Le contenu Markdown de l'AVP est vide")
         return AvpData(
             reference=reference,
             content=content,
@@ -77,29 +82,35 @@ class AvpClient:
             response = await self._http_client.get(url)
             response.raise_for_status()
         except httpx.TimeoutException as error:
-            raise AvpClientError(f"AVP {resource} request timed out") from error
+            raise AvpClientError(
+                f"La requête AVP vers {resource} a dépassé le délai autorisé"
+            ) from error
         except httpx.HTTPError as error:
-            raise AvpClientError(f"AVP {resource} request failed") from error
+            raise AvpClientError(f"La requête AVP vers {resource} a échoué") from error
         content_type = response.headers.get("content-type", "").lower()
         if content_type and not (
             content_type.startswith("text/")
             or content_type.startswith("application/xml")
         ):
-            raise AvpInvalidResponseError(f"AVP {resource} is not textual")
+            raise AvpInvalidResponseError(
+                f"La ressource AVP {resource} n'est pas textuelle"
+            )
         return response.text
 
     def _resolve_source(self, sitemap: str, slug: str) -> tuple[str, bool]:
         try:
             root = ElementTree.fromstring(sitemap)
         except ElementTree.ParseError as error:
-            raise AvpInvalidResponseError("AVP sitemap XML is invalid") from error
+            raise AvpInvalidResponseError(
+                "Le XML du sitemap AVP est invalide"
+            ) from error
 
         expected_root = f"{{{SITEMAP_NAMESPACE}}}urlset"
         if root.tag != expected_root:
-            raise AvpInvalidResponseError("AVP sitemap structure is invalid")
+            raise AvpInvalidResponseError("La structure du sitemap AVP est invalide")
         locations = root.findall(f".//{{{SITEMAP_NAMESPACE}}}loc")
         if not locations:
-            raise AvpInvalidResponseError("AVP sitemap contains no locations")
+            raise AvpInvalidResponseError("Le sitemap AVP ne contient aucune URL")
 
         active: set[str] = set()
         archived: set[str] = set()
@@ -126,9 +137,9 @@ class AvpClient:
 
         candidates = active or archived
         if not candidates:
-            raise AvpNotFoundError("AVP not found")
+            raise AvpNotFoundError("AVP introuvable")
         if len(candidates) != 1:
-            raise AvpInvalidResponseError("AVP sitemap result is ambiguous")
+            raise AvpInvalidResponseError("Le résultat du sitemap AVP est ambigu")
         return next(iter(candidates)), not bool(active)
 
     def _is_allowed_source(self, parsed_url: object) -> bool:
@@ -150,6 +161,6 @@ class AvpClient:
     def _markdown_url(source_url: str) -> str:
         parsed = urlparse(source_url)
         if not parsed.path.endswith("/index.html"):
-            raise AvpInvalidResponseError("AVP source URL is invalid")
+            raise AvpInvalidResponseError("L'URL source de l'AVP est invalide")
         path = f"{parsed.path.removesuffix('index.html')}index.md"
         return urlunparse(parsed._replace(path=path, query="", fragment=""))

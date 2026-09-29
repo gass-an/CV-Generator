@@ -134,7 +134,7 @@ async def test_sitemap_http_error_is_controlled() -> None:
     client = make_client(
         httpx.MockTransport(lambda request: httpx.Response(500, text="private"))
     )
-    with pytest.raises(AvpClientError, match="sitemap request failed"):
+    with pytest.raises(AvpClientError, match="requête AVP vers sitemap a échoué"):
         await client.get_avp(REFERENCE)
     await client.aclose()
 
@@ -145,7 +145,7 @@ async def test_sitemap_timeout_is_controlled() -> None:
         raise httpx.ReadTimeout("timeout", request=request)
 
     client = make_client(httpx.MockTransport(handler))
-    with pytest.raises(AvpClientError, match="timed out"):
+    with pytest.raises(AvpClientError, match="dépassé le délai autorisé"):
         await client.get_avp(REFERENCE)
     await client.aclose()
 
@@ -181,7 +181,7 @@ async def test_multiple_exact_active_matches_are_rejected() -> None:
             lambda request: httpx.Response(200, text=sitemap(*locations))
         )
     )
-    with pytest.raises(AvpInvalidResponseError, match="ambiguous"):
+    with pytest.raises(AvpInvalidResponseError, match="ambigu"):
         await client.get_avp(REFERENCE)
     await client.aclose()
 
@@ -197,7 +197,7 @@ async def test_multiple_exact_archive_matches_are_rejected() -> None:
             lambda request: httpx.Response(200, text=sitemap(*locations))
         )
     )
-    with pytest.raises(AvpInvalidResponseError, match="ambiguous"):
+    with pytest.raises(AvpInvalidResponseError, match="ambigu"):
         await client.get_avp(REFERENCE)
     await client.aclose()
 

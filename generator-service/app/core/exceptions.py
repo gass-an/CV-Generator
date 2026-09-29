@@ -2,21 +2,21 @@ import uuid
 
 
 class GeneratorServiceError(Exception):
-    """Base exception for expected service errors."""
+    """Exception de base pour les erreurs métier attendues du service."""
 
 
 class DocumentJobNotFoundError(GeneratorServiceError):
     def __init__(self, job_id: uuid.UUID) -> None:
-        super().__init__(f"Document job {job_id} was not found")
+        super().__init__(f"Le job de génération {job_id} est introuvable")
 
 
 class DocumentJobNotReadyError(GeneratorServiceError):
-    """Raised when a document result is requested before completion."""
+    """Le résultat a été demandé avant la fin du traitement."""
 
 
 class DocumentGenerationFailedError(GeneratorServiceError):
-    """Raised when a failed job's result is requested."""
+    """Le résultat demandé appartient à un job en échec."""
 
 
 class DocumentResultUnavailableError(GeneratorServiceError):
-    """Raised when a completed job has no usable AsciiDoc result."""
+    """Un job terminé ne possède pas de résultat AsciiDoc exploitable."""

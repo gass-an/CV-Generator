@@ -12,6 +12,8 @@ from app.core.config import get_settings
 
 
 class Base(DeclarativeBase):
+    """Base déclarative commune aux modèles SQLAlchemy."""
+
     pass
 
 
@@ -24,6 +26,7 @@ async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
+    """Fournit une session par requête et annule la transaction en cas d'erreur."""
     async with async_session_factory() as session:
         try:
             yield session

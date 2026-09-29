@@ -23,6 +23,8 @@ RepositoryFactory = Callable[[AsyncSession], DocumentJobRepository]
 
 
 class DocumentWorkerService:
+    """Orchestre le traitement asynchrone des jobs de génération."""
+
     def __init__(
         self,
         *,
@@ -39,6 +41,7 @@ class DocumentWorkerService:
         self._repository_factory = repository_factory
 
     async def reserve_next_job(self) -> DocumentJobData | None:
+        """Réserve un job dans une transaction courte puis détache ses données."""
         async with self._session_factory() as session, session.begin():
             job = await self._repository_factory(session).reserve_next_pending(
                 now=datetime.now(UTC)
@@ -46,13 +49,19 @@ class DocumentWorkerService:
             return self._detach_job(job) if job is not None else None
 
     async def process_next_job(self) -> bool:
+        """
+        Traite au plus un job hors de toute transaction de réservation.
+
+        Le booléen retourné indique si un job a été réservé, quel que soit le
+        résultat de sa génération.
+        """
         job = await self.reserve_next_job()
         if job is None:
             return False
 
         started = time.monotonic()
         logger.info(
-            "Processing document job id=%s type=%s status=processing",
+            "Traitement du job id=%s type=%s status=processing",
             job.id,
             job.document_type,
         )
@@ -61,7 +70,7 @@ class DocumentWorkerService:
             if processor is None:
                 raise DocumentProcessingError(
                     code="unsupported_document_type",
-                    message="Unsupported document type",
+                    message="Type de document non pris en charge",
                 )
             document = await processor.process(job)
         except DocumentProcessingError as error:
@@ -72,10 +81,10 @@ class DocumentWorkerService:
             await self._mark_failed(
                 job,
                 error_code,
-                "Unexpected document processing error",
+                "Erreur inattendue pendant le traitement du document",
             )
             logger.error(
-                "Document job failed id=%s type=%s status=failed duration=%.3fs "
+                "Échec du job id=%s type=%s status=failed durée=%.3fs "
                 "error_code=%s exception_type=%s",
                 job.id,
                 job.document_type,
@@ -86,7 +95,7 @@ class DocumentWorkerService:
         else:
             await self._mark_completed(job, document)
             logger.info(
-                "Document job completed id=%s type=%s status=completed duration=%.3fs",
+                "Job terminé id=%s type=%s status=completed durée=%.3fs",
                 job.id,
                 job.document_type,
                 time.monotonic() - started,
@@ -94,6 +103,7 @@ class DocumentWorkerService:
         return True
 
     async def recover_stale_jobs(self) -> int:
+        """Remet en attente les jobs abandonnés par un worker interrompu."""
         now = datetime.now(UTC)
         cutoff = now - timedelta(seconds=self._stale_job_timeout_seconds)
         async with self._session_factory() as session, session.begin():
@@ -102,10 +112,11 @@ class DocumentWorkerService:
                 now=now,
             )
         if job_ids:
-            logger.warning("Requeued stale document jobs count=%d", len(job_ids))
+            logger.warning("Jobs expirés remis en attente nombre=%d", len(job_ids))
         return len(job_ids)
 
     async def run(self, stop_event: asyncio.Event) -> None:
+        """Exécute la boucle de polling jusqu'au signal d'arrêt."""
         await self._recover_with_database_handling()
         recovery_interval = min(self._stale_job_timeout_seconds, 60.0)
         next_recovery = time.monotonic() + recovery_interval
@@ -118,7 +129,7 @@ class DocumentWorkerService:
                     next_recovery = time.monotonic() + recovery_interval
             except SQLAlchemyError as error:
                 logger.error(
-                    "Worker database operation failed exception_type=%s",
+                    "Échec d'une opération de base du worker exception_type=%s",
                     type(error).__name__,
                 )
                 processed = False
@@ -126,7 +137,7 @@ class DocumentWorkerService:
             if not processed:
                 await self._wait_for_poll_or_stop(stop_event)
 
-        logger.info("Document worker stopped")
+        logger.info("Worker de génération arrêté")
 
     async def _mark_completed(
         self,
@@ -142,7 +153,7 @@ class DocumentWorkerService:
                 now=datetime.now(UTC),
             )
         if not updated:
-            logger.warning("Document job completion ignored id=%s", job.id)
+            logger.warning("Fin du job ignorée id=%s", job.id)
 
     async def _mark_failed(
         self,
@@ -159,14 +170,14 @@ class DocumentWorkerService:
                 now=datetime.now(UTC),
             )
         if not updated:
-            logger.warning("Document job failure update ignored id=%s", job.id)
+            logger.warning("Mise en échec du job ignorée id=%s", job.id)
 
     async def _recover_with_database_handling(self) -> None:
         try:
             await self.recover_stale_jobs()
         except SQLAlchemyError as error:
             logger.error(
-                "Initial stale-job recovery failed exception_type=%s",
+                "Échec de la récupération initiale des jobs expirés exception_type=%s",
                 type(error).__name__,
             )
 
@@ -184,8 +195,7 @@ class DocumentWorkerService:
         error_code: str,
     ) -> None:
         logger.warning(
-            "Document job failed id=%s type=%s status=failed duration=%.3fs "
-            "error_code=%s",
+            "Échec du job id=%s type=%s status=failed durée=%.3fs error_code=%s",
             job.id,
             job.document_type,
             time.monotonic() - started,
@@ -195,7 +205,7 @@ class DocumentWorkerService:
     @staticmethod
     def _detach_job(job: DocumentJob) -> DocumentJobData:
         if job.started_at is None:
-            raise RuntimeError("Reserved document job has no started_at")
+            raise RuntimeError("Le job réservé ne possède pas de date de début")
         return DocumentJobData(
             id=job.id,
             document_type=job.document_type,

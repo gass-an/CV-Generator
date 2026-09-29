@@ -1,1 +1,1 @@
-"""Persistence repositories."""
+"""Repositories d'accès aux données persistées."""

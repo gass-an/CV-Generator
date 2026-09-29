@@ -61,7 +61,7 @@ async def test_generate_maps_http_error() -> None:
     client = make_client(
         httpx.MockTransport(lambda request: httpx.Response(500, text="private"))
     )
-    with pytest.raises(LlmClientError, match="API request failed"):
+    with pytest.raises(LlmClientError, match="requête vers l'API du LLM a échoué"):
         await client.generate(MESSAGES)
     await client.aclose()
 
@@ -71,7 +71,7 @@ async def test_generate_rejects_invalid_json() -> None:
     client = make_client(
         httpx.MockTransport(lambda request: httpx.Response(200, text="not-json"))
     )
-    with pytest.raises(LlmInvalidResponseError, match="valid JSON"):
+    with pytest.raises(LlmInvalidResponseError, match="JSON valide"):
         await client.generate(MESSAGES)
     await client.aclose()
 
@@ -93,7 +93,7 @@ async def test_generate_rejects_truncated_response() -> None:
             )
         )
     )
-    with pytest.raises(LlmInvalidResponseError, match="truncated"):
+    with pytest.raises(LlmInvalidResponseError, match="tronquée"):
         await client.generate(MESSAGES)
     await client.aclose()
 
@@ -102,12 +102,12 @@ async def test_generate_rejects_truncated_response() -> None:
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
-        ({}, "no choices"),
-        ({"choices": []}, "no choices"),
-        ({"choices": [{}]}, "no message"),
-        ({"choices": [{"message": {}}]}, "content is empty"),
-        ({"choices": [{"message": {"content": "  "}}]}, "content is empty"),
-        ({"choices": [{"message": {"content": 42}}]}, "content is empty"),
+        ({}, "aucun choix"),
+        ({"choices": []}, "aucun choix"),
+        ({"choices": [{}]}, "aucun message"),
+        ({"choices": [{"message": {}}]}, "contenu.*vide"),
+        ({"choices": [{"message": {"content": "  "}}]}, "contenu.*vide"),
+        ({"choices": [{"message": {"content": 42}}]}, "contenu.*vide"),
     ],
 )
 async def test_generate_rejects_invalid_response_structure(

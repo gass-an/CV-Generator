@@ -1,1 +1,1 @@
-"""Pydantic request and response schemas."""
+"""Schémas Pydantic des requêtes et réponses HTTP."""

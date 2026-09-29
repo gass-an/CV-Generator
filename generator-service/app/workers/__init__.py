@@ -1,1 +1,1 @@
-"""Standalone background workers."""
+"""Workers autonomes exécutés en arrière-plan."""

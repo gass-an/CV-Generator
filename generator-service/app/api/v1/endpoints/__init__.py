@@ -1,1 +1,1 @@
-"""API v1 endpoints."""
+"""Routes de la version 1 de l'API."""

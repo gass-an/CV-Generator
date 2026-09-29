@@ -1,12 +1,13 @@
-# Generator Service
+# Service de génération
 
 Backend de génération asynchrone du projet HackAVP. Les demandes de documents
 sont enregistrées comme jobs persistants dans PostgreSQL, puis traitées par un
 worker séparé de l'API.
 
-Le worker génère un CV AsciiDoc adapté à un numéro d'AVP exact. Il résout la
-fiche dans le sitemap open data officiel de l'OPT, récupère son Markdown, puis
-envoie ce contexte et le JSON Resume à une API llama.cpp compatible OpenAI.
+Le worker génère un CV ou une lettre de motivation AsciiDoc adapté à un numéro
+d'AVP exact. Il résout la fiche dans le sitemap de données ouvertes officiel de
+l'OPT, récupère son Markdown, puis envoie ce contexte et le JSON Resume à une
+API llama.cpp compatible OpenAI.
 
 ## Prérequis
 
@@ -26,7 +27,7 @@ cp .env.example .env
 Le fichier `.env.example` contient des valeurs locales de développement. Ne
 jamais committer de secret réel dans `.env`.
 
-## Workflow local
+## Démarrage local
 
 Depuis `generator-service/`, après avoir activé le venv et installé les
 dépendances :
@@ -47,17 +48,24 @@ En développement, seul PostgreSQL tourne dans Docker. FastAPI s'exécute
 directement depuis le venv et se connecte à PostgreSQL sur `localhost:5432` via
 `DATABASE_URL`.
 
-L'API est disponible sur `http://127.0.0.1:8000`, sa documentation OpenAPI sur
-`/docs`, et son contrôle de santé sur `GET /api/v1/health`.
+L'API est disponible sur `http://127.0.0.1:8000` et son contrôle de santé sur
+`GET /api/v1/health`.
+
+Swagger UI :
+http://127.0.0.1:8000/docs
+
+OpenAPI JSON :
+http://127.0.0.1:8000/openapi.json
 
 Endpoints de jobs disponibles :
 
 - `POST /api/v1/documents/cv`
+- `POST /api/v1/documents/cover-letter`
 - `GET /api/v1/documents/{id}/status`
 - `GET /api/v1/documents/{id}`
 - `GET /api/v1/documents/{id}/download`
 
-Une fois le job terminé, le CV peut être téléchargé au format DOCX :
+Une fois le job terminé, le document peut être téléchargé au format DOCX :
 
 ```bash
 curl -OJ \
@@ -67,7 +75,10 @@ curl -OJ \
 Le fichier `.docx` est généré à la demande à partir de l'AsciiDoc stocké. Il
 n'est pas persisté séparément en base de données.
 
-## Worker
+Des commandes complètes utilisant des données fictives sont disponibles dans
+[`demo/curl-examples.md`](demo/curl-examples.md).
+
+## Worker de génération
 
 Le worker réserve le plus ancien job `PENDING` avec
 `FOR UPDATE SKIP LOCKED`. La réservation et le passage à `PROCESSING` sont
@@ -98,7 +109,7 @@ Chaîne de génération :
 
 ```text
 numéro AVP exact -> sitemap OPT -> fiche Markdown officielle
-                 -> prompt -> llama.cpp -> CV AsciiDoc
+                 -> prompt dédié -> llama.cpp -> CV ou lettre AsciiDoc
 ```
 
 Le JSON Resume et le Markdown sont délimités séparément dans le prompt et
@@ -187,7 +198,8 @@ cd generator-service
 python -m app.workers.document_worker
 ```
 
-Créer un job via `POST /api/v1/documents/cv` avec un JSON Resume fictif et, par
+Créer un job via `POST /api/v1/documents/cv` ou
+`POST /api/v1/documents/cover-letter` avec un JSON Resume fictif et, par
 exemple, `"avp_number": "3134-26-1382/SR"`. Consulter ensuite
 `GET /api/v1/documents/{id}/status`, puis `GET /api/v1/documents/{id}`. Le job
 doit passer de `PENDING` à `PROCESSING`, puis `COMPLETED`, et retourner un

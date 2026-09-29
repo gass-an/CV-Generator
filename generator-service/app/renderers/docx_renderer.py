@@ -7,13 +7,16 @@ from docx.shared import Cm, Pt
 
 
 class DocxRenderingError(Exception):
-    """Raised when AsciiDoc content cannot be rendered as a DOCX document."""
+    """Le contenu AsciiDoc ne peut pas être rendu en document DOCX."""
 
 
 class DocxRenderer:
+    """Convertit le sous-ensemble AsciiDoc produit par le LLM en fichier DOCX."""
+
     def render(self, asciidoc: str) -> bytes:
+        """Produit un paquet DOCX valide en mémoire à partir du contenu AsciiDoc."""
         if not asciidoc.strip():
-            raise DocxRenderingError("AsciiDoc content must not be empty")
+            raise DocxRenderingError("Le contenu AsciiDoc ne doit pas être vide")
 
         try:
             document = Document()
@@ -24,13 +27,15 @@ class DocxRenderer:
             document.save(output)
             rendered = output.getvalue()
 
-            # Reopening the in-memory package catches incomplete or invalid output.
+            # La réouverture détecte un paquet en mémoire incomplet ou invalide.
             Document(BytesIO(rendered))
             return rendered
         except DocxRenderingError:
             raise
         except Exception as error:
-            raise DocxRenderingError("Unable to render the DOCX document") from error
+            raise DocxRenderingError(
+                "Impossible de générer le document DOCX"
+            ) from error
 
     def _configure_document(self, document: Document) -> None:
         section = document.sections[0]

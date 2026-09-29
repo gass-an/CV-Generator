@@ -9,6 +9,8 @@ from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
 
 
 class DocumentJobRepository:
+    """Centralise la persistance et la réservation concurrente des jobs."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
@@ -39,6 +41,12 @@ class DocumentJobRepository:
         return job
 
     async def reserve_next_pending(self, *, now: datetime) -> DocumentJob | None:
+        """
+        Réserve atomiquement le plus ancien job en attente.
+
+        Le verrou PostgreSQL `FOR UPDATE SKIP LOCKED` empêche plusieurs workers
+        de réserver simultanément le même job.
+        """
         statement = (
             select(DocumentJob)
             .where(DocumentJob.status == DocumentJobStatus.PENDING)
@@ -65,6 +73,7 @@ class DocumentJobRepository:
         expected_started_at: datetime,
         now: datetime,
     ) -> bool:
+        """Termine un job seulement si sa réservation est toujours la même."""
         statement = (
             update(DocumentJob)
             .where(
@@ -94,6 +103,7 @@ class DocumentJobRepository:
         expected_started_at: datetime,
         now: datetime,
     ) -> bool:
+        """Met un job en échec seulement si sa réservation est toujours la même."""
         statement = (
             update(DocumentJob)
             .where(
@@ -120,6 +130,7 @@ class DocumentJobRepository:
         cutoff: datetime,
         now: datetime,
     ) -> list[uuid.UUID]:
+        """Remet en attente les jobs dont le traitement a dépassé le délai."""
         statement = (
             update(DocumentJob)
             .where(

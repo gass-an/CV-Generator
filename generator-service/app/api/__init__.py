@@ -1,1 +1,1 @@
-"""HTTP API package."""
+"""API HTTP du service de génération."""

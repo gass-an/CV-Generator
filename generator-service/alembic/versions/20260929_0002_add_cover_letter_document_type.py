@@ -1,4 +1,4 @@
-"""Allow cover-letter document jobs.
+"""Autorise les jobs de génération de lettres de motivation.
 
 Revision ID: 20260929_0002
 Revises: 20260927_0001
@@ -29,8 +29,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # This downgrade intentionally preserves all rows. Recreating the narrower
-    # constraint will fail if any cover_letter rows still exist.
+    # Le downgrade conserve toutes les lignes. La contrainte plus restrictive
+    # échouera si des lignes cover_letter existent encore.
     op.drop_constraint(
         "ck_document_job_document_type",
         "document_job",

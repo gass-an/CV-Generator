@@ -8,6 +8,8 @@ from app.clients.llm_client import ChatMessage
 
 
 class CvPromptBuilder:
+    """Construit les messages du LLM pour générer un CV fidèle en AsciiDoc."""
+
     def __init__(self) -> None:
         prompt_package = resources.files("app.prompts.cv")
         self._system_prompt = prompt_package.joinpath("system.txt").read_text(
@@ -23,6 +25,7 @@ class CvPromptBuilder:
         resume_data: dict[str, Any],
         avp: AvpData,
     ) -> list[ChatMessage]:
+        """Injecte le JSON Resume et l'AVP séparément, en une seule substitution."""
         serialized_resume = json.dumps(
             resume_data,
             ensure_ascii=False,

@@ -1,1 +1,1 @@
-"""Async clients for external APIs."""
+"""Clients asynchrones des API externes."""

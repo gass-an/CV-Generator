@@ -1,1 +1,1 @@
-"""HackAVP document generator service."""
+"""Service de génération de documents HackAVP."""

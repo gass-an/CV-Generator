@@ -16,6 +16,8 @@ from app.repositories.document_job_repository import DocumentJobRepository
 
 
 class DocumentJobService:
+    """Porte les règles métier de création et de consultation des jobs."""
+
     def __init__(
         self,
         session: AsyncSession,
@@ -46,6 +48,7 @@ class DocumentJobService:
         return job
 
     async def get_result(self, job_id: uuid.UUID) -> DocumentJob:
+        """Retourne un résultat terminé ou signale son état métier indisponible."""
         job = await self.get_job(job_id)
         if job.status in {
             DocumentJobStatus.PENDING,
@@ -59,6 +62,7 @@ class DocumentJobService:
         return job
 
     async def get_asciidoc_job(self, job_id: uuid.UUID) -> DocumentJob:
+        """Retourne un job terminé dont le résultat AsciiDoc est exploitable."""
         job = await self.get_result(job_id)
         if (
             job.result_format != "asciidoc"

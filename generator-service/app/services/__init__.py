@@ -1,1 +1,1 @@
-"""Document-generation business logic."""
+"""Services métier de génération de documents."""

@@ -1,1 +1,1 @@
-"""Versioned prompt resources for CV generation."""
+"""Ressources de prompt pour la génération de CV."""

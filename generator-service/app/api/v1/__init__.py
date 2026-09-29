@@ -1,1 +1,1 @@
-"""Version 1 of the HTTP API."""
+"""Version 1 de l'API HTTP."""

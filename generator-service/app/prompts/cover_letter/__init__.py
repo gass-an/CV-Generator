@@ -1,1 +1,1 @@
-"""Prompt resources for cover-letter generation."""
+"""Ressources de prompt pour la génération de lettres de motivation."""

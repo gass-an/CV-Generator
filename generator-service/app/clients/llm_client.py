@@ -4,23 +4,27 @@ import httpx
 
 
 class ChatMessage(TypedDict):
+    """Message transmis à l'API de conversation compatible OpenAI."""
+
     role: str
     content: str
 
 
 class LlmClientError(Exception):
-    """Base error raised while calling the OpenAI-compatible API."""
+    """Erreur générique lors d'un appel à l'API compatible OpenAI."""
 
 
 class LlmTimeoutError(LlmClientError):
-    """The LLM did not answer before the configured timeout."""
+    """Le LLM n'a pas répondu avant le délai configuré."""
 
 
 class LlmInvalidResponseError(LlmClientError):
-    """The LLM returned an unusable response."""
+    """Le LLM a retourné une réponse inexploitable."""
 
 
 class LlmClient:
+    """Appelle l'endpoint de conversation OpenAI exposé par llama.cpp."""
+
     def __init__(
         self,
         *,
@@ -34,6 +38,7 @@ class LlmClient:
         self._http_client = http_client or httpx.AsyncClient(timeout=timeout)
 
     async def generate(self, messages: list[ChatMessage]) -> str:
+        """Génère un contenu textuel et valide la structure minimale de la réponse."""
         try:
             response = await self._http_client.post(
                 f"{self._base_url}/v1/chat/completions",
@@ -41,29 +46,33 @@ class LlmClient:
             )
             response.raise_for_status()
         except httpx.TimeoutException as error:
-            raise LlmTimeoutError("LLM request timed out") from error
+            raise LlmTimeoutError(
+                "La requête vers le LLM a dépassé le délai autorisé"
+            ) from error
         except httpx.HTTPError as error:
-            raise LlmClientError("LLM API request failed") from error
+            raise LlmClientError("La requête vers l'API du LLM a échoué") from error
 
         try:
             payload = response.json()
         except ValueError as error:
-            raise LlmInvalidResponseError("LLM response is not valid JSON") from error
+            raise LlmInvalidResponseError(
+                "La réponse du LLM n'est pas un JSON valide"
+            ) from error
         if not isinstance(payload, dict):
-            raise LlmInvalidResponseError("LLM response has an invalid structure")
+            raise LlmInvalidResponseError("La réponse du LLM a une structure invalide")
         choices = payload.get("choices")
         if not isinstance(choices, list) or not choices:
-            raise LlmInvalidResponseError("LLM response contains no choices")
+            raise LlmInvalidResponseError("La réponse du LLM ne contient aucun choix")
         choice = choices[0]
         if not isinstance(choice, dict):
-            raise LlmInvalidResponseError("LLM response contains no message")
+            raise LlmInvalidResponseError("La réponse du LLM ne contient aucun message")
         if choice.get("finish_reason") == "length":
-            raise LlmInvalidResponseError("LLM response was truncated")
+            raise LlmInvalidResponseError("La réponse du LLM a été tronquée")
         if not isinstance(choice.get("message"), dict):
-            raise LlmInvalidResponseError("LLM response contains no message")
+            raise LlmInvalidResponseError("La réponse du LLM ne contient aucun message")
         content = choice["message"].get("content")
         if not isinstance(content, str) or not content.strip():
-            raise LlmInvalidResponseError("LLM response content is empty")
+            raise LlmInvalidResponseError("Le contenu de la réponse du LLM est vide")
         return content.strip()
 
     async def aclose(self) -> None:

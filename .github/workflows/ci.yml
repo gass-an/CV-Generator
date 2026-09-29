@@ -1,4 +1,4 @@
-name: CI
+name: Intégration continue
 
 on:
   pull_request:
@@ -11,40 +11,42 @@ permissions:
 
 jobs:
   backend:
+    name: Vérifier le backend
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: generator-service
     steps:
-      - name: Checkout
+      - name: Récupérer le dépôt
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Configurer Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: generator-service/pyproject.toml
 
-      - name: Install backend dependencies
+      - name: Installer les dépendances du backend
         run: python -m pip install -e '.[dev]'
 
-      - name: Check formatting
+      - name: Vérifier le formatage
         run: ruff format --check .
 
-      - name: Lint
+      - name: Analyser le code
         run: ruff check .
 
-      - name: Test
+      - name: Exécuter les tests
         run: pytest
 
   docker:
+    name: Construire l'image Docker
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Récupérer le dépôt
         uses: actions/checkout@v4
 
-      - name: Build production image
+      - name: Construire l'image de production
         run: >-
           docker build
           -f generator-service/Dockerfile

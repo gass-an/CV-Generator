@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def validate_worker_configuration(*, llm_base_url: str, llm_model: str) -> None:
+    """Vérifie les paramètres indispensables avant de démarrer le worker."""
     missing = []
     if not llm_base_url.strip():
         missing.append("LLM_BASE_URL")
@@ -27,10 +28,11 @@ def validate_worker_configuration(*, llm_base_url: str, llm_model: str) -> None:
         missing.append("LLM_MODEL")
     if missing:
         names = ", ".join(missing)
-        raise RuntimeError(f"Missing worker configuration: {names}")
+        raise RuntimeError(f"Configuration du worker manquante : {names}")
 
 
 async def run_worker() -> None:
+    """Construit les clients et processors puis exécute l'unique worker."""
     settings = get_settings()
     validate_worker_configuration(
         llm_base_url=settings.llm_base_url,
@@ -70,7 +72,7 @@ async def run_worker() -> None:
         stale_job_timeout_seconds=settings.worker_stale_job_timeout_seconds,
     )
 
-    logger.info("Document worker started")
+    logger.info("Worker de génération démarré")
     try:
         await worker.run(stop_event)
     finally:

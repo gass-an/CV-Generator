@@ -23,6 +23,8 @@ from app.models.document_job import DocumentType
 
 @dataclass(frozen=True, slots=True)
 class DocumentJobData:
+    """Copie détachée des données nécessaires au traitement d'un job."""
+
     id: uuid.UUID
     document_type: DocumentType
     avp_number: str
@@ -32,11 +34,15 @@ class DocumentJobData:
 
 @dataclass(frozen=True, slots=True)
 class GeneratedDocument:
+    """Résultat textuel normalisé produit par un processor."""
+
     content: str
     format: str
 
 
 class DocumentProcessingError(Exception):
+    """Erreur contrôlée associée à un code technique persistant."""
+
     def __init__(self, *, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
@@ -44,10 +50,14 @@ class DocumentProcessingError(Exception):
 
 
 class DocumentProcessor(Protocol):
+    """Contrat commun des processors de documents."""
+
     async def process(self, job: DocumentJobData) -> GeneratedDocument: ...
 
 
 class DocumentPromptBuilder(Protocol):
+    """Construit les messages LLM en gardant séparées les sources non fiables."""
+
     def build(
         self, *, resume_data: dict[str, Any], avp: AvpData
     ) -> list[ChatMessage]: ...
@@ -60,6 +70,8 @@ FENCED_DOCUMENT = re.compile(
 
 
 class AvpLlmDocumentProcessor:
+    """Pipeline commun de récupération AVP, génération LLM et validation."""
+
     document_type: DocumentType
 
     def __init__(
@@ -76,21 +88,23 @@ class AvpLlmDocumentProcessor:
     async def process(self, job: DocumentJobData) -> GeneratedDocument:
         if job.document_type is not self.document_type:
             raise DocumentProcessingError(
-                code="unsupported_document_type", message="Unsupported document type"
+                code="unsupported_document_type",
+                message="Type de document non pris en charge",
             )
         try:
             avp = await self._avp_client.get_avp(job.avp_number)
         except AvpNotFoundError as error:
             raise DocumentProcessingError(
-                code="avp_not_found", message="AVP not found"
+                code="avp_not_found", message="AVP introuvable"
             ) from error
         except AvpInvalidResponseError as error:
             raise DocumentProcessingError(
-                code="avp_invalid_response", message="Invalid AVP source response"
+                code="avp_invalid_response",
+                message="Réponse invalide de la source AVP",
             ) from error
         except AvpClientError as error:
             raise DocumentProcessingError(
-                code="avp_source_error", message="AVP source is unavailable"
+                code="avp_source_error", message="La source AVP est indisponible"
             ) from error
 
         messages = self._prompt_builder.build(resume_data=job.resume_data, avp=avp)
@@ -98,25 +112,27 @@ class AvpLlmDocumentProcessor:
             generated_content = await self._llm_client.generate(messages)
         except LlmTimeoutError as error:
             raise DocumentProcessingError(
-                code="llm_timeout", message="LLM request timed out"
+                code="llm_timeout",
+                message="La requête vers le LLM a dépassé le délai autorisé",
             ) from error
         except LlmInvalidResponseError as error:
             raise DocumentProcessingError(
-                code="llm_invalid_response", message="Invalid LLM response"
+                code="llm_invalid_response", message="Réponse invalide du LLM"
             ) from error
         except LlmClientError as error:
             raise DocumentProcessingError(
-                code="llm_api_error", message="LLM API request failed"
+                code="llm_api_error", message="La requête vers l'API du LLM a échoué"
             ) from error
 
         if not isinstance(generated_content, str) or not generated_content.strip():
             raise DocumentProcessingError(
-                code="invalid_generated_document", message="Generated document is empty"
+                code="invalid_generated_document",
+                message="Le document généré est vide",
             )
         generated_content = generated_content.strip()
         if FENCED_DOCUMENT.fullmatch(generated_content):
             raise DocumentProcessingError(
                 code="invalid_generated_document",
-                message="Generated document has an invalid format",
+                message="Le document généré possède un format invalide",
             )
         return GeneratedDocument(content=generated_content, format="asciidoc")

@@ -59,5 +59,5 @@ def test_render_creates_readable_docx_with_expected_content_and_styles() -> None
 
 @pytest.mark.parametrize("asciidoc", ["", "   ", "\n\t\n"])
 def test_render_rejects_empty_content(asciidoc: str) -> None:
-    with pytest.raises(DocxRenderingError, match="must not be empty"):
+    with pytest.raises(DocxRenderingError, match="ne doit pas être vide"):
         DocxRenderer().render(asciidoc)

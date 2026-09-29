@@ -101,6 +101,9 @@ async def test_unknown_job_returns_not_found(api_client: httpx.AsyncClient) -> N
 
     assert response.status_code == 404
     assert response.json()["detail"]["code"] == "document_job_not_found"
+    assert response.json()["detail"]["message"] == (
+        "Le job de génération est introuvable"
+    )
 
 
 @pytest.mark.asyncio
@@ -119,6 +122,9 @@ async def test_unfinished_job_result_returns_conflict(
 
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "document_not_ready"
+    assert response.json()["detail"]["message"] == (
+        "La génération du document n'est pas terminée"
+    )
 
 
 @pytest.mark.asyncio
@@ -177,7 +183,7 @@ async def test_failed_job_returns_safe_business_error(
     assert response.status_code == 409
     assert response.json()["detail"] == {
         "code": "document_generation_failed",
-        "message": "Document generation failed",
+        "message": "La génération du document a échoué",
     }
     assert private_error not in response.text
 
@@ -320,7 +326,7 @@ async def test_download_completed_job_without_usable_result_is_controlled(
     assert response.status_code == 409
     assert response.json()["detail"] == {
         "code": "document_result_unavailable",
-        "message": "Document result is unavailable",
+        "message": "Le résultat du document est indisponible",
     }
     assert "must not leak" not in response.text
 
@@ -350,5 +356,47 @@ async def test_download_completed_job_with_unavailable_result_returns_conflict(
     assert response.status_code == 409
     assert response.json()["detail"] == {
         "code": "document_result_unavailable",
-        "message": "Document result is unavailable",
+        "message": "Le résultat du document est indisponible",
     }
+
+
+@pytest.mark.asyncio
+async def test_openapi_documents_generation_routes_in_french(
+    api_client: httpx.AsyncClient,
+) -> None:
+    response = await api_client.get("/openapi.json")
+
+    assert response.status_code == 200
+    schema = response.json()
+    assert schema["info"]["title"] == "Service de génération de documents HackAVP"
+    assert "job persistant traité par un worker" in schema["info"]["description"]
+
+    expected_paths = {
+        "/api/v1/documents/cv",
+        "/api/v1/documents/cover-letter",
+        "/api/v1/documents/{job_id}/status",
+        "/api/v1/documents/{job_id}",
+        "/api/v1/documents/{job_id}/download",
+    }
+    assert expected_paths <= schema["paths"].keys()
+    assert schema["paths"]["/api/v1/documents/cv"]["post"]["summary"] == (
+        "Créer une génération de CV"
+    )
+    assert (
+        schema["paths"]["/api/v1/documents/cover-letter"]["post"]["summary"]
+        == "Créer une génération de lettre de motivation"
+    )
+
+    components = schema["components"]["schemas"]
+    assert components["DocumentType"]["enum"] == ["cv", "cover_letter"]
+    assert components["DocumentJobStatus"]["enum"] == [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+    ]
+    request_schema = components["CreateDocumentRequest"]["properties"]
+    assert request_schema["avp_number"]["examples"] == ["3134-26-1382/SR"]
+    assert request_schema["resume"]["examples"][0]["basics"]["name"] == (
+        "Camille Exemple"
+    )

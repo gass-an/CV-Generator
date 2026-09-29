@@ -1,1 +1,1 @@
-"""Prompt templates for document generation."""
+"""Gabarits de prompts utilisés pour générer les documents."""
