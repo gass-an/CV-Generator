@@ -6,9 +6,15 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 ## [À venir]
 
 
-## [0.1.0] - 2026-09-29
+
+## [0.2.0] - 2026-09-29
+
+### Ajouts
 
 - Ajout de la génération des lettres de motivation.
+- Documentation code et Swagger en français.
+
+## [0.1.0] - 2026-09-29
 
 ### Ajouts
 
