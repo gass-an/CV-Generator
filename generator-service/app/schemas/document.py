@@ -1,13 +1,13 @@
 import uuid
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models.document_job import DocumentJobStatus
+from app.models.document_job import DocumentJobStatus, DocumentType
 
 
-class CreateCvDocumentRequest(BaseModel):
+class CreateDocumentRequest(BaseModel):
     avp_number: str = Field(min_length=1, max_length=128)
     resume: dict[str, Any]
 
@@ -35,9 +35,13 @@ class DocumentJobStatusResponse(BaseModel):
 
 class DocumentResultResponse(BaseModel):
     id: uuid.UUID
-    type: Literal["cv"]
+    type: DocumentType
     format: str
     content: str
+
+
+# Backwards-compatible name for callers that imported the CV-specific schema.
+CreateCvDocumentRequest = CreateDocumentRequest
 
 
 class ErrorDetail(BaseModel):

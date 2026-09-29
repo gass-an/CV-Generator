@@ -12,14 +12,15 @@ class DocumentJobRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def create_cv_job(
+    async def create_job(
         self,
         *,
+        document_type: DocumentType,
         avp_number: str,
         resume_data: dict[str, Any],
     ) -> DocumentJob:
         job = DocumentJob(
-            document_type=DocumentType.CV,
+            document_type=document_type,
             status=DocumentJobStatus.PENDING,
             avp_number=avp_number,
             resume_data=resume_data,

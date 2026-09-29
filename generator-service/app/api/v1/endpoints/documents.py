@@ -9,9 +9,10 @@ from app.core.exceptions import (
     DocumentJobNotReadyError,
     DocumentResultUnavailableError,
 )
+from app.models.document_job import DocumentType
 from app.renderers import DocxRenderer, DocxRenderingError
 from app.schemas.document import (
-    CreateCvDocumentRequest,
+    CreateDocumentRequest,
     DocumentJobCreatedResponse,
     DocumentJobStatusResponse,
     DocumentResultResponse,
@@ -43,10 +44,28 @@ def not_found_error() -> HTTPException:
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_cv_document(
-    request: CreateCvDocumentRequest,
+    request: CreateDocumentRequest,
     service: DocumentService,
 ) -> DocumentJobCreatedResponse:
-    job = await service.create_cv_job(
+    job = await service.create_job(
+        document_type=DocumentType.CV,
+        avp_number=request.avp_number,
+        resume_data=request.resume,
+    )
+    return DocumentJobCreatedResponse(id=job.id, status=job.status)
+
+
+@router.post(
+    "/cover-letter",
+    response_model=DocumentJobCreatedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def create_cover_letter_document(
+    request: CreateDocumentRequest,
+    service: DocumentService,
+) -> DocumentJobCreatedResponse:
+    job = await service.create_job(
+        document_type=DocumentType.COVER_LETTER,
         avp_number=request.avp_number,
         resume_data=request.resume,
     )
@@ -112,8 +131,8 @@ async def download_document(
     service: DocumentService,
 ) -> Response:
     try:
-        asciidoc = await service.get_asciidoc_result(job_id)
-        content = DocxRenderer().render(asciidoc)
+        job = await service.get_asciidoc_job(job_id)
+        content = DocxRenderer().render(job.result_content or "")
     except DocumentJobNotFoundError as error:
         raise not_found_error() from error
     except DocumentJobNotReadyError as error:
@@ -149,10 +168,16 @@ async def download_document(
             },
         ) from error
 
+    filename_prefix = {
+        DocumentType.CV: "cv",
+        DocumentType.COVER_LETTER: "lettre-motivation",
+    }[job.document_type]
     return Response(
         content=content,
         media_type=DOCX_MEDIA_TYPE,
         headers={
-            "Content-Disposition": f'attachment; filename="cv-{job_id}.docx"',
+            "Content-Disposition": (
+                f'attachment; filename="{filename_prefix}-{job_id}.docx"'
+            ),
         },
     )

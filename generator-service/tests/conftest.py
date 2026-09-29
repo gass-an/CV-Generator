@@ -24,6 +24,7 @@ class FakeDocumentJobService:
         self,
         status: DocumentJobStatus,
         *,
+        document_type: DocumentType = DocumentType.CV,
         result_content: str | None = None,
         result_format: str | None = None,
         error_message: str | None = None,
@@ -31,7 +32,7 @@ class FakeDocumentJobService:
         now = datetime.now(UTC)
         job = DocumentJob(
             id=uuid.uuid4(),
-            document_type=DocumentType.CV,
+            document_type=document_type,
             status=status,
             avp_number="1234-26-001",
             resume_data={"private": "must not leak"},
@@ -44,13 +45,14 @@ class FakeDocumentJobService:
         self.jobs[job.id] = job
         return job
 
-    async def create_cv_job(
+    async def create_job(
         self,
         *,
+        document_type: DocumentType,
         avp_number: str,
         resume_data: dict[str, Any],
     ) -> DocumentJob:
-        job = self.add_job(DocumentJobStatus.PENDING)
+        job = self.add_job(DocumentJobStatus.PENDING, document_type=document_type)
         job.avp_number = avp_number
         job.resume_data = resume_data
         return job
@@ -72,7 +74,7 @@ class FakeDocumentJobService:
             raise DocumentGenerationFailedError
         return job
 
-    async def get_asciidoc_result(self, job_id: uuid.UUID) -> str:
+    async def get_asciidoc_job(self, job_id: uuid.UUID) -> DocumentJob:
         job = await self.get_result(job_id)
         if (
             job.result_format != "asciidoc"
@@ -80,7 +82,7 @@ class FakeDocumentJobService:
             or not job.result_content.strip()
         ):
             raise DocumentResultUnavailableError
-        return job.result_content
+        return job
 
 
 @pytest.fixture

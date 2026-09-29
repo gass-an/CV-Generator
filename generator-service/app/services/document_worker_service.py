@@ -1,14 +1,14 @@
 import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.document_job import DocumentJob
+from app.models.document_job import DocumentJob, DocumentType
 from app.processors.document_processor import (
     DocumentJobData,
     DocumentProcessingError,
@@ -27,13 +27,13 @@ class DocumentWorkerService:
         self,
         *,
         session_factory: async_sessionmaker[AsyncSession],
-        processor: DocumentProcessor,
+        processors: Mapping[DocumentType, DocumentProcessor],
         poll_interval_seconds: float,
         stale_job_timeout_seconds: float,
         repository_factory: RepositoryFactory = DocumentJobRepository,
     ) -> None:
         self._session_factory = session_factory
-        self._processor = processor
+        self._processors = processors
         self._poll_interval_seconds = poll_interval_seconds
         self._stale_job_timeout_seconds = stale_job_timeout_seconds
         self._repository_factory = repository_factory
@@ -57,7 +57,13 @@ class DocumentWorkerService:
             job.document_type,
         )
         try:
-            document = await self._processor.process(job)
+            processor = self._processors.get(job.document_type)
+            if processor is None:
+                raise DocumentProcessingError(
+                    code="unsupported_document_type",
+                    message="Unsupported document type",
+                )
+            document = await processor.process(job)
         except DocumentProcessingError as error:
             await self._mark_failed(job, error.code, error.message[:1000])
             self._log_failure(job, started, error.code)

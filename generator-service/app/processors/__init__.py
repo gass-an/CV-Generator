@@ -1,3 +1,4 @@
+from app.processors.cover_letter_document_processor import CoverLetterDocumentProcessor
 from app.processors.cv_document_processor import CvDocumentProcessor
 from app.processors.document_processor import (
     DocumentJobData,
@@ -12,4 +13,5 @@ __all__ = [
     "DocumentProcessor",
     "GeneratedDocument",
     "CvDocumentProcessor",
+    "CoverLetterDocumentProcessor",
 ]

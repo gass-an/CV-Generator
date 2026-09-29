@@ -11,7 +11,7 @@ from app.core.exceptions import (
     DocumentJobNotReadyError,
     DocumentResultUnavailableError,
 )
-from app.models.document_job import DocumentJob, DocumentJobStatus
+from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
 from app.repositories.document_job_repository import DocumentJobRepository
 
 
@@ -24,14 +24,16 @@ class DocumentJobService:
         self._session = session
         self._repository = repository or DocumentJobRepository(session)
 
-    async def create_cv_job(
+    async def create_job(
         self,
         *,
+        document_type: DocumentType,
         avp_number: str,
         resume_data: dict[str, Any],
     ) -> DocumentJob:
         async with self._session.begin():
-            return await self._repository.create_cv_job(
+            return await self._repository.create_job(
+                document_type=document_type,
                 avp_number=avp_number,
                 resume_data=resume_data,
             )
@@ -56,7 +58,7 @@ class DocumentJobService:
             raise DocumentGenerationFailedError
         return job
 
-    async def get_asciidoc_result(self, job_id: uuid.UUID) -> str:
+    async def get_asciidoc_job(self, job_id: uuid.UUID) -> DocumentJob:
         job = await self.get_result(job_id)
         if (
             job.result_format != "asciidoc"
@@ -64,7 +66,7 @@ class DocumentJobService:
             or not job.result_content.strip()
         ):
             raise DocumentResultUnavailableError
-        return job.result_content
+        return job
 
 
 async def get_document_job_service(

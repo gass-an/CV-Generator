@@ -35,13 +35,14 @@ def test_worker_configuration_requires_llm_settings(
 def make_job(
     status: DocumentJobStatus,
     *,
+    document_type: DocumentType = DocumentType.CV,
     created_at: datetime | None = None,
     started_at: datetime | None = None,
 ) -> DocumentJob:
     now = datetime.now(UTC)
     return DocumentJob(
         id=uuid.uuid4(),
-        document_type=DocumentType.CV,
+        document_type=document_type,
         status=status,
         avp_number="1234-26-001",
         resume_data={"basics": {}},
@@ -227,6 +228,16 @@ class SuccessProcessor:
         )
 
 
+class RecordingProcessor(SuccessProcessor):
+    def __init__(self, session_factory: FakeSessionFactory) -> None:
+        super().__init__(session_factory)
+        self.types: list[DocumentType] = []
+
+    async def process(self, job: DocumentJobData) -> GeneratedDocument:
+        self.types.append(job.document_type)
+        return await super().process(job)
+
+
 class FailOnceProcessor(SuccessProcessor):
     def __init__(self, session_factory: FakeSessionFactory) -> None:
         super().__init__(session_factory)
@@ -250,7 +261,7 @@ def make_worker(
     FakeWorkerRepository.state = FakeWorkerState(jobs)
     return DocumentWorkerService(
         session_factory=session_factory,  # type: ignore[arg-type]
-        processor=processor,
+        processors={DocumentType.CV: processor},
         poll_interval_seconds=0.01,
         stale_job_timeout_seconds=stale_timeout,
         repository_factory=FakeWorkerRepository,  # type: ignore[arg-type]
@@ -275,6 +286,40 @@ async def test_success_processing_closes_reservation_transaction() -> None:
     assert job.result_content == "= CV généré\n\nAVP : 1234-26-001\n"
     assert job.completed_at is not None
     assert not session_factory.transaction_active
+
+
+@pytest.mark.asyncio
+async def test_worker_routes_cv_and_cover_letter_to_their_processors() -> None:
+    cv_job = make_job(
+        DocumentJobStatus.PENDING,
+        created_at=datetime.now(UTC) - timedelta(seconds=1),
+    )
+    letter_job = make_job(
+        DocumentJobStatus.PENDING,
+        document_type=DocumentType.COVER_LETTER,
+    )
+    session_factory = FakeSessionFactory()
+    cv_processor = RecordingProcessor(session_factory)
+    letter_processor = RecordingProcessor(session_factory)
+    FakeWorkerRepository.state = FakeWorkerState([cv_job, letter_job])
+    worker = DocumentWorkerService(
+        session_factory=session_factory,  # type: ignore[arg-type]
+        processors={
+            DocumentType.CV: cv_processor,
+            DocumentType.COVER_LETTER: letter_processor,
+        },
+        poll_interval_seconds=0.01,
+        stale_job_timeout_seconds=600,
+        repository_factory=FakeWorkerRepository,  # type: ignore[arg-type]
+    )
+
+    assert await worker.process_next_job() is True
+    assert await worker.process_next_job() is True
+
+    assert cv_processor.types == [DocumentType.CV]
+    assert letter_processor.types == [DocumentType.COVER_LETTER]
+    assert cv_job.status is DocumentJobStatus.COMPLETED
+    assert letter_job.status is DocumentJobStatus.COMPLETED
 
 
 @pytest.mark.asyncio

@@ -7,7 +7,12 @@ from app.clients.avp_client import AvpClient
 from app.clients.llm_client import LlmClient
 from app.core.config import get_settings
 from app.core.database import async_session_factory, engine
+from app.models.document_job import DocumentType
+from app.processors.cover_letter_document_processor import (
+    CoverLetterDocumentProcessor,
+)
 from app.processors.cv_document_processor import CvDocumentProcessor
+from app.prompts.cover_letter_prompt_builder import CoverLetterPromptBuilder
 from app.prompts.cv_prompt_builder import CvPromptBuilder
 from app.services.document_worker_service import DocumentWorkerService
 
@@ -47,14 +52,20 @@ async def run_worker() -> None:
         model=settings.llm_model,
         timeout=settings.llm_timeout_seconds,
     )
-    processor = CvDocumentProcessor(
-        avp_client=avp_client,
-        prompt_builder=CvPromptBuilder(),
-        llm_client=llm_client,
-    )
     worker = DocumentWorkerService(
         session_factory=async_session_factory,
-        processor=processor,
+        processors={
+            DocumentType.CV: CvDocumentProcessor(
+                avp_client=avp_client,
+                prompt_builder=CvPromptBuilder(),
+                llm_client=llm_client,
+            ),
+            DocumentType.COVER_LETTER: CoverLetterDocumentProcessor(
+                avp_client=avp_client,
+                prompt_builder=CoverLetterPromptBuilder(),
+                llm_client=llm_client,
+            ),
+        },
         poll_interval_seconds=settings.worker_poll_interval_seconds,
         stale_job_timeout_seconds=settings.worker_stale_job_timeout_seconds,
     )

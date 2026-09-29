@@ -12,6 +12,7 @@ from app.core.database import Base
 
 class DocumentType(StrEnum):
     CV = "cv"
+    COVER_LETTER = "cover_letter"
 
 
 class DocumentJobStatus(StrEnum):
@@ -25,7 +26,7 @@ class DocumentJob(Base):
     __tablename__ = "document_job"
     __table_args__ = (
         CheckConstraint(
-            "document_type IN ('cv')",
+            "document_type IN ('cv', 'cover_letter')",
             name="ck_document_job_document_type",
         ),
         CheckConstraint(

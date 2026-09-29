@@ -3,7 +3,7 @@ from io import BytesIO
 
 import httpx
 import pytest
-from app.models.document_job import DocumentJobStatus
+from app.models.document_job import DocumentJobStatus, DocumentType
 from docx import Document
 
 from tests.conftest import FakeDocumentJobService
@@ -56,6 +56,28 @@ async def test_create_cv_document_returns_pending_job(
     created_job = document_service.jobs[uuid.UUID(payload["id"])]
     assert created_job.status is DocumentJobStatus.PENDING
     assert created_job.avp_number == "1234-26-001"
+
+
+@pytest.mark.asyncio
+async def test_create_cover_letter_returns_pending_job_without_exposing_resume(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    resume = {"basics": {"name": "Donnée privée"}, "work": []}
+
+    response = await api_client.post(
+        "/api/v1/documents/cover-letter",
+        json={"avp_number": " 1234-26-001 ", "resume": resume},
+    )
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "pending"
+    assert "resume" not in response.json()
+    assert "Donnée privée" not in response.text
+    job = document_service.jobs[uuid.UUID(response.json()["id"])]
+    assert job.document_type is DocumentType.COVER_LETTER
+    assert job.avp_number == "1234-26-001"
+    assert job.resume_data == resume
 
 
 @pytest.mark.asyncio
@@ -122,6 +144,24 @@ async def test_completed_job_returns_asciidoc(
 
 
 @pytest.mark.asyncio
+async def test_completed_cover_letter_uses_existing_result_contract(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    job = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        document_type=DocumentType.COVER_LETTER,
+        result_content="= Lettre de motivation",
+        result_format="asciidoc",
+    )
+
+    response = await api_client.get(f"/api/v1/documents/{job.id}")
+
+    assert response.status_code == 200
+    assert response.json()["type"] == "cover_letter"
+
+
+@pytest.mark.asyncio
 async def test_failed_job_returns_safe_business_error(
     api_client: httpx.AsyncClient,
     document_service: FakeDocumentJobService,
@@ -163,6 +203,23 @@ async def test_create_cv_document_rejects_invalid_payload(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"resume": {}},
+        {"avp_number": "   ", "resume": {}},
+        {"avp_number": "1234-26-001", "resume": []},
+    ],
+)
+async def test_create_cover_letter_rejects_invalid_payload(
+    api_client: httpx.AsyncClient,
+    payload: dict[str, object],
+) -> None:
+    response = await api_client.post("/api/v1/documents/cover-letter", json=payload)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_download_completed_job_returns_readable_docx(
     api_client: httpx.AsyncClient,
     document_service: FakeDocumentJobService,
@@ -189,6 +246,28 @@ async def test_download_completed_job_returns_readable_docx(
     assert "Rédaction de procédures" in text
     assert "Assistante qualité — Entreprise Exemple" in text
     assert b"must not leak" not in response.content
+
+
+@pytest.mark.asyncio
+async def test_download_cover_letter_uses_type_specific_filename(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    job = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        document_type=DocumentType.COVER_LETTER,
+        result_content="= Lettre de motivation\n\nMadame, Monsieur,\n\nContenu.",
+        result_format="asciidoc",
+    )
+
+    response = await api_client.get(f"/api/v1/documents/{job.id}/download")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == (
+        f'attachment; filename="lettre-motivation-{job.id}.docx"'
+    )
+    document = Document(BytesIO(response.content))
+    assert "Lettre de motivation" in [p.text for p in document.paragraphs]
 
 
 @pytest.mark.asyncio
