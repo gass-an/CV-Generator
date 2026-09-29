@@ -59,7 +59,7 @@ git tag -a v0.1.0 -m "Version 0.1.0"
 ## 6. Pousser la branche puis le tag
 
 ```bash
-git push origin main
+git push origin master
 git push origin v0.1.0
 ```
 
