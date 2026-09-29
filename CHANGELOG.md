@@ -1,0 +1,17 @@
+# Changelog
+
+Toutes les évolutions notables du projet sont documentées dans ce fichier. La
+structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
+
+## [Unreleased]
+
+### Added
+
+- Création asynchrone de jobs de génération de CV via FastAPI.
+- Récupération des offres d'emploi AVP publiées par l'OPT.
+- Génération de CV AsciiDoc avec un serveur llama.cpp.
+- Persistance des jobs et du résultat AsciiDoc dans PostgreSQL.
+- Worker séparé pour le traitement des générations.
+- Génération et téléchargement à la demande des CV au format DOCX.
+- Image Docker de production commune à l'API, au worker et aux migrations.
+- Workflows GitHub de CI et de publication des releases sur GHCR.

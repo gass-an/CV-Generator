@@ -1,97 +1,98 @@
-# CV-Generator — Commandes serveur Docker
+# Déploiement Docker manuel
 
-Cette documentation concerne uniquement le PC fixe Windows utilisé comme serveur LLM.
+Cette configuration déploie sur la machine de production :
 
-## Emplacement
+- PostgreSQL, avec un volume persistant et sans port publié ;
+- llama.cpp avec le GPU NVIDIA et un cache de modèle persistant ;
+- une migration Alembic one-shot ;
+- l'API FastAPI, publiée uniquement sur `127.0.0.1:8000` ;
+- le worker de génération, sans port publié.
 
-Le dossier contient :
+L'API, le worker et les migrations utilisent la même image versionnée :
+`ghcr.io/gass-an/cv-generator:${APP_VERSION}`.
 
-```text
-CV-Generator/
-├── docker-compose.prod.yml
-└── .env
+## Configuration
+
+Depuis la racine du dépôt, créer le fichier local de production :
+
+```bash
+cp deploy/.env.example deploy/.env
 ```
 
-## Démarrer le serveur
+Renseigner dans `deploy/.env` une version publiée explicite, les identifiants
+PostgreSQL et les autres paramètres. Ce fichier contient des secrets et ne doit
+jamais être commité. Le backend contacte llama.cpp sur le réseau Docker via
+`http://llm:8080`.
 
-Ouvrir PowerShell puis :
+## Déployer ou mettre à jour
 
-```powershell
-docker compose -f docker-compose.prod.yml up -d
+Il n'existe volontairement aucun déploiement automatique. Après publication
+d'une version, exécuter manuellement :
+
+```bash
+docker compose \
+  --env-file deploy/.env \
+  -f deploy/docker-compose.prod.yml \
+  pull
+
+docker compose \
+  --env-file deploy/.env \
+  -f deploy/docker-compose.prod.yml \
+  up -d
 ```
 
-## Voir les logs du LLM
+Le service `generator-migrate` attend PostgreSQL, applique les migrations puis
+se termine. L'API et le worker ne démarrent qu'après sa réussite.
 
-```powershell
-docker compose -f docker-compose.prod.yml logs -f llm
+## Vérifier les services
+
+```bash
+docker compose \
+  --env-file deploy/.env \
+  -f deploy/docker-compose.prod.yml \
+  ps
 ```
 
-## Vérifier le serveur LLM
+L'API est accessible localement sur `http://127.0.0.1:8000`. Le serveur LLM
+reste accessible localement sur `http://127.0.0.1:8080`.
 
-Depuis le PC fixe :
+Pour suivre les logs de tous les services :
 
-```powershell
-curl.exe http://localhost:8080/health
+```bash
+docker compose \
+  --env-file deploy/.env \
+  -f deploy/docker-compose.prod.yml \
+  logs -f --tail=100
 ```
 
-Résultat attendu :
+Pour cibler un service, ajouter par exemple `generator-api`, `generator-worker`
+ou `llm` à la fin de cette commande.
 
-```json
-{"status":"ok"}
+## Arrêter les services
+
+```bash
+docker compose \
+  --env-file deploy/.env \
+  -f deploy/docker-compose.prod.yml \
+  down
 ```
 
-## Arrêter le serveur
+Cette commande conserve les volumes PostgreSQL et llama.cpp. Ne pas ajouter
+`--volumes` sauf si leur suppression définitive est explicitement souhaitée.
 
-```powershell
-docker compose -f docker-compose.prod.yml down
-```
+## Versions et rollback
 
-## Redémarrer le serveur
+La procédure complète de publication, de déploiement et de rollback est la
+source de vérité dans [`RELEASING.md`](../RELEASING.md). Le déploiement utilise
+toujours `APP_VERSION` plutôt que `latest` afin de permettre un retour manuel à
+une image connue.
 
-```powershell
-docker compose -f docker-compose.prod.yml restart
-```
+## Particularités de la tour Windows
 
-Ou, pour recréer proprement les conteneurs :
-
-```powershell
-docker compose -f docker-compose.prod.yml down
-docker compose -f docker-compose.prod.yml up -d
-```
-
-## Mettre à jour l'image Docker
-
-```powershell
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
-```
-
-## Arrêter complètement Docker / WSL
-
-Quand le serveur n'est plus utilisé :
-
-1. Quitter Docker Desktop.
-2. Dans PowerShell :
+Docker Desktop doit disposer de l'accès au GPU NVIDIA requis par l'image
+llama.cpp. Lorsque le serveur n'est plus utilisé, Docker Desktop peut être
+quitté puis WSL arrêté depuis PowerShell :
 
 ```powershell
 wsl --shutdown
 ```
-
-Cela libère la RAM utilisée.
-
-
-## Volume du modèle
-
-Le modèle LLM est stocké dans le volume Docker :
-
-```text
-cv-generator-models
-```
-
-Lister les volumes :
-
-```powershell
-docker volume ls
-```
-
-Ne pas supprimer ce volume sauf si le modèle doit réellement être retéléchargé.
