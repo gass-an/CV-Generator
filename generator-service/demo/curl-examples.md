@@ -100,7 +100,7 @@ curl -s \
 
 ```bash
 curl -s \
-  http://127.0.0.1:8000/api/v1/documents/<JOB_ID>/status \
+  http://127.0.0.1:8000/api/v1/documents/<ID>/status \
   | jq
 ```
 
@@ -108,7 +108,7 @@ curl -s \
 
 ```bash
 curl -s \
-  http://127.0.0.1:8000/api/v1/documents/<JOB_ID> \
+  http://127.0.0.1:8000/api/v1/documents/<ID> \
   | jq -r '.content'
 ```
 
@@ -116,7 +116,7 @@ curl -s \
 
 ```bash
 curl -OJ \
-  http://127.0.0.1:8000/api/v1/documents/<JOB_ID>/download
+  http://127.0.0.1:8000/api/v1/documents/<ID>/download
 ```
 
 ### Créer une lettre de motivation
@@ -136,7 +136,7 @@ curl -s \
 
 ```bash
 curl -s \
-  http://127.0.0.1:8000/api/v1/documents/<JOB_ID>/status \
+  http://127.0.0.1:8000/api/v1/documents/<ID>/status \
   | jq
 ```
 
@@ -144,7 +144,7 @@ curl -s \
 
 ```bash
 curl -s \
-  http://127.0.0.1:8000/api/v1/documents/<JOB_ID> \
+  http://127.0.0.1:8000/api/v1/documents/<ID> \
   | jq -r '.content'
 ```
 
@@ -152,5 +152,5 @@ curl -s \
 
 ```bash
 curl -OJ \
-  http://127.0.0.1:8000/api/v1/documents/<JOB_ID>/download
+  http://127.0.0.1:8000/api/v1/documents/<ID>/download
 ```

@@ -30,14 +30,14 @@ DOCX_MEDIA_TYPE = (
 )
 
 DocumentService = Annotated[DocumentJobService, Depends(get_document_job_service)]
-JobId = Annotated[
+DocumentId = Annotated[
     uuid.UUID,
-    Path(description="Identifiant unique du job de génération."),
+    Path(alias="id", description="Identifiant unique du document."),
 ]
 
 NOT_FOUND_RESPONSE = {
     "model": ErrorResponse,
-    "description": "Aucun job ne correspond à cet identifiant.",
+    "description": "Aucun document ne correspond à cet identifiant.",
 }
 CONFLICT_RESPONSE = {
     "model": ErrorResponse,
@@ -54,7 +54,7 @@ def not_found_error() -> HTTPException:
         status_code=status.HTTP_404_NOT_FOUND,
         detail={
             "code": "document_job_not_found",
-            "message": "Le job de génération est introuvable",
+            "message": "Le document est introuvable",
         },
     )
 
@@ -65,10 +65,12 @@ def not_found_error() -> HTTPException:
     status_code=status.HTTP_202_ACCEPTED,
     summary="Créer une génération de CV",
     description=(
-        "Crée un job asynchrone de génération de CV à partir d'un JSON Resume "
-        "et d'un numéro d'AVP exact. Le traitement est effectué par le worker."
+        "Démarre la génération asynchrone d'un CV à partir d'un JSON Resume "
+        "et d'un numéro d'AVP exact."
     ),
-    response_description="Job de génération créé avec le statut `pending`.",
+    response_description=(
+        "Génération démarrée avec un identifiant de document et le statut `pending`."
+    ),
     responses={
         422: {"description": "Le payload JSON est invalide."},
     },
@@ -91,10 +93,12 @@ async def create_cv_document(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Créer une génération de lettre de motivation",
     description=(
-        "Crée un job asynchrone de génération de lettre de motivation à partir "
+        "Démarre la génération asynchrone d'une lettre de motivation à partir "
         "d'un JSON Resume et d'un numéro d'AVP exact."
     ),
-    response_description="Job de génération créé avec le statut `pending`.",
+    response_description=(
+        "Génération démarrée avec un identifiant de document et le statut `pending`."
+    ),
     responses={
         422: {"description": "Le payload JSON est invalide."},
     },
@@ -112,22 +116,22 @@ async def create_cover_letter_document(
 
 
 @router.get(
-    "/{job_id}/status",
+    "/{id}/status",
     response_model=DocumentJobStatusResponse,
-    summary="Consulter le statut d'un job",
+    summary="Consulter le statut d'un document",
     description=(
         "Retourne l'état courant du traitement et ses horodatages sans exposer "
         "le JSON Resume du candidat."
     ),
-    response_description="État courant du job.",
+    response_description="État courant de la génération du document.",
     responses={404: NOT_FOUND_RESPONSE, 422: {"description": "Identifiant invalide."}},
 )
 async def get_document_status(
-    job_id: JobId,
+    document_id: DocumentId,
     service: DocumentService,
 ) -> DocumentJobStatusResponse:
     try:
-        job = await service.get_job(job_id)
+        job = await service.get_job(document_id)
     except DocumentJobNotFoundError as error:
         raise not_found_error() from error
 
@@ -141,12 +145,13 @@ async def get_document_status(
 
 
 @router.get(
-    "/{job_id}",
+    "/{id}",
     response_model=DocumentResultResponse,
     summary="Récupérer le document généré",
     description=(
-        "Retourne le contenu source AsciiDoc d'un job terminé. Une réponse 409 "
-        "est renvoyée tant que le traitement n'est pas terminé ou s'il a échoué."
+        "Retourne le contenu source AsciiDoc d'un document dont la génération "
+        "est terminée. Une réponse 409 est renvoyée tant que le traitement n'est "
+        "pas terminé ou s'il a échoué."
     ),
     response_description="Document généré au format AsciiDoc.",
     responses={
@@ -156,11 +161,11 @@ async def get_document_status(
     },
 )
 async def get_document_result(
-    job_id: JobId,
+    document_id: DocumentId,
     service: DocumentService,
 ) -> DocumentResultResponse:
     try:
-        job = await service.get_result(job_id)
+        job = await service.get_result(document_id)
     except DocumentJobNotFoundError as error:
         raise not_found_error() from error
     except DocumentJobNotReadyError as error:
@@ -189,11 +194,11 @@ async def get_document_result(
 
 
 @router.get(
-    "/{job_id}/download",
+    "/{id}/download",
     summary="Télécharger le document généré",
     description=(
-        "Télécharge un job terminé au format DOCX. Le résultat source est stocké "
-        "en AsciiDoc et le fichier DOCX est généré à la demande."
+        "Télécharge un document terminé au format DOCX. Le résultat source est "
+        "stocké en AsciiDoc et le fichier DOCX est généré à la demande."
     ),
     response_description="Fichier DOCX généré à la demande.",
     responses={
@@ -211,11 +216,11 @@ async def get_document_result(
     },
 )
 async def download_document(
-    job_id: JobId,
+    document_id: DocumentId,
     service: DocumentService,
 ) -> Response:
     try:
-        job = await service.get_asciidoc_job(job_id)
+        job = await service.get_asciidoc_job(document_id)
         content = DocxRenderer().render(job.result_content or "")
     except DocumentJobNotFoundError as error:
         raise not_found_error() from error
@@ -261,7 +266,7 @@ async def download_document(
         media_type=DOCX_MEDIA_TYPE,
         headers={
             "Content-Disposition": (
-                f'attachment; filename="{filename_prefix}-{job_id}.docx"'
+                f'attachment; filename="{filename_prefix}-{document_id}.docx"'
             ),
         },
     )

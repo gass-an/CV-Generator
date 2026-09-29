@@ -8,7 +8,7 @@ from app.models.document_job import DocumentJobStatus, DocumentType
 
 
 class CreateDocumentRequest(BaseModel):
-    """Données nécessaires à la création d'un job de génération."""
+    """Données nécessaires au démarrage d'une génération de document."""
 
     avp_number: str = Field(
         min_length=1,
@@ -39,18 +39,18 @@ class CreateDocumentRequest(BaseModel):
 
 
 class DocumentJobCreatedResponse(BaseModel):
-    """Confirmation de création d'un job asynchrone."""
+    """Confirmation du démarrage d'une génération de document."""
 
-    id: uuid.UUID = Field(description="Identifiant unique du job créé.")
-    status: DocumentJobStatus = Field(description="Statut initial du job.")
+    id: uuid.UUID = Field(description="Identifiant unique du document.")
+    status: DocumentJobStatus = Field(description="Statut courant de la génération.")
 
 
 class DocumentJobStatusResponse(BaseModel):
-    """État d'avancement et horodatages d'un job."""
+    """État d'avancement et horodatages d'une génération de document."""
 
-    id: uuid.UUID = Field(description="Identifiant unique du job.")
-    status: DocumentJobStatus = Field(description="État courant du traitement.")
-    created_at: datetime = Field(description="Date de création du job.")
+    id: uuid.UUID = Field(description="Identifiant unique du document.")
+    status: DocumentJobStatus = Field(description="Statut courant de la génération.")
+    created_at: datetime = Field(description="Date de démarrage de la demande.")
     started_at: datetime | None = Field(
         description="Date de début du traitement, si celui-ci a commencé."
     )
@@ -60,9 +60,9 @@ class DocumentJobStatusResponse(BaseModel):
 
 
 class DocumentResultResponse(BaseModel):
-    """Document généré et stocké par le worker."""
+    """Contenu source d'un document généré."""
 
-    id: uuid.UUID = Field(description="Identifiant unique du job.")
+    id: uuid.UUID = Field(description="Identifiant unique du document.")
     type: DocumentType = Field(description="Type de document généré.")
     format: str = Field(
         description="Format source du contenu généré.", examples=["asciidoc"]

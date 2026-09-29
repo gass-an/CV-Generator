@@ -18,7 +18,7 @@ class DocumentType(StrEnum):
 
 
 class DocumentJobStatus(StrEnum):
-    """Étapes persistées du cycle de vie d'un job."""
+    """Étapes persistées d'une génération de document."""
 
     PENDING = "pending"
     PROCESSING = "processing"

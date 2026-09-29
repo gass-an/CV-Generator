@@ -22,9 +22,10 @@ def create_app() -> FastAPI:
         title="Service de génération de documents HackAVP",
         description=(
             "API de génération asynchrone de CV et de lettres de motivation. "
-            "Une requête POST crée un job persistant traité par un worker. Le "
-            "client interroge ensuite son statut, récupère le résultat source en "
-            "AsciiDoc ou télécharge un fichier DOCX généré à la demande."
+            "Une requête POST démarre la génération asynchrone d'un document. "
+            "L'API retourne immédiatement un identifiant qui permet de suivre "
+            "l'avancement, de récupérer le résultat source en AsciiDoc puis de "
+            "télécharger le document au format DOCX."
         ),
         version="0.1.0",
         openapi_tags=OPENAPI_TAGS,

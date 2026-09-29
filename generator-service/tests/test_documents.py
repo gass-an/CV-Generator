@@ -101,9 +101,7 @@ async def test_unknown_job_returns_not_found(api_client: httpx.AsyncClient) -> N
 
     assert response.status_code == 404
     assert response.json()["detail"]["code"] == "document_job_not_found"
-    assert response.json()["detail"]["message"] == (
-        "Le job de génération est introuvable"
-    )
+    assert response.json()["detail"]["message"] == "Le document est introuvable"
 
 
 @pytest.mark.asyncio
@@ -369,16 +367,22 @@ async def test_openapi_documents_generation_routes_in_french(
     assert response.status_code == 200
     schema = response.json()
     assert schema["info"]["title"] == "Service de génération de documents HackAVP"
-    assert "job persistant traité par un worker" in schema["info"]["description"]
+    assert (
+        "démarre la génération asynchrone d'un document"
+        in schema["info"]["description"]
+    )
+    assert "job" not in schema["info"]["description"].lower()
 
     expected_paths = {
+        "/api/v1/health",
         "/api/v1/documents/cv",
         "/api/v1/documents/cover-letter",
-        "/api/v1/documents/{job_id}/status",
-        "/api/v1/documents/{job_id}",
-        "/api/v1/documents/{job_id}/download",
+        "/api/v1/documents/{id}/status",
+        "/api/v1/documents/{id}",
+        "/api/v1/documents/{id}/download",
     }
-    assert expected_paths <= schema["paths"].keys()
+    assert set(schema["paths"]) == expected_paths
+    assert not any("{job_id}" in path for path in schema["paths"])
     assert schema["paths"]["/api/v1/documents/cv"]["post"]["summary"] == (
         "Créer une génération de CV"
     )
@@ -386,6 +390,20 @@ async def test_openapi_documents_generation_routes_in_french(
         schema["paths"]["/api/v1/documents/cover-letter"]["post"]["summary"]
         == "Créer une génération de lettre de motivation"
     )
+
+    for path in (
+        "/api/v1/documents/{id}/status",
+        "/api/v1/documents/{id}",
+        "/api/v1/documents/{id}/download",
+    ):
+        operation = schema["paths"][path]["get"]
+        path_parameter = next(
+            parameter
+            for parameter in operation["parameters"]
+            if parameter["in"] == "path"
+        )
+        assert path_parameter["name"] == "id"
+        assert path_parameter["description"] == "Identifiant unique du document."
 
     components = schema["components"]["schemas"]
     assert components["DocumentType"]["enum"] == ["cv", "cover_letter"]
@@ -400,3 +418,23 @@ async def test_openapi_documents_generation_routes_in_french(
     assert request_schema["resume"]["examples"][0]["basics"]["name"] == (
         "Camille Exemple"
     )
+
+    public_operations = [
+        operation
+        for path in schema["paths"].values()
+        for operation in path.values()
+        if isinstance(operation, dict) and "responses" in operation
+    ]
+    public_texts = [schema["info"]["description"]]
+    for operation in public_operations:
+        public_texts.extend(
+            operation.get(field, "") for field in ("summary", "description")
+        )
+        public_texts.extend(
+            response.get("description", "")
+            for response in operation["responses"].values()
+        )
+    public_texts.extend(
+        component.get("description", "") for component in components.values()
+    )
+    assert all("job" not in text.lower() for text in public_texts)

@@ -57,7 +57,7 @@ http://127.0.0.1:8000/docs
 OpenAPI JSON :
 http://127.0.0.1:8000/openapi.json
 
-Endpoints de jobs disponibles :
+Endpoints de génération disponibles :
 
 - `POST /api/v1/documents/cv`
 - `POST /api/v1/documents/cover-letter`
@@ -65,11 +65,11 @@ Endpoints de jobs disponibles :
 - `GET /api/v1/documents/{id}`
 - `GET /api/v1/documents/{id}/download`
 
-Une fois le job terminé, le document peut être téléchargé au format DOCX :
+Une fois la génération terminée, le document peut être téléchargé au format DOCX :
 
 ```bash
 curl -OJ \
-  http://127.0.0.1:8000/api/v1/documents/<JOB_ID>/download
+  http://127.0.0.1:8000/api/v1/documents/<ID>/download
 ```
 
 Le fichier `.docx` est généré à la demande à partir de l'AsciiDoc stocké. Il
@@ -198,10 +198,11 @@ cd generator-service
 python -m app.workers.document_worker
 ```
 
-Créer un job via `POST /api/v1/documents/cv` ou
+Demander une génération via `POST /api/v1/documents/cv` ou
 `POST /api/v1/documents/cover-letter` avec un JSON Resume fictif et, par
 exemple, `"avp_number": "3134-26-1382/SR"`. Consulter ensuite
-`GET /api/v1/documents/{id}/status`, puis `GET /api/v1/documents/{id}`. Le job
-doit passer de `PENDING` à `PROCESSING`, puis `COMPLETED`, et retourner un
-contenu `asciidoc`. Un AVP absent, une source OPT ou un LLM inaccessible, ou une
-réponse LLM invalide termine le job en `FAILED` avec un code contrôlé.
+`GET /api/v1/documents/{id}/status`, puis `GET /api/v1/documents/{id}`. La
+génération doit passer de `PENDING` à `PROCESSING`, puis `COMPLETED`, et
+retourner un contenu `asciidoc`. Un AVP absent, une source OPT ou un LLM
+inaccessible, ou une réponse LLM invalide termine la génération en `FAILED`
+avec un code contrôlé.
