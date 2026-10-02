@@ -60,15 +60,15 @@ jobs:
           --username cv_generator
           cv_generator_migration_test
 
+      - name: Appliquer les migrations
+        working-directory: generator-service
+        run: alembic upgrade head
+
       - name: Vérifier le package partagé
         run: |
           ruff format --check shared
           ruff check shared
           pytest shared
-
-      - name: Appliquer les migrations
-        working-directory: generator-service
-        run: alembic upgrade head
 
       - name: Vérifier le formatage
         working-directory: generator-service

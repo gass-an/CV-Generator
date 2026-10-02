@@ -75,11 +75,22 @@ async def _schema(database_url: str) -> dict[str, Any]:
             def inspect_schema(sync_connection: object) -> dict[str, Any]:
                 inspector = inspect(sync_connection)
                 tables = set(inspector.get_table_names())
+                document_columns = {
+                    column["name"] for column in inspector.get_columns("document_job")
+                }
                 return {
                     "tables": tables,
-                    "document_columns": {
-                        column["name"]
-                        for column in inspector.get_columns("document_job")
+                    "document_columns": document_columns,
+                    "document_foreign_keys": {
+                        (
+                            tuple(item["constrained_columns"]),
+                            item["referred_table"],
+                            tuple(item["referred_columns"]),
+                        )
+                        for item in inspector.get_foreign_keys("document_job")
+                    },
+                    "document_indexes": {
+                        item["name"] for item in inspector.get_indexes("document_job")
                     },
                     "api_client_checks": {
                         item["name"]
@@ -130,6 +141,20 @@ async def _schema(database_url: str) -> dict[str, Any]:
                     {"document_id": DOCUMENT_ID},
                 )
             ).scalar_one()
+            schema["document_client_id"] = (
+                (
+                    await connection.execute(
+                        text(
+                            "SELECT client_id FROM document_job WHERE id = :document_id"
+                        ).bindparams(
+                            bindparam("document_id", type_=Uuid(as_uuid=True))
+                        ),
+                        {"document_id": DOCUMENT_ID},
+                    )
+                ).scalar_one()
+                if "client_id" in schema["document_columns"]
+                else None
+            )
             return schema
     finally:
         await engine.dispose()
@@ -179,6 +204,36 @@ def test_api_key_migration_upgrade_and_downgrade_on_isolated_postgresql() -> Non
         assert downgraded["document_count"] == 1
         assert "api_client" not in downgraded["tables"]
         assert "api_key" not in downgraded["tables"]
+    finally:
+        _run_alembic(database_url, "upgrade", "head")
+
+
+def test_document_owner_migration_preserves_historical_document() -> None:
+    database_url = _migration_database_url()
+    _run_alembic(database_url, "downgrade", "base")
+    try:
+        _run_alembic(database_url, "upgrade", "20261002_0003")
+        asyncio.run(_insert_document(database_url))
+        before = asyncio.run(_schema(database_url))
+        assert before["revision"] == "20261002_0003"
+        assert before["document_count"] == 1
+        assert "client_id" not in before["document_columns"]
+
+        _run_alembic(database_url, "upgrade", "20261003_0004")
+        upgraded = asyncio.run(_schema(database_url))
+        assert upgraded["revision"] == "20261003_0004"
+        assert upgraded["document_count"] == 1
+        assert upgraded["document_client_id"] is None
+        assert upgraded["document_foreign_keys"] == {
+            (("client_id",), "api_client", ("id",))
+        }
+        assert "ix_document_job_client_id" in upgraded["document_indexes"]
+
+        _run_alembic(database_url, "downgrade", "20261002_0003")
+        downgraded = asyncio.run(_schema(database_url))
+        assert downgraded["revision"] == "20261002_0003"
+        assert downgraded["document_count"] == 1
+        assert "client_id" not in downgraded["document_columns"]
     finally:
         _run_alembic(database_url, "upgrade", "head")
 

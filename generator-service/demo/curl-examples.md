@@ -2,6 +2,10 @@
 
 ## Développement
 
+Toutes les routes documentaires exigent une clé fournie par l'administration.
+Chargez-la dans l'environnement sans l'écrire dans ce dépôt ni dans l'historique
+du shell, par exemple avec `read -sr API_KEY && export API_KEY`.
+
 ### Créer un CV
 
 ```bash
@@ -91,6 +95,7 @@ JSON
 curl -s \
   -X POST \
   http://127.0.0.1:8000/api/v1/documents/cv \
+  -H "X-API-Key: ${API_KEY}" \
   -H 'Content-Type: application/json' \
   --data-binary @/tmp/camille-document-request.json \
   | jq
@@ -100,6 +105,7 @@ curl -s \
 
 ```bash
 curl -s \
+  -H "X-API-Key: ${API_KEY}" \
   http://127.0.0.1:8000/api/v1/documents/<ID>/status \
   | jq
 ```
@@ -108,6 +114,7 @@ curl -s \
 
 ```bash
 curl -s \
+  -H "X-API-Key: ${API_KEY}" \
   http://127.0.0.1:8000/api/v1/documents/<ID> \
   | jq -r '.content'
 ```
@@ -116,6 +123,7 @@ curl -s \
 
 ```bash
 curl -OJ \
+  -H "X-API-Key: ${API_KEY}" \
   http://127.0.0.1:8000/api/v1/documents/<ID>/download
 ```
 
@@ -127,6 +135,7 @@ Cette commande réutilise le même AVP et le même JSON Resume fictif créés pl
 curl -s \
   -X POST \
   http://127.0.0.1:8000/api/v1/documents/cover-letter \
+  -H "X-API-Key: ${API_KEY}" \
   -H 'Content-Type: application/json' \
   --data-binary @/tmp/camille-document-request.json \
   | jq
@@ -136,6 +145,7 @@ curl -s \
 
 ```bash
 curl -s \
+  -H "X-API-Key: ${API_KEY}" \
   http://127.0.0.1:8000/api/v1/documents/<ID>/status \
   | jq
 ```
@@ -144,6 +154,7 @@ curl -s \
 
 ```bash
 curl -s \
+  -H "X-API-Key: ${API_KEY}" \
   http://127.0.0.1:8000/api/v1/documents/<ID> \
   | jq -r '.content'
 ```
@@ -152,5 +163,6 @@ curl -s \
 
 ```bash
 curl -OJ \
+  -H "X-API-Key: ${API_KEY}" \
   http://127.0.0.1:8000/api/v1/documents/<ID>/download
 ```

@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 import pytest
+from app.api.dependencies import require_api_identity
 from app.core.exceptions import (
     DocumentGenerationFailedError,
     DocumentJobNotFoundError,
@@ -14,6 +15,10 @@ from app.core.exceptions import (
 from app.main import app
 from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
 from app.services.document_job_service import get_document_job_service
+from cv_generator_shared.dto import ApiIdentity
+
+DEFAULT_CLIENT_ID = uuid.UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+DEFAULT_KEY_ID = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
 
 
 class FakeDocumentJobService:
@@ -28,10 +33,12 @@ class FakeDocumentJobService:
         result_content: str | None = None,
         result_format: str | None = None,
         error_message: str | None = None,
+        client_id: uuid.UUID | None = DEFAULT_CLIENT_ID,
     ) -> DocumentJob:
         now = datetime.now(UTC)
         job = DocumentJob(
             id=uuid.uuid4(),
+            client_id=client_id,
             document_type=document_type,
             status=status,
             avp_number="1234-26-001",
@@ -48,23 +55,27 @@ class FakeDocumentJobService:
     async def create_job(
         self,
         *,
+        client_id: uuid.UUID,
         document_type: DocumentType,
         avp_number: str,
         resume_data: dict[str, Any],
     ) -> DocumentJob:
         job = self.add_job(DocumentJobStatus.PENDING, document_type=document_type)
+        job.client_id = client_id
         job.avp_number = avp_number
         job.resume_data = resume_data
         return job
 
-    async def get_job(self, job_id: uuid.UUID) -> DocumentJob:
+    async def get_job(self, job_id: uuid.UUID, *, client_id: uuid.UUID) -> DocumentJob:
         job = self.jobs.get(job_id)
-        if job is None:
+        if job is None or job.client_id != client_id:
             raise DocumentJobNotFoundError(job_id)
         return job
 
-    async def get_result(self, job_id: uuid.UUID) -> DocumentJob:
-        job = await self.get_job(job_id)
+    async def get_result(
+        self, job_id: uuid.UUID, *, client_id: uuid.UUID
+    ) -> DocumentJob:
+        job = await self.get_job(job_id, client_id=client_id)
         if job.status in {
             DocumentJobStatus.PENDING,
             DocumentJobStatus.PROCESSING,
@@ -74,8 +85,10 @@ class FakeDocumentJobService:
             raise DocumentGenerationFailedError
         return job
 
-    async def get_asciidoc_job(self, job_id: uuid.UUID) -> DocumentJob:
-        job = await self.get_result(job_id)
+    async def get_asciidoc_job(
+        self, job_id: uuid.UUID, *, client_id: uuid.UUID
+    ) -> DocumentJob:
+        job = await self.get_result(job_id, client_id=client_id)
         if (
             job.result_format != "asciidoc"
             or job.result_content is None
@@ -97,7 +110,15 @@ async def api_client(
     async def override_document_service() -> FakeDocumentJobService:
         return document_service
 
+    async def override_identity() -> ApiIdentity:
+        return ApiIdentity(
+            client_id=DEFAULT_CLIENT_ID,
+            key_id=DEFAULT_KEY_ID,
+            client_name="Client de test",
+        )
+
     app.dependency_overrides[get_document_job_service] = override_document_service
+    app.dependency_overrides[require_api_identity] = override_identity
     transport = httpx.ASGITransport(app=app)
 
     async with httpx.AsyncClient(

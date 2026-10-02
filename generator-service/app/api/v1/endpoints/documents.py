@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Response, status
 
+from app.api.dependencies import AuthenticatedIdentity
 from app.core.exceptions import (
     DocumentGenerationFailedError,
     DocumentJobNotFoundError,
@@ -78,8 +79,10 @@ def not_found_error() -> HTTPException:
 async def create_cv_document(
     request: CreateDocumentRequest,
     service: DocumentService,
+    identity: AuthenticatedIdentity,
 ) -> DocumentJobCreatedResponse:
     job = await service.create_job(
+        client_id=identity.client_id,
         document_type=DocumentType.CV,
         avp_number=request.avp_number,
         resume_data=request.resume,
@@ -106,8 +109,10 @@ async def create_cv_document(
 async def create_cover_letter_document(
     request: CreateDocumentRequest,
     service: DocumentService,
+    identity: AuthenticatedIdentity,
 ) -> DocumentJobCreatedResponse:
     job = await service.create_job(
+        client_id=identity.client_id,
         document_type=DocumentType.COVER_LETTER,
         avp_number=request.avp_number,
         resume_data=request.resume,
@@ -129,9 +134,10 @@ async def create_cover_letter_document(
 async def get_document_status(
     document_id: DocumentId,
     service: DocumentService,
+    identity: AuthenticatedIdentity,
 ) -> DocumentJobStatusResponse:
     try:
-        job = await service.get_job(document_id)
+        job = await service.get_job(document_id, client_id=identity.client_id)
     except DocumentJobNotFoundError as error:
         raise not_found_error() from error
 
@@ -163,9 +169,10 @@ async def get_document_status(
 async def get_document_result(
     document_id: DocumentId,
     service: DocumentService,
+    identity: AuthenticatedIdentity,
 ) -> DocumentResultResponse:
     try:
-        job = await service.get_result(document_id)
+        job = await service.get_result(document_id, client_id=identity.client_id)
     except DocumentJobNotFoundError as error:
         raise not_found_error() from error
     except DocumentJobNotReadyError as error:
@@ -218,9 +225,10 @@ async def get_document_result(
 async def download_document(
     document_id: DocumentId,
     service: DocumentService,
+    identity: AuthenticatedIdentity,
 ) -> Response:
     try:
-        job = await service.get_asciidoc_job(document_id)
+        job = await service.get_asciidoc_job(document_id, client_id=identity.client_id)
         content = DocxRenderer().render(job.result_content or "")
     except DocumentJobNotFoundError as error:
         raise not_found_error() from error

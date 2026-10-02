@@ -11,5 +11,5 @@ def test_legacy_and_shared_models_use_one_declarative_base() -> None:
     assert {"document_job", "api_client", "api_key"} <= set(Base.metadata.tables)
 
 
-def test_document_job_schema_does_not_gain_client_ownership() -> None:
-    assert "client_id" not in DocumentJob.__table__.columns
+def test_document_job_schema_uses_nullable_client_ownership() -> None:
+    assert DocumentJob.__table__.columns["client_id"].nullable is True

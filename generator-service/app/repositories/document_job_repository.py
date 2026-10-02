@@ -17,11 +17,13 @@ class DocumentJobRepository:
     async def create_job(
         self,
         *,
+        client_id: uuid.UUID,
         document_type: DocumentType,
         avp_number: str,
         resume_data: dict[str, Any],
     ) -> DocumentJob:
         job = DocumentJob(
+            client_id=client_id,
             document_type=document_type,
             status=DocumentJobStatus.PENDING,
             avp_number=avp_number,
@@ -34,6 +36,18 @@ class DocumentJobRepository:
 
     async def get_by_id(self, job_id: uuid.UUID) -> DocumentJob | None:
         return await self._session.get(DocumentJob, job_id)
+
+    async def get_by_id_for_client(
+        self,
+        job_id: uuid.UUID,
+        client_id: uuid.UUID,
+    ) -> DocumentJob | None:
+        """Charge un document seulement lorsqu'il appartient au client."""
+        statement = select(DocumentJob).where(
+            DocumentJob.id == job_id,
+            DocumentJob.client_id == client_id,
+        )
+        return (await self._session.execute(statement)).scalar_one_or_none()
 
     async def update(self, job: DocumentJob) -> DocumentJob:
         await self._session.flush()

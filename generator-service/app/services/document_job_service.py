@@ -29,27 +29,31 @@ class DocumentJobService:
     async def create_job(
         self,
         *,
+        client_id: uuid.UUID,
         document_type: DocumentType,
         avp_number: str,
         resume_data: dict[str, Any],
     ) -> DocumentJob:
         async with self._session.begin():
             return await self._repository.create_job(
+                client_id=client_id,
                 document_type=document_type,
                 avp_number=avp_number,
                 resume_data=resume_data,
             )
 
-    async def get_job(self, job_id: uuid.UUID) -> DocumentJob:
+    async def get_job(self, job_id: uuid.UUID, *, client_id: uuid.UUID) -> DocumentJob:
         async with self._session.begin():
-            job = await self._repository.get_by_id(job_id)
+            job = await self._repository.get_by_id_for_client(job_id, client_id)
         if job is None:
             raise DocumentJobNotFoundError(job_id)
         return job
 
-    async def get_result(self, job_id: uuid.UUID) -> DocumentJob:
+    async def get_result(
+        self, job_id: uuid.UUID, *, client_id: uuid.UUID
+    ) -> DocumentJob:
         """Retourne un résultat terminé ou signale son état métier indisponible."""
-        job = await self.get_job(job_id)
+        job = await self.get_job(job_id, client_id=client_id)
         if job.status in {
             DocumentJobStatus.PENDING,
             DocumentJobStatus.PROCESSING,
@@ -61,9 +65,11 @@ class DocumentJobService:
             raise DocumentGenerationFailedError
         return job
 
-    async def get_asciidoc_job(self, job_id: uuid.UUID) -> DocumentJob:
+    async def get_asciidoc_job(
+        self, job_id: uuid.UUID, *, client_id: uuid.UUID
+    ) -> DocumentJob:
         """Retourne un job terminé dont le résultat AsciiDoc est exploitable."""
-        job = await self.get_result(job_id)
+        job = await self.get_result(job_id, client_id=client_id)
         if (
             job.result_format != "asciidoc"
             or job.result_content is None

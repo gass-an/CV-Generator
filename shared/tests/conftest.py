@@ -27,22 +27,17 @@ async def session() -> AsyncIterator[AsyncSession]:
     engine = create_async_engine(database_url)
     async with engine.begin() as connection:
         await connection.run_sync(
-            lambda sync_connection: Base.metadata.drop_all(
-                sync_connection, tables=SHARED_TABLES
-            )
-        )
-        await connection.run_sync(
             lambda sync_connection: Base.metadata.create_all(
                 sync_connection, tables=SHARED_TABLES
             )
         )
-    async with AsyncSession(engine, expire_on_commit=False) as test_session:
-        yield test_session
-        await test_session.rollback()
-    async with engine.begin() as connection:
-        await connection.run_sync(
-            lambda sync_connection: Base.metadata.drop_all(
-                sync_connection, tables=SHARED_TABLES
-            )
-        )
+    async with engine.connect() as connection, connection.begin() as transaction:
+        async with AsyncSession(
+            bind=connection,
+            expire_on_commit=False,
+            join_transaction_mode="create_savepoint",
+        ) as test_session:
+            yield test_session
+            await test_session.rollback()
+        await transaction.rollback()
     await engine.dispose()
