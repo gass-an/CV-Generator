@@ -5,6 +5,12 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+## [À 0.3.1] - 2026-10-03
+
+### Modifications
+
+- Utilisation de chemins relatifs pour les ressources statiques
+
 ## [0.3.0] - 2026-10-02
 
 ### Ajouts
