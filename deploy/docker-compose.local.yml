@@ -1,0 +1,94 @@
+
+name: cv-generator-local
+
+x-backend-environment: &backend-environment
+  APP_ENV: development
+  LOG_LEVEL: INFO
+  DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@postgres:5432/cv_generator_local
+  OPT_AVP_BASE_URL: https://opt-nc.github.io/odata-avps
+  LLM_BASE_URL: ${LLM_BASE_URL:-https://faucontower.tailc3c864.ts.net}
+  LLM_MODEL: ${LLM_MODEL:-ggml-org/Qwen3-4B-GGUF:Q4_K_M}
+  LLM_TIMEOUT_SECONDS: 120
+  WORKER_POLL_INTERVAL_SECONDS: 1
+  WORKER_STALE_JOB_TIMEOUT_SECONDS: 600
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: cv_generator_local
+      POSTGRES_USER: cv_generator
+      POSTGRES_PASSWORD: cv_generator
+    volumes:
+      - postgres_local_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  migrate:
+    image: cv-generator-backend:local
+    build:
+      context: ..
+      dockerfile: generator-service/Dockerfile
+    environment: *backend-environment
+    command: [ "alembic", "upgrade", "head" ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: cv-generator-backend:local
+    build:
+      context: ..
+      dockerfile: generator-service/Dockerfile
+    environment: *backend-environment
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  admin:
+    image: cv-generator-admin:local
+    build:
+      context: ..
+      dockerfile: generator-admin-service/Dockerfile
+    env_file:
+      - path: ../generator-admin-service/.env
+        format: raw
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@postgres:5432/cv_generator_local
+      ADMIN_COOKIE_SECURE: "false"
+      ADMIN_BASE_URL: http://127.0.0.1:8001
+      ADMIN_TRUSTED_PROXY_IPS: ""
+    ports:
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    profiles: ["generation"]
+    image: cv-generator-backend:local
+    environment: *backend-environment
+    command: ["python", "-m", "app.workers.document_worker"]
+    extra_hosts:
+      - "faucontower.tailc3c864.ts.net:${TAILSCALE_LLM_IP:-127.0.0.1}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_local_data:

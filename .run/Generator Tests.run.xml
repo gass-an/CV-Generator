@@ -1,22 +1,26 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Generator Tests" type="tests" factoryName="py.test">
+  <configuration default="false" name="Generator Tests - Tous" type="PythonConfigurationType" factoryName="Python">
     <module name="CV-Generator" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
+
+    <envs>
+      <env name="DATABASE_URL" value="postgresql+asyncpg://cv_generator:cv_generator@127.0.0.1:5433/cv_generator_test" />
+      <env name="TEST_DATABASE_URL" value="postgresql+asyncpg://cv_generator:cv_generator@127.0.0.1:5433/cv_generator_test" />
+      <env name="MIGRATION_TEST_DATABASE_URL" value="postgresql+asyncpg://cv_generator:cv_generator@127.0.0.1:5433/cv_generator_migration_test" />
+      <env name="ADMIN_TEST_DATABASE_URL" value="postgresql+asyncpg://cv_generator:cv_generator@127.0.0.1:5433/cv_generator_admin_test" />
+    </envs>
+
     <option name="SDK_HOME" value="$PROJECT_DIR$/generator-service/.venv/bin/python" />
     <option name="SDK_NAME" value="Python 3.12 (CV-Generator)" />
-    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/generator-service" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <option name="DEBUG_JUST_MY_CODE" value="true" />
-    <option name="RUN_TOOL" value="" />
-    <option name="_new_keywords" value="&quot;&quot;" />
-    <option name="_new_parameters" value="&quot;&quot;" />
-    <option name="_new_additionalArguments" value="&quot;&quot;" />
-    <option name="_new_target" value="&quot;$PROJECT_DIR$/generator-service/tests&quot;" />
-    <option name="_new_targetType" value="&quot;PATH&quot;" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/run_all_tests.py" />
+    <option name="PARAMETERS" value="" />
     <method v="2" />
   </configuration>
 </component>

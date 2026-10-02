@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Propriétaires{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>Propriétaires</h1><p>La désactivation invalide immédiatement toutes les clés sans supprimer les documents.</p></div></div>
+<div class="table-wrap"><table><thead><tr><th>Nom</th><th>Identifiant</th><th>Création</th><th>État</th><th>Désactivation</th><th>Action</th></tr></thead><tbody>
+{% for client in clients %}<tr><td>{{ client.name }}</td><td><code>{{ client.id }}</code></td><td>{{ client.created_at|admin_datetime }}</td><td>{{ 'Actif' if client.is_active else 'Désactivé' }}</td><td>{{ client.disabled_at|admin_datetime if client.disabled_at else '—' }}</td><td>{% if client.is_active %}<form method="post" action="/clients/{{ client.id }}/disable" data-confirm="Désactiver {{ client.name }} et toutes ses clés ?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="danger" type="submit">Désactiver</button></form>{% else %}—{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

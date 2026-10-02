@@ -116,6 +116,75 @@ jobs:
       - name: Exécuter les tests
         run: pytest
 
+  admin:
+    name: Vérifier l'administration privée
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: cv_generator_admin_test
+          POSTGRES_USER: cv_generator
+          POSTGRES_PASSWORD: cv_generator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cv_generator -d cv_generator_admin_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator_admin_test
+      ADMIN_TEST_DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator_admin_test
+      APP_ENV: test
+      ADMIN_USERNAME: administrateur
+      ADMIN_PASSWORD_HASH: $argon2id$v=19$m=65536,t=3,p=4$tCeOIUDbktLLs/uQWZecUw$iqL4tNm3q2izJkD+nKsqe+thfkHFBsmKRtidTQQq2uc
+      ADMIN_SESSION_SECRET: ci-session-secret-non-production-48-characters-long
+      ADMIN_LOGIN_MAX_ATTEMPTS: 3
+      ADMIN_BASE_URL: http://testserver
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Configurer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            generator-admin-service/pyproject.toml
+            generator-service/pyproject.toml
+            shared/pyproject.toml
+
+      - name: Installer les trois composants Python
+        run: >-
+          python -m pip install
+          -e ./shared
+          -e './generator-service[dev]'
+          -e './generator-admin-service[dev]'
+
+      - name: Appliquer les migrations
+        working-directory: generator-service
+        run: alembic upgrade head
+
+      - name: Vérifier le formatage des trois packages
+        run: ruff format --check shared generator-service generator-admin-service
+
+      - name: Analyser les trois packages
+        run: ruff check shared generator-service generator-admin-service
+
+      - name: Vérifier le démarrage indépendant
+        working-directory: generator-admin-service
+        run: >-
+          python -c
+          "from app.config import get_settings;
+          from app.main import app;
+          get_settings().validate_security();
+          assert app.title"
+
+      - name: Exécuter les tests de l'administration
+        run: pytest generator-admin-service
+
   docker:
     name: Construire l'image Docker
     runs-on: ubuntu-latest

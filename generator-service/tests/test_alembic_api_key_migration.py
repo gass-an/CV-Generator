@@ -125,6 +125,12 @@ async def _schema(database_url: str) -> dict[str, Any]:
                     }
                     if "api_key" in tables
                     else set(),
+                    "admin_login_attempt_indexes": {
+                        item["name"]
+                        for item in inspector.get_indexes("admin_login_attempt")
+                    }
+                    if "admin_login_attempt" in tables
+                    else set(),
                 }
 
             schema = await connection.run_sync(inspect_schema)
@@ -151,7 +157,7 @@ async def _schema(database_url: str) -> dict[str, Any]:
                         ),
                         {"document_id": DOCUMENT_ID},
                     )
-                ).scalar_one()
+                ).scalar_one_or_none()
                 if "client_id" in schema["document_columns"]
                 else None
             )
@@ -234,6 +240,36 @@ def test_document_owner_migration_preserves_historical_document() -> None:
         assert downgraded["revision"] == "20261002_0003"
         assert downgraded["document_count"] == 1
         assert "client_id" not in downgraded["document_columns"]
+    finally:
+        _run_alembic(database_url, "upgrade", "head")
+
+
+def test_admin_security_migration_upgrade_and_downgrade() -> None:
+    database_url = _migration_database_url()
+    _run_alembic(database_url, "downgrade", "base")
+    try:
+        _run_alembic(database_url, "upgrade", "20261003_0004")
+        before = asyncio.run(_schema(database_url))
+        assert before["revision"] == "20261003_0004"
+        assert "admin_session" not in before["tables"]
+        assert "admin_login_attempt" not in before["tables"]
+
+        _run_alembic(database_url, "upgrade", "20261004_0005")
+        upgraded = asyncio.run(_schema(database_url))
+        assert upgraded["revision"] == "20261004_0005"
+        assert {"admin_session", "admin_login_attempt"} <= upgraded["tables"]
+        assert upgraded["admin_login_attempt_indexes"] == {
+            "ix_admin_login_attempt_ip_time",
+            "ix_admin_login_attempt_username_time",
+        }
+        assert upgraded["document_columns"] == before["document_columns"]
+
+        _run_alembic(database_url, "downgrade", "20261003_0004")
+        downgraded = asyncio.run(_schema(database_url))
+        assert downgraded["revision"] == "20261003_0004"
+        assert "admin_session" not in downgraded["tables"]
+        assert "admin_login_attempt" not in downgraded["tables"]
+        assert downgraded["document_columns"] == before["document_columns"]
     finally:
         _run_alembic(database_url, "upgrade", "head")
 

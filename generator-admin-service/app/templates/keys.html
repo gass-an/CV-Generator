@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Clés API{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><h1>Clés API</h1><p>Historique des accès distribués aux étudiants.</p></div>
+  <a class="button primary" href="/keys/new">Nouvelle clé API</a>
+</div>
+<div class="filters"><a href="/" class="{% if status_filter == 'all' %}selected{% endif %}">Toutes</a><a href="/?status_filter=active" class="{% if status_filter == 'active' %}selected{% endif %}">Actives</a></div>
+{% if rows %}
+<div class="table-wrap"><table>
+  <thead><tr><th>Propriétaire</th><th>Libellé</th><th>Clé API</th><th>Création</th><th>Expiration</th><th>Statut</th><th>Actions</th></tr></thead>
+  <tbody>{% for row in rows %}<tr>
+    <td>{{ row.item.client_name }}</td>
+    <td>{{ row.item.key.name or '—' }}</td>
+    <td><code>cvg_{{ row.item.key.prefix }}_••••••••••••••••</code></td>
+    <td>{{ row.item.key.created_at|admin_datetime }}</td>
+    <td>{{ row.item.key.expires_at|admin_datetime if row.item.key.expires_at else 'Sans expiration' }}</td>
+    <td><span class="badge status-{{ row.status|lower|replace(' ', '-') }}">{{ row.status }}</span></td>
+    <td>{% if row.status == 'Active' %}<form method="post" action="/keys/{{ row.item.key.id }}/revoke" data-confirm="Révoquer définitivement la clé de {{ row.item.client_name }}{% if row.item.key.name %} ({{ row.item.key.name }}){% endif %} ?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="danger" type="submit">Révoquer</button></form>{% else %}—{% endif %}</td>
+  </tr>{% endfor %}</tbody>
+</table></div>
+<div class="pagination">{% if page > 1 %}<a href="/?status_filter={{ status_filter }}&page={{ page - 1 }}">Précédent</a>{% endif %}{% if has_next %}<a href="/?status_filter={{ status_filter }}&page={{ page + 1 }}">Suivant</a>{% endif %}</div>
+{% else %}
+<div class="empty"><h2>Aucune clé à afficher</h2><p>Créez la première clé API pour autoriser un étudiant.</p><a class="button primary" href="/keys/new">Nouvelle clé API</a></div>
+{% endif %}
+{% endblock %}

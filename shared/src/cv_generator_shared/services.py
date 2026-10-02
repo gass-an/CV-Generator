@@ -10,7 +10,9 @@ from cv_generator_shared.dto import (
     ApiClientData,
     ApiIdentity,
     ApiKeyData,
+    ApiKeyWithClientData,
     CreatedApiKey,
+    CreatedClientApiKey,
 )
 from cv_generator_shared.exceptions import (
     ApiClientInactiveError,
@@ -69,11 +71,7 @@ class ApiKeyService:
         self._max_generation_attempts = max_generation_attempts
 
     async def create_client(self, *, name: str) -> ApiClientData:
-        normalized_name = name.strip()
-        if not normalized_name:
-            raise ValueError("Le nom du client ne peut pas être vide")
-        if len(normalized_name) > 200:
-            raise ValueError("Le nom du client dépasse 200 caractères")
+        normalized_name = self._normalize_client_name(name)
         async with self._session.begin():
             client = await self._clients.create(
                 name=normalized_name, created_at=self._now()
@@ -98,16 +96,9 @@ class ApiKeyService:
         name: str | None = None,
         expires_at: datetime | None = None,
     ) -> CreatedApiKey:
-        normalized_name = name.strip() if name is not None else None
-        if normalized_name == "":
-            raise ValueError("Le libellé de la clé ne peut pas être vide")
-        if normalized_name is not None and len(normalized_name) > 200:
-            raise ValueError("Le libellé de la clé dépasse 200 caractères")
+        normalized_name = self._normalize_key_name(name)
         now = self._now()
-        if expires_at is not None:
-            expires_at = self._as_utc(expires_at)
-            if expires_at <= now:
-                raise ValueError("L'expiration doit être postérieure à la création")
+        expires_at = self._normalize_expiration(expires_at, now=now)
 
         async with self._session.begin():
             client = await self._clients.get_by_id(client_id, for_update=True)
@@ -116,27 +107,40 @@ class ApiKeyService:
             if not client.is_active:
                 raise ApiClientInactiveError(client_id)
 
-            for _ in range(self._max_generation_attempts):
-                generated = self._key_generator.generate()
-                try:
-                    async with self._session.begin_nested():
-                        key = await self._keys.create(
-                            client_id=client.id,
-                            name=normalized_name,
-                            prefix=generated.prefix,
-                            key_hash=generated.key_hash,
-                            created_at=now,
-                            expires_at=expires_at,
-                        )
-                except IntegrityError as error:
-                    if not _is_retryable_key_collision(error):
-                        raise
-                    continue
-                return CreatedApiKey(
-                    key=self._key_data(key),
-                    value=generated.value,
-                )
-        raise ApiKeyPrefixCollisionError
+            return await self._create_key_in_transaction(
+                client=client,
+                name=normalized_name,
+                expires_at=expires_at,
+                now=now,
+            )
+
+    async def create_client_with_key(
+        self,
+        *,
+        client_name: str,
+        key_name: str | None = None,
+        expires_at: datetime | None = None,
+    ) -> CreatedClientApiKey:
+        """Crée atomiquement un client et sa première clé."""
+        normalized_client_name = self._normalize_client_name(client_name)
+        normalized_key_name = self._normalize_key_name(key_name)
+        now = self._now()
+        expires_at = self._normalize_expiration(expires_at, now=now)
+        async with self._session.begin():
+            client = await self._clients.create(
+                name=normalized_client_name,
+                created_at=now,
+            )
+            created_key = await self._create_key_in_transaction(
+                client=client,
+                name=normalized_key_name,
+                expires_at=expires_at,
+                now=now,
+            )
+            return CreatedClientApiKey(
+                client=self._client_data(client),
+                created_key=created_key,
+            )
 
     async def verify_key(self, value: str | None) -> ApiIdentity | None:
         prefix = extract_prefix(value)
@@ -168,6 +172,31 @@ class ApiKeyService:
             keys = await self._keys.list_for_client(client_id)
             return [self._key_data(item) for item in keys]
 
+    async def list_all_keys(
+        self,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+        active_only: bool = False,
+    ) -> list[ApiKeyWithClientData]:
+        """Liste toutes les clés avec les métadonnées utiles du propriétaire."""
+        if offset < 0 or (limit is not None and limit < 1):
+            raise ValueError("La pagination des clés est invalide")
+        async with self._session.begin():
+            keys = await self._keys.list_all_with_clients(
+                offset=offset,
+                limit=limit,
+                active_at=self._now() if active_only else None,
+            )
+            return [
+                ApiKeyWithClientData(
+                    key=self._key_data(item),
+                    client_name=item.client.name,
+                    client_is_active=item.client.is_active,
+                )
+                for item in keys
+            ]
+
     async def revoke_key(self, key_id: uuid.UUID) -> ApiKeyData:
         async with self._session.begin():
             key = await self._keys.get_by_id(key_id, for_update=True)
@@ -197,6 +226,61 @@ class ApiKeyService:
         if value.tzinfo is None:
             raise ValueError("Une date doit inclure un fuseau horaire")
         return value.astimezone(UTC)
+
+    async def _create_key_in_transaction(
+        self,
+        *,
+        client: ApiClient,
+        name: str | None,
+        expires_at: datetime | None,
+        now: datetime,
+    ) -> CreatedApiKey:
+        for _ in range(self._max_generation_attempts):
+            generated = self._key_generator.generate()
+            try:
+                async with self._session.begin_nested():
+                    key = await self._keys.create(
+                        client_id=client.id,
+                        name=name,
+                        prefix=generated.prefix,
+                        key_hash=generated.key_hash,
+                        created_at=now,
+                        expires_at=expires_at,
+                    )
+            except IntegrityError as error:
+                if not _is_retryable_key_collision(error):
+                    raise
+                continue
+            return CreatedApiKey(key=self._key_data(key), value=generated.value)
+        raise ApiKeyPrefixCollisionError
+
+    @staticmethod
+    def _normalize_client_name(name: str) -> str:
+        normalized_name = name.strip()
+        if not normalized_name:
+            raise ValueError("Le nom du client ne peut pas être vide")
+        if len(normalized_name) > 200:
+            raise ValueError("Le nom du client dépasse 200 caractères")
+        return normalized_name
+
+    @staticmethod
+    def _normalize_key_name(name: str | None) -> str | None:
+        normalized_name = name.strip() if name is not None else None
+        if normalized_name == "":
+            raise ValueError("Le libellé de la clé ne peut pas être vide")
+        if normalized_name is not None and len(normalized_name) > 200:
+            raise ValueError("Le libellé de la clé dépasse 200 caractères")
+        return normalized_name
+
+    def _normalize_expiration(
+        self, expires_at: datetime | None, *, now: datetime
+    ) -> datetime | None:
+        if expires_at is None:
+            return None
+        normalized_expiration = self._as_utc(expires_at)
+        if normalized_expiration <= now:
+            raise ValueError("L'expiration doit être postérieure à la création")
+        return normalized_expiration
 
     @staticmethod
     def _client_data(client: ApiClient) -> ApiClientData:

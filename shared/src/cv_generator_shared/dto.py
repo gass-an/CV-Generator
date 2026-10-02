@@ -28,11 +28,28 @@ class ApiKeyData:
 
 
 @dataclass(frozen=True, slots=True)
+class ApiKeyWithClientData:
+    """Métadonnées d'une clé accompagnées de son propriétaire."""
+
+    key: ApiKeyData
+    client_name: str
+    client_is_active: bool
+
+
+@dataclass(frozen=True, slots=True)
 class CreatedApiKey:
     """Résultat éphémère remis une seule fois lors de la création."""
 
     key: ApiKeyData
     value: str = field(repr=False)
+
+
+@dataclass(frozen=True, slots=True)
+class CreatedClientApiKey:
+    """Client et première clé créés dans une transaction atomique."""
+
+    client: ApiClientData
+    created_key: CreatedApiKey
 
 
 @dataclass(frozen=True, slots=True)

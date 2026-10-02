@@ -34,7 +34,7 @@ Depuis `generator-service/`, après avoir activé le venv et installé les
 dépendances :
 
 ```bash
-docker compose --env-file .env -f docker/docker-compose.dev.yml up -d
+docker compose --env-file .env -f docker/docker-compose.local.yml up -d
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
@@ -134,13 +134,13 @@ jamais transformer une exigence de l'AVP en compétence du candidat.
 Pour arrêter PostgreSQL :
 
 ```bash
-docker compose --env-file .env -f docker/docker-compose.dev.yml down
+docker compose --env-file .env -f docker/docker-compose.local.yml down
 ```
 
 Pour arrêter PostgreSQL **et supprimer définitivement les données locales** :
 
 ```bash
-docker compose --env-file .env -f docker/docker-compose.dev.yml down -v
+docker compose --env-file .env -f docker/docker-compose.local.yml down -v
 ```
 
 ## Migrations
@@ -201,7 +201,7 @@ Terminal 1 :
 
 ```bash
 cd generator-service
-docker compose --env-file .env -f docker/docker-compose.dev.yml up -d
+docker compose --env-file .env -f docker/docker-compose.local.yml up -d
 alembic upgrade head
 uvicorn app.main:app --reload
 ```

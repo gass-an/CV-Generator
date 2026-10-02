@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Nouvelle clé API{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>Nouvelle clé API</h1><p>Choisissez un propriétaire existant ou créez-en un nouveau.</p></div></div>
+{% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+<form class="panel" method="post" action="/keys" data-single-submit>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="form_token" value="{{ form_token }}">
+  <fieldset><legend>Propriétaire existant</legend>
+    <label>Sélectionner<select name="client_id"><option value="">Créer une nouvelle personne</option>{% for client in clients %}<option value="{{ client.id }}" {% if not client.is_active %}disabled{% endif %}>{{ client.name }}{% if not client.is_active %} — désactivé{% endif %}</option>{% endfor %}</select></label>
+  </fieldset>
+  <fieldset><legend>Nouveau propriétaire</legend>
+    <label>Nom<input name="new_client_name" maxlength="200"></label>
+    <label class="checkbox"><input type="checkbox" name="confirm_duplicate" value="yes"> Confirmer qu'il s'agit d'une personne distincte si ce nom existe déjà.</label>
+  </fieldset>
+  <label>Libellé facultatif<input name="key_name" maxlength="200" placeholder="Ordinateur personnel"></label>
+  <label>Expiration facultative — {{ timezone_label }}<input type="datetime-local" name="expires_at"></label>
+  <div class="actions"><a class="button secondary" href="/">Annuler</a><button class="primary" type="submit">Créer la clé</button></div>
+</form>
+{% endblock %}

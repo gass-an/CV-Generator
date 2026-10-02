@@ -21,7 +21,6 @@ generator-service/tests
 generator-service/demo
 shared/tests
 generatorweb-service
-generator-admin-service
 deploy
 
 # Ces exclusions sont propres au build du backend. Elles devront être adaptées

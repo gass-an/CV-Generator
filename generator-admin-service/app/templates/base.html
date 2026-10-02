@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Administration{% endblock %} · CV-Generator</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/admin.css') }}">
+  <script src="{{ url_for('static', path='/admin.js') }}" defer></script>
+</head>
+<body>
+  {% if principal %}
+  <header class="topbar">
+    <a class="brand" href="/">CV-Generator</a>
+    <nav><a href="/">Clés API</a><a href="/clients">Propriétaires</a></nav>
+    <form method="post" action="/logout">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="link-button" type="submit">Se déconnecter</button>
+    </form>
+  </header>
+  {% endif %}
+  <main class="container">{% block content %}{% endblock %}</main>
+</body>
+</html>

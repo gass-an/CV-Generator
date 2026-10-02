@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Clé créée{% endblock %}
+{% block content %}
+<section class="secret-card">
+  <span class="success">Clé active</span><h1>Nouvelle clé API créée</h1>
+  <dl><dt>Propriétaire</dt><dd>{{ client.name }}</dd><dt>Libellé</dt><dd>{{ created.key.name or '—' }}</dd><dt>Expiration</dt><dd>{{ created.key.expires_at|admin_datetime if created.key.expires_at else 'Sans expiration' }}</dd></dl>
+  <div class="warning"><strong>Copiez cette clé maintenant.</strong> Sa valeur complète ne sera plus récupérable après avoir quitté cet écran.</div>
+  <div class="secret-box"><input id="created-api-key" type="password" readonly value="{{ created.value }}" autocomplete="off"><button type="button" data-toggle-secret="created-api-key">Afficher</button><button type="button" data-copy-secret="created-api-key">Copier la clé</button></div>
+  <a class="button primary" href="/">Retour au tableau</a>
+</section>
+{% endblock %}

@@ -5,6 +5,10 @@ from alembic import context
 from app.core.config import get_settings
 from app.core.database import Base
 from app.models import DocumentJob  # noqa: F401
+from cv_generator_shared.admin_models import (  # noqa: F401
+    AdminLoginAttempt,
+    AdminSession,
+)
 from cv_generator_shared.models import ApiClient, ApiKey  # noqa: F401
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config

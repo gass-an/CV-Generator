@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Connexion{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <h1>Administration privée</h1>
+  <p>Connectez-vous pour gérer les propriétaires et leurs clés API.</p>
+  {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/login" autocomplete="on">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Identifiant<input name="username" autocomplete="username" required></label>
+    <label>Mot de passe<input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">Se connecter</button>
+  </form>
+</section>
+{% endblock %}

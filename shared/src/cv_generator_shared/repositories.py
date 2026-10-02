@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -87,4 +87,29 @@ class ApiKeyRepository:
             .where(ApiKey.client_id == client_id)
             .order_by(ApiKey.created_at, ApiKey.id)
         )
+        return list(result.scalars())
+
+    async def list_all_with_clients(
+        self,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+        active_at: datetime | None = None,
+    ) -> list[ApiKey]:
+        statement = (
+            select(ApiKey)
+            .join(ApiKey.client)
+            .options(joinedload(ApiKey.client))
+            .order_by(ApiKey.created_at.desc(), ApiKey.id)
+        )
+        if active_at is not None:
+            statement = statement.where(
+                ApiKey.revoked_at.is_(None),
+                or_(ApiKey.expires_at.is_(None), ApiKey.expires_at > active_at),
+                ApiClient.is_active.is_(True),
+            )
+        statement = statement.offset(offset)
+        if limit is not None:
+            statement = statement.limit(limit)
+        result = await self._session.execute(statement)
         return list(result.scalars())

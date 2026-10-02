@@ -146,6 +146,48 @@ async def test_existing_client_can_receive_a_new_key(
 
 
 @pytest.mark.asyncio
+async def test_create_client_with_first_key_is_atomic_and_listable(
+    session: AsyncSession,
+) -> None:
+    service = ApiKeyService(session, clock=MutableClock())
+
+    result = await service.create_client_with_key(
+        client_name="Irène",
+        key_name="Première clé",
+    )
+
+    assert result.created_key.key.client_id == result.client.id
+    listed = await service.list_all_keys()
+    assert len(listed) == 1
+    assert listed[0].client_name == "Irène"
+    assert listed[0].key.id == result.created_key.key.id
+    assert not hasattr(listed[0].key, "key_hash")
+
+
+@pytest.mark.asyncio
+async def test_create_client_with_key_rolls_back_client_on_generation_failure(
+    session: AsyncSession,
+) -> None:
+    duplicate = key_value("sameprefix12", "a")
+    generator = ControlledGenerator(iter([duplicate, duplicate]))
+    service = ApiKeyService(
+        session,
+        key_generator=generator,
+        clock=MutableClock(),
+        max_generation_attempts=1,
+    )
+    existing = await service.create_client(name="Client existant")
+    await service.create_key(existing.id)
+
+    with pytest.raises(ApiKeyPrefixCollisionError):
+        await service.create_client_with_key(client_name="Client orphelin")
+
+    assert {client.name for client in await service.list_clients()} == {
+        "Client existant"
+    }
+
+
+@pytest.mark.asyncio
 async def test_prefix_collision_is_retried_with_a_savepoint(
     session: AsyncSession,
 ) -> None:
