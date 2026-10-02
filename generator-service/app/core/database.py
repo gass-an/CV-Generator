@@ -1,20 +1,14 @@
 from collections.abc import AsyncIterator
 
+from cv_generator_shared.database import Base as Base
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import get_settings
-
-
-class Base(DeclarativeBase):
-    """Base déclarative commune aux modèles SQLAlchemy."""
-
-    pass
 
 
 def create_engine() -> AsyncEngine:

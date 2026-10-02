@@ -17,11 +17,12 @@ API llama.cpp compatible OpenAI.
 ## Installation
 
 ```bash
+cd CV-Generator
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e '.[dev]'
-cp .env.example .env
+python -m pip install -e shared -e 'generator-service[dev]'
+cp generator-service/.env.example generator-service/.env
 ```
 
 Le fichier `.env.example` contient des valeurs locales de développement. Ne

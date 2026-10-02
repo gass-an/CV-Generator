@@ -10,16 +10,20 @@ WORKDIR /app
 RUN groupadd --system generator \
     && useradd --system --gid generator --uid 10001 generator
 
-# Copie d'abord les fichiers nécessaires à l'installation de l'application.
-COPY pyproject.toml README.md ./
-COPY app ./app
+# Le contexte de build est la racine afin d'inclure le package partagé.
+COPY shared/pyproject.toml shared/README.md ./shared/
+COPY shared/src ./shared/src
+RUN python -m pip install --no-cache-dir ./shared
+
+COPY generator-service/pyproject.toml generator-service/README.md ./generator-service/
+COPY generator-service/app ./generator-service/app
 
 # Installe le service et ses dépendances Python.
-RUN python -m pip install --no-cache-dir .
+RUN python -m pip install --no-cache-dir ./generator-service
 
 # Ajoute la configuration et les migrations Alembic utilisées au démarrage.
-COPY alembic.ini ./
-COPY alembic ./alembic
+COPY generator-service/alembic.ini ./
+COPY generator-service/alembic ./alembic
 
 USER generator
 

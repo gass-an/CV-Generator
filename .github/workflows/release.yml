@@ -16,6 +16,25 @@ jobs:
   release:
     name: Publier la version
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: cv_generator_test
+          POSTGRES_USER: cv_generator
+          POSTGRES_PASSWORD: cv_generator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cv_generator -d cv_generator_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      IMAGE_NAME: ghcr.io/gass-an/cv-generator
+      DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator_test
+      TEST_DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator_test
+      MIGRATION_TEST_DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator_migration_test
     steps:
       - name: Récupérer le dépôt
         uses: actions/checkout@v4
@@ -25,11 +44,31 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: generator-service/pyproject.toml
+          cache-dependency-path: |
+            generator-service/pyproject.toml
+            shared/pyproject.toml
 
       - name: Installer les dépendances du backend
+        run: python -m pip install -e 'shared[dev]' -e 'generator-service[dev]'
+
+      - name: Créer la base jetable des migrations
+        env:
+          PGPASSWORD: cv_generator
+        run: >-
+          createdb
+          --host localhost
+          --username cv_generator
+          cv_generator_migration_test
+
+      - name: Vérifier le package partagé
+        run: |
+          ruff format --check shared
+          ruff check shared
+          pytest shared
+
+      - name: Appliquer les migrations
         working-directory: generator-service
-        run: python -m pip install -e '.[dev]'
+        run: alembic upgrade head
 
       - name: Vérifier le formatage
         working-directory: generator-service
@@ -65,7 +104,7 @@ jobs:
       - name: Construire et publier l'image de production
         uses: docker/build-push-action@v6
         with:
-          context: generator-service
+          context: .
           file: generator-service/Dockerfile
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
