@@ -22,21 +22,28 @@ Générez le hash Argon2id sans afficher le mot de passe :
 python generator-admin-service/scripts/generate_password_hash.py
 ```
 
-Copiez le résultat complet dans `ADMIN_PASSWORD_HASH`. Dans un fichier `.env`,
-le hash peut être conservé tel quel. Dans un shell ou un outil d'orchestration,
-protégez les caractères `$` selon les règles de cet outil. Définissez aussi
+Créez d'abord la configuration locale centralisée :
+
+```bash
+cp deploy/.env.local.example deploy/.env.local
+```
+
+Copiez le résultat complet dans `ADMIN_PASSWORD_HASH` de
+`deploy/.env.local`, entre apostrophes simples afin que Docker Compose conserve
+ses caractères `$` sans transmettre les apostrophes. Définissez aussi
 `ADMIN_USERNAME` et un `ADMIN_SESSION_SECRET` aléatoire d'au moins 32 caractères,
 par exemple généré localement avec `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
 Ces valeurs ne doivent jamais être versionnées.
 
-La base indiquée par `DATABASE_URL` est la même que celle de l'API publique.
-Appliquez les migrations depuis le backend :
+Si un ancien fichier `.env.admin.local` contient déjà ces secrets, reportez-les
+manuellement dans la section Administration de `.env.local`, sans les afficher
+dans un terminal et sans écraser automatiquement l'un ou l'autre fichier.
+
+La base est la même que celle de l'API publique. Pour lancer PostgreSQL, les
+migrations, le backend et l'administration avec rechargement automatique :
 
 ```bash
-cd generator-service
-alembic upgrade head
-cd ../generator-admin-service
-uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
+docker compose --env-file deploy/.env.local -f deploy/docker-compose.local.yml up --build
 ```
 
 En production, utilisez HTTPS, `APP_ENV=production`,

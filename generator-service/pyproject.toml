@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hackavp-generator-service"
-version = "0.1.0"
+version = "0.3.0"
 description = "Asynchronous document generation service for HackAVP"
 readme = "README.md"
 requires-python = ">=3.12,<4.0"

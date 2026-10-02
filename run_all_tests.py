@@ -1,4 +1,3 @@
-
 import os
 import subprocess
 import sys
@@ -94,9 +93,7 @@ def wait_for_postgres(container_name: str) -> None:
 
         time.sleep(1)
 
-    raise RuntimeError(
-        "PostgreSQL n'est pas devenu disponible après 60 secondes."
-    )
+    raise RuntimeError("PostgreSQL n'est pas devenu disponible après 60 secondes.")
 
 
 def create_databases(container_name: str) -> None:
@@ -117,11 +114,11 @@ def create_databases(container_name: str) -> None:
 
 
 def run_step(
-        label: str,
-        module: str,
-        arguments: list[str],
-        cwd: Path,
-        env: dict[str, str],
+    label: str,
+    module: str,
+    arguments: list[str],
+    cwd: Path,
+    env: dict[str, str],
 ) -> None:
     print(f"\n{'=' * 60}", flush=True)
     print(f" {label}", flush=True)

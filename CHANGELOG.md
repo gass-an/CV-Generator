@@ -5,6 +5,23 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+## [0.3.0] - 2026-10-02
+
+### Ajouts
+
+- Gestion sécurisée des clients et des clés API dans le package partagé.
+- Authentification `X-API-Key` et isolation des documents par propriétaire.
+- Interface privée d'administration avec sessions PostgreSQL, Argon2id, CSRF
+  et protection contre les tentatives répétées de connexion.
+- Image Docker indépendante pour l'administration.
+
+### Modifications
+
+- Centralisation des configurations Docker Compose dans `deploy/`.
+- Publication de deux images GHCR versionnées pour le backend et
+  l'administration.
+- Procédure documentée de sauvegarde et de déploiement manuel sur Docker
+  Desktop.
 
 
 ## [0.2.0] - 2026-09-29

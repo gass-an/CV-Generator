@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cv-generator-shared"
-version = "0.1.0"
+version = "0.3.0"
 description = "Modèles et logique métier partagés de CV-Generator"
 readme = "README.md"
 requires-python = ">=3.12,<4.0"

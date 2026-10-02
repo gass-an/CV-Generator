@@ -6,6 +6,7 @@
 **/.env
 **/.env.*
 !**/.env.example
+!**/.env.local.example
 **/.venv
 **/__pycache__
 **/*.py[cod]
@@ -20,8 +21,9 @@
 generator-service/tests
 generator-service/demo
 shared/tests
+generator-admin-service/tests
 generatorweb-service
 deploy
 
-# Ces exclusions sont propres au build du backend. Elles devront être adaptées
-# lorsque le frontend ou le service d'administration auront leur propre image.
+# Les deux images Python utilisent la racine comme contexte ; seuls leurs
+# sources et le package partagé sont copiés explicitement par les Dockerfiles.

@@ -3,22 +3,24 @@ name: cv-generator-local
 
 x-backend-environment: &backend-environment
   APP_ENV: development
-  LOG_LEVEL: INFO
-  DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@postgres:5432/cv_generator_local
-  OPT_AVP_BASE_URL: https://opt-nc.github.io/odata-avps
-  LLM_BASE_URL: ${LLM_BASE_URL:-https://faucontower.tailc3c864.ts.net}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-cv_generator}:${POSTGRES_PASSWORD:-cv_generator}@postgres:5432/${POSTGRES_DB:-cv_generator_local}
+  OPT_AVP_BASE_URL: ${OPT_AVP_BASE_URL:-https://opt-nc.github.io/odata-avps}
+  LLM_BASE_URL: ${LLM_BASE_URL:?Renseignez LLM_BASE_URL avec l URL Tailscale verifiee de llama.cpp}
   LLM_MODEL: ${LLM_MODEL:-ggml-org/Qwen3-4B-GGUF:Q4_K_M}
-  LLM_TIMEOUT_SECONDS: 120
-  WORKER_POLL_INTERVAL_SECONDS: 1
-  WORKER_STALE_JOB_TIMEOUT_SECONDS: 600
+  LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-120}
+  WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-1}
+  WORKER_STALE_JOB_TIMEOUT_SECONDS: ${WORKER_STALE_JOB_TIMEOUT_SECONDS:-600}
 
 services:
   postgres:
     image: postgres:18
     environment:
-      POSTGRES_DB: cv_generator_local
-      POSTGRES_USER: cv_generator
-      POSTGRES_PASSWORD: cv_generator
+      POSTGRES_DB: ${POSTGRES_DB:-cv_generator_local}
+      POSTGRES_USER: ${POSTGRES_USER:-cv_generator}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cv_generator}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_local_data:/var/lib/postgresql
     healthcheck:
@@ -47,12 +49,16 @@ services:
       dockerfile: generator-service/Dockerfile
     environment: *backend-environment
     command:
-      - uvicorn
-      - app.main:app
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8000"
+      - /bin/sh
+      - -c
+      - >-
+        python -m pip install --no-deps -e /workspace/shared
+        -e /workspace/generator-service &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    working_dir: /workspace/generator-service
+    volumes:
+      - ../shared:/workspace/shared
+      - ../generator-service:/workspace/generator-service
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -64,15 +70,32 @@ services:
     build:
       context: ..
       dockerfile: generator-admin-service/Dockerfile
-    env_file:
-      - path: ../generator-admin-service/.env
-        format: raw
     environment:
       APP_ENV: development
-      DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@postgres:5432/cv_generator_local
-      ADMIN_COOKIE_SECURE: "false"
-      ADMIN_BASE_URL: http://127.0.0.1:8001
-      ADMIN_TRUSTED_PROXY_IPS: ""
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-cv_generator}:${POSTGRES_PASSWORD:-cv_generator}@postgres:5432/${POSTGRES_DB:-cv_generator_local}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?Renseignez ADMIN_USERNAME dans deploy/.env.local}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?Renseignez ADMIN_PASSWORD_HASH dans deploy/.env.local}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?Renseignez ADMIN_SESSION_SECRET dans deploy/.env.local}
+      ADMIN_SESSION_TTL_SECONDS: ${ADMIN_SESSION_TTL_SECONDS:-3600}
+      ADMIN_SESSION_COOKIE_NAME: ${ADMIN_SESSION_COOKIE_NAME:-cv_generator_admin_session}
+      ADMIN_CSRF_COOKIE_NAME: ${ADMIN_CSRF_COOKIE_NAME:-cv_generator_admin_csrf}
+      ADMIN_COOKIE_SECURE: ${ADMIN_COOKIE_SECURE:-false}
+      ADMIN_BASE_URL: ${ADMIN_BASE_URL:-http://127.0.0.1:8001}
+      ADMIN_TIMEZONE: ${ADMIN_TIMEZONE:-Pacific/Noumea}
+      ADMIN_LOGIN_WINDOW_SECONDS: ${ADMIN_LOGIN_WINDOW_SECONDS:-900}
+      ADMIN_LOGIN_MAX_ATTEMPTS: ${ADMIN_LOGIN_MAX_ATTEMPTS:-5}
+      ADMIN_TRUSTED_PROXY_IPS: ${ADMIN_TRUSTED_PROXY_IPS:-}
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        python -m pip install --no-deps -e /workspace/shared
+        -e /workspace/generator-admin-service &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+    working_dir: /workspace/generator-admin-service
+    volumes:
+      - ../shared:/workspace/shared
+      - ../generator-admin-service:/workspace/generator-admin-service
     ports:
       - "127.0.0.1:8001:8001"
     depends_on:
@@ -84,8 +107,6 @@ services:
     image: cv-generator-backend:local
     environment: *backend-environment
     command: ["python", "-m", "app.workers.document_worker"]
-    extra_hosts:
-      - "faucontower.tailc3c864.ts.net:${TAILSCALE_LLM_IP:-127.0.0.1}"
     depends_on:
       migrate:
         condition: service_completed_successfully

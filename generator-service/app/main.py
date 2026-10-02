@@ -27,7 +27,7 @@ def create_app() -> FastAPI:
             "l'avancement, de récupérer le résultat source en AsciiDoc puis de "
             "télécharger le document au format DOCX."
         ),
-        version="0.1.0",
+        version="0.3.0",
         openapi_tags=OPENAPI_TAGS,
     )
     application.include_router(api_router, prefix="/api/v1")

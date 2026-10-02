@@ -22,32 +22,30 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e shared -e 'generator-service[dev]'
-cp generator-service/.env.example generator-service/.env
+cp deploy/.env.local.example deploy/.env.local
 ```
 
-Le fichier `.env.example` contient des valeurs locales de développement. Ne
-jamais committer de secret réel dans `.env`.
+Le fichier réel contient les sections de configuration locale et les secrets
+administrateur. Il ne doit jamais être commité. Renseignez `LLM_BASE_URL` avec
+l'URL réellement vérifiée du serveur Windows accessible via Tailscale ;
+`host.docker.internal` ne représente pas cette machine distante.
 
 ## Démarrage local
 
-Depuis `generator-service/`, après avoir activé le venv et installé les
-dépendances :
+Depuis la racine, l'ensemble local peut être lancé avec rechargement automatique :
 
 ```bash
-docker compose --env-file .env -f docker/docker-compose.local.yml up -d
-alembic upgrade head
-uvicorn app.main:app --reload
+docker compose --env-file deploy/.env.local -f deploy/docker-compose.local.yml up --build
 ```
 
-Dans un autre terminal, avec le même venv activé :
+Le worker facultatif est activé avec le profil `generation` :
 
 ```bash
-python -m app.workers.document_worker
+docker compose --env-file deploy/.env.local -f deploy/docker-compose.local.yml --profile generation up --build
 ```
 
-En développement, seul PostgreSQL tourne dans Docker. FastAPI s'exécute
-directement depuis le venv et se connecte à PostgreSQL sur `localhost:5432` via
-`DATABASE_URL`.
+PostgreSQL, les migrations, l'API et l'administration tournent alors dans
+Docker. Les sources Python sont montées dans les conteneurs de développement.
 
 L'API est disponible sur `http://127.0.0.1:8000` et son contrôle de santé sur
 `GET /api/v1/health`.
@@ -134,13 +132,7 @@ jamais transformer une exigence de l'AVP en compétence du candidat.
 Pour arrêter PostgreSQL :
 
 ```bash
-docker compose --env-file .env -f docker/docker-compose.local.yml down
-```
-
-Pour arrêter PostgreSQL **et supprimer définitivement les données locales** :
-
-```bash
-docker compose --env-file .env -f docker/docker-compose.local.yml down -v
+docker compose --env-file deploy/.env.local -f deploy/docker-compose.local.yml down
 ```
 
 ## Migrations
@@ -180,12 +172,16 @@ Configuration locale attendue :
 ```env
 DATABASE_URL=postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator
 OPT_AVP_BASE_URL=https://opt-nc.github.io/odata-avps
-LLM_BASE_URL=http://127.0.0.1:8080
+LLM_BASE_URL=<URL Tailscale vérifiée du serveur llama.cpp>
 LLM_MODEL=nom-du-modele-charge
 LLM_TIMEOUT_SECONDS=120
 WORKER_POLL_INTERVAL_SECONDS=1
 WORKER_STALE_JOB_TIMEOUT_SECONDS=600
 ```
+
+Dans l'environnement Docker local décrit plus haut, llama.cpp tourne sur une
+autre machine : ne remplacez pas cette URL par `host.docker.internal` sans
+avoir vérifié l'architecture réseau réelle.
 
 L'intervalle de polling évite une boucle consommant inutilement le CPU. Le
 timeout stale définit après combien de secondes un job `PROCESSING` est remis en
@@ -197,20 +193,10 @@ sera ajoutée dans une étape ultérieure.
 
 ## Test manuel de génération
 
-Terminal 1 :
+Depuis la racine :
 
 ```bash
-cd generator-service
-docker compose --env-file .env -f docker/docker-compose.local.yml up -d
-alembic upgrade head
-uvicorn app.main:app --reload
-```
-
-Terminal 2 :
-
-```bash
-cd generator-service
-python -m app.workers.document_worker
+docker compose --env-file deploy/.env.local -f deploy/docker-compose.local.yml --profile generation up --build
 ```
 
 Demander une génération via `POST /api/v1/documents/cv` ou

@@ -1,149 +1,105 @@
-# Publier une nouvelle version
+# Préparer et déployer la version v0.3.0
 
-Le projet suit le versionnage sémantique `vMAJOR.MINOR.PATCH` :
+Le dépôt publie deux images pour chaque tag :
 
-- `PATCH` correspond à une correction compatible ;
-- `MINOR` correspond à une nouvelle fonctionnalité compatible ;
-- `MAJOR` correspond à un changement incompatible.
+- `ghcr.io/gass-an/cv-generator:v0.3.0` pour l'API, le worker et Alembic ;
+- `ghcr.io/gass-an/cv-generator-admin:v0.3.0` pour l'administration.
 
-Pendant la phase de développement, des versions telles que `v0.1.0`, `v0.2.0`
-et leurs correctifs sont appropriées.
+Le workflow ne déploie rien. La création du tag et la publication restent des
+opérations manuelles à effectuer seulement après validation du diff.
 
-## 1. Mettre à jour la branche principale
+## Préparer la release
+
+Depuis la racine, sur une branche propre et à jour :
 
 ```bash
-git switch master
-git pull --ff-only
 git status
+python run_all_tests.py
+docker build -f generator-service/Dockerfile -t cv-generator:v0.3.0 .
+docker build -f generator-admin-service/Dockerfile -t cv-generator-admin:v0.3.0 .
 ```
 
-L'arbre de travail doit être propre avant de préparer la publication.
-
-## 2. Choisir la version
-
-Choisir la nouvelle version selon les changements inclus, par exemple :
-
-```text
-v0.1.0
-```
-
-## 3. Mettre à jour le changelog
-
-Dans `CHANGELOG.md`, déplacer les éléments concernés de `## [À venir]` vers
-une section datée, sans le préfixe `v` :
-
-```markdown
-## [À venir]
-
-## [0.1.0] - YYYY-MM-DD
-```
-
-Conserver une section `[À venir]` vide au-dessus de la nouvelle version.
-
-## 4. Commiter la préparation
+Après revue et commit, les opérations manuelles de publication seront :
 
 ```bash
-git add CHANGELOG.md
-git commit -m "chore(release): préparation de la version v0.1.0"
-```
-
-D'autres fichiers peuvent faire partie de ce commit si la préparation de la
-release le nécessite.
-
-## 5. Créer un tag annoté
-
-```bash
-git tag -a v0.1.0 -m "Version 0.1.0"
-```
-
-## 6. Pousser la branche puis le tag
-
-```bash
+git tag -a v0.3.0 -m "Version 0.3.0"
 git push origin master
-git push origin v0.1.0
+git push origin v0.3.0
 ```
 
-Le push du tag déclenche automatiquement le workflow GitHub de release. Ce
-workflow valide le backend, construit et publie l'image Docker, puis crée la
-version GitHub. Il ne déploie rien sur la machine de production.
+Elles ne doivent pas être exécutées pendant la préparation locale.
 
-## 7. Vérifier la publication sur GitHub
+## Sauvegarde PostgreSQL sur la tour Windows
 
-Vérifier successivement :
+Avant une mise à jour, créer le dossier `backups` depuis PowerShell, puis faire
+produire l'archive dans le conteneur et la copier sur l'hôte :
 
-- le workflow dans GitHub Actions ;
-- la version publiée sur GitHub et ses notes générées ;
-- le package publié dans GHCR.
-
-Pour `v0.1.0`, l'image attendue est :
-
-```text
-ghcr.io/gass-an/cv-generator:v0.1.0
+```powershell
+New-Item -ItemType Directory -Force backups
+docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f /tmp/cv-generator-before-v0.3.0.dump'
+$postgresContainer = docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml ps -q postgres
+docker cp "${postgresContainer}:/tmp/cv-generator-before-v0.3.0.dump" ".\backups\cv-generator-before-v0.3.0.dump"
 ```
 
-## 8. Déployer manuellement sur la tour
+Vérifier que le fichier existe et possède une taille non nulle. Cette procédure
+est documentée seulement : elle ne doit pas être lancée depuis une autre machine
+et aucune restauration ne doit être improvisée sans copie supplémentaire.
 
-Il n'existe volontairement aucun déploiement continu. Sur la machine hébergeant
-Docker, renseigner la version explicite dans `deploy/.env` :
+## Déploiement manuel sur la tour
 
-```env
-APP_VERSION=v0.1.0
-```
+Préconditions : Docker Desktop en fonctionnement, accès GHCR configuré, GPU
+NVIDIA disponible et dépôt positionné sur le commit de la release. Ne remplacez
+jamais `deploy/.env` par son exemple : modifiez seulement les valeurs nécessaires
+dans le fichier réel déjà présent, notamment `APP_VERSION=v0.3.0`.
+
+Si les secrets administrateur se trouvent encore dans un ancien fichier
+séparé, les reporter manuellement dans la section Administration de
+`deploy/.env`, sans les afficher dans le terminal ni écraser automatiquement le
+fichier existant. Placer `ADMIN_PASSWORD_HASH` entre apostrophes simples pour
+préserver les `$`; Docker Compose ne transmet pas ces apostrophes au conteneur.
 
 Depuis la racine du dépôt :
 
-```bash
-docker compose \
-  --env-file deploy/.env \
-  -f deploy/docker-compose.prod.yml \
-  pull
-
-docker compose \
-  --env-file deploy/.env \
-  -f deploy/docker-compose.prod.yml \
-  up -d
+```powershell
+docker login ghcr.io
+docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml config --quiet
+docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml pull
+docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d
+docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml ps
 ```
 
-Vérifier ensuite les services :
+`generator-migrate` attend PostgreSQL et doit terminer avec succès avant le
+démarrage de l'API, du worker et de l'administration. Contrôler son état et les
+logs sans afficher le fichier d'environnement :
 
-```bash
-docker compose \
-  --env-file deploy/.env \
-  -f deploy/docker-compose.prod.yml \
-  ps
+```powershell
+docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml logs --tail=100 generator-migrate
+docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml logs --tail=100 generator-api generator-worker generator-admin
 ```
 
-Consulter leurs logs si nécessaire :
+Tester localement :
 
-```bash
-docker compose \
-  --env-file deploy/.env \
-  -f deploy/docker-compose.prod.yml \
-  logs -f --tail=100
+```powershell
+curl.exe http://127.0.0.1:8000/api/v1/health
+curl.exe -i http://127.0.0.1:8001/login
 ```
 
-## Retour arrière manuel
+L'administration reste liée à `127.0.0.1:8001`. Une future configuration
+Tailscale Serve devra relayer cette adresse en HTTPS sans modifier les services
+Docker, avec `ADMIN_BASE_URL` réglée sur l'URL HTTPS privée. Ne modifiez pas la
+configuration Tailscale existante pendant le déploiement Docker.
+llama.cpp reste temporairement lié à `127.0.0.1:8080` afin de préserver cette
+configuration Tailscale Serve existante ; ne la réinitialisez pas pendant la
+mise à jour.
 
-Pour revenir, par exemple, de `v0.2.0` à `v0.1.0`, remplacer dans
-`deploy/.env` :
+## Retour arrière applicatif
 
-```env
-APP_VERSION=v0.1.0
-```
+Un retour arrière consiste à remettre l'ancienne valeur explicite de
+`APP_VERSION`, puis à exécuter `pull` et `up -d`. Attention : les migrations de
+base ne sont pas automatiquement annulées. Ne lancez jamais de downgrade
+Alembic sur la production sans procédure dédiée et sauvegarde vérifiée.
 
-Puis récupérer et redémarrer les images de cette version :
-
-```bash
-docker compose \
-  --env-file deploy/.env \
-  -f deploy/docker-compose.prod.yml \
-  pull
-
-docker compose \
-  --env-file deploy/.env \
-  -f deploy/docker-compose.prod.yml \
-  up -d
-```
-
-L'utilisation d'une version explicite dans `deploy/.env`, plutôt que `latest`,
-garantit que ce retour arrière redéploie exactement la version choisie.
+Les commandes de déploiement ci-dessus préservent les volumes
+`cv-generator_postgres-data` et `cv-generator-models`. Ne lancez jamais
+`docker compose down -v`, `docker volume prune` ou une recréation manuelle de
+ces volumes.

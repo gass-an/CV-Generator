@@ -8,7 +8,7 @@ Le dépôt sépare :
 
 - le backend FastAPI et son worker dans `generator-service/` ;
 - les modèles et la gestion des clés communs dans `shared/` ;
-- le futur service privé d'administration dans `generator-admin-service/` ;
+- le service privé d'administration dans `generator-admin-service/` ;
 - le frontend React dans `generatorweb-service/`.
 
 Le backend enregistre chaque demande comme un job PostgreSQL. Un worker appelle
@@ -20,6 +20,8 @@ l'installation et l'API. Les [exemples curl](generator-service/demo/curl-example
 permettent de tester les deux types de documents. Le
 [déploiement Docker](deploy/README.md) décrit l'installation de production.
 La gestion métier des clés est documentée dans [shared/README.md](shared/README.md).
+Les configurations Docker locales et de production sont centralisées dans
+[`deploy/`](deploy/README.md).
 
 ## Publication des versions
 

@@ -5,7 +5,7 @@ x-generator-environment: &generator-environment
   LOG_LEVEL: ${LOG_LEVEL}
   DATABASE_URL: ${DATABASE_URL}
   OPT_AVP_BASE_URL: ${OPT_AVP_BASE_URL}
-  LLM_BASE_URL: http://llm:8080
+  LLM_BASE_URL: ${LLM_BASE_URL:-http://llm:8080}
   LLM_MODEL: ${LLM_MODEL}
   LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS}
   WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS}
@@ -46,9 +46,6 @@ services:
     volumes:
       - llm-models:/models
 
-    ports:
-      - "127.0.0.1:8080:8080"
-
     command:
       - "-hf"
       - "${LLM_MODEL}"
@@ -60,6 +57,9 @@ services:
       - "${LLM_CTX_SIZE}"
       - "--n-gpu-layers"
       - "99"
+
+    ports:
+      - "127.0.0.1:8080:8080"
 
     restart: unless-stopped
 
@@ -94,7 +94,32 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  generator-admin:
+    image: ghcr.io/gass-an/cv-generator-admin:${APP_VERSION}
+    environment:
+      APP_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?Renseignez ADMIN_USERNAME dans deploy/.env}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?Renseignez ADMIN_PASSWORD_HASH dans deploy/.env}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?Renseignez ADMIN_SESSION_SECRET dans deploy/.env}
+      ADMIN_SESSION_TTL_SECONDS: ${ADMIN_SESSION_TTL_SECONDS:-3600}
+      ADMIN_SESSION_COOKIE_NAME: ${ADMIN_SESSION_COOKIE_NAME:-cv_generator_admin_session}
+      ADMIN_CSRF_COOKIE_NAME: ${ADMIN_CSRF_COOKIE_NAME:-cv_generator_admin_csrf}
+      ADMIN_COOKIE_SECURE: ${ADMIN_COOKIE_SECURE:-true}
+      ADMIN_BASE_URL: ${ADMIN_BASE_URL:?Renseignez l URL HTTPS ADMIN_BASE_URL dans deploy/.env}
+      ADMIN_TIMEZONE: ${ADMIN_TIMEZONE:-Pacific/Noumea}
+      ADMIN_LOGIN_WINDOW_SECONDS: ${ADMIN_LOGIN_WINDOW_SECONDS:-900}
+      ADMIN_LOGIN_MAX_ATTEMPTS: ${ADMIN_LOGIN_MAX_ATTEMPTS:-5}
+      ADMIN_TRUSTED_PROXY_IPS: ${ADMIN_TRUSTED_PROXY_IPS:-}
+    ports:
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      generator-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   llm-models:
     name: cv-generator-models
   postgres-data:
+    name: cv-generator_postgres-data

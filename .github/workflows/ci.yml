@@ -198,3 +198,10 @@ jobs:
           -f generator-service/Dockerfile
           -t cv-generator:test
           .
+
+      - name: Construire l'image d'administration
+        run: >-
+          docker build
+          -f generator-admin-service/Dockerfile
+          -t cv-generator-admin:test
+          .

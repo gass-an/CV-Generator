@@ -2,7 +2,7 @@
   <configuration default="false" name="Generator API" type="ShConfigurationType">
     <option
             name="SCRIPT_TEXT"
-            value="set -euo pipefail&#10;&#10;echo '==> Démarrage PostgreSQL'&#10;docker compose --env-file .env -f docker/docker-compose.dev.yml up -d&#10;&#10;echo '==> Application des migrations'&#10;.venv/bin/python -m alembic upgrade head&#10;&#10;cleanup() {&#10;  echo '==> Arrêt API / worker'&#10;  kill &quot;${API_PID:-}&quot; &quot;${WORKER_PID:-}&quot; 2&gt;/dev/null || true&#10;  wait &quot;${API_PID:-}&quot; &quot;${WORKER_PID:-}&quot; 2&gt;/dev/null || true&#10;}&#10;&#10;trap cleanup EXIT INT TERM&#10;&#10;echo '==> Démarrage du worker'&#10;.venv/bin/python -m app.workers.document_worker &amp;&#10;WORKER_PID=$!&#10;&#10;echo '==> Démarrage de l API'&#10;.venv/bin/python -m uvicorn app.main:app --reload &amp;&#10;API_PID=$!&#10;&#10;wait -n &quot;$WORKER_PID&quot; &quot;$API_PID&quot;"
+            value="docker compose --env-file deploy/.env.local -f deploy/docker-compose.local.yml --profile generation up --build"
     />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
@@ -10,7 +10,7 @@
     <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
     <option
             name="SCRIPT_WORKING_DIRECTORY"
-            value="$PROJECT_DIR$/generator-service"
+            value="$PROJECT_DIR$"
     />
     <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
     <option name="INTERPRETER_PATH" value="/bin/bash" />
