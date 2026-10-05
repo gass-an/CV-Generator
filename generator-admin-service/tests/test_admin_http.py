@@ -271,13 +271,26 @@ async def test_expired_status_active_filter_and_inactive_owner_rejection(
     assert "désactivé" in refused.text
 
 
+
 @pytest.mark.asyncio
 async def test_dates_are_rendered_in_noumea_timezone_and_form_labels_it(
-    browser: httpx.AsyncClient,
+        browser: httpx.AsyncClient,
 ) -> None:
     csrf = await login(browser)
     form = await browser.get("/keys/new")
+
+    # Date d'expiration dynamique : J+7, heure de Nouméa
+    expires_at_dt = (
+            datetime.now(ZoneInfo("Pacific/Noumea"))
+            + timedelta(days=7)
+    ).replace(second=0, microsecond=0)
+
+    expires_at = expires_at_dt.strftime("%Y-%m-%dT%H:%M")
+    expected_display = expires_at_dt.strftime("%d/%m/%Y %H:%M")
+    expected_utc = expires_at_dt.astimezone(UTC)
+
     assert "Heure de Nouméa" in form.text
+
     created = await browser.post(
         "/keys",
         data={
@@ -285,26 +298,35 @@ async def test_dates_are_rendered_in_noumea_timezone_and_form_labels_it(
             "form_token": hidden_value(form.text, "form_token"),
             "new_client_name": "Client fuseau",
             "key_name": "Clé datée",
-            "expires_at": "2026-10-03T15:00",
+            "expires_at": expires_at,
         },
     )
+
     assert created.status_code == 200
-    assert "03/10/2026 15:00" in created.text
+    assert expected_display in created.text
+
     async with async_session_factory() as session, session.begin():
         key = (await session.scalars(select(ApiKey))).one()
-        assert key.expires_at == datetime(2026, 10, 3, 4, 0, tzinfo=UTC)
+
+        # Vérifie que la date saisie à Nouméa est stockée en UTC
+        assert key.expires_at == expected_utc
+
         key.created_at = datetime(2026, 10, 3, 3, 0, tzinfo=UTC)
+
         client = (await session.scalars(select(ApiClient))).one()
         client.created_at = datetime(2026, 10, 3, 2, 0, tzinfo=UTC)
         client.is_active = False
         client.disabled_at = datetime(2026, 10, 4, 4, 0, tzinfo=UTC)
 
+    # Vérifie l'affichage des dates à l'heure de Nouméa
     table = await browser.get("/")
     assert "03/10/2026 14:00" in table.text
-    assert "03/10/2026 15:00" in table.text
+    assert expected_display in table.text
+
     clients = await browser.get("/clients")
     assert "03/10/2026 13:00" in clients.text
     assert "04/10/2026 15:00" in clients.text
+
 
 
 @pytest.mark.asyncio
