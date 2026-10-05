@@ -16,7 +16,7 @@ Créer la configuration locale sans y placer de secret réel destiné à la
 production :
 
 ```bash
-cp deploy/.env.local.example deploy/.env.local
+cp deploy/.env.example deploy/.env.local
 python generator-admin-service/scripts/generate_password_hash.py
 ```
 

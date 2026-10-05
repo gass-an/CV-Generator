@@ -22,7 +22,7 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e shared -e 'generator-service[dev]'
-cp deploy/.env.local.example deploy/.env.local
+cp deploy/.env.example deploy/.env.local
 ```
 
 Le fichier réel contient les sections de configuration locale et les secrets

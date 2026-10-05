@@ -25,7 +25,7 @@ python generator-admin-service/scripts/generate_password_hash.py
 Créez d'abord la configuration locale centralisée :
 
 ```bash
-cp deploy/.env.local.example deploy/.env.local
+cp deploy/.env.example deploy/.env.local
 ```
 
 Copiez le résultat complet dans `ADMIN_PASSWORD_HASH` de
