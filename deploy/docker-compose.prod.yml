@@ -1,6 +1,7 @@
 name: cv-generator
 
 x-generator-environment: &generator-environment
+  APP_VERSION: ${APP_VERSION:?APP_VERSION est obligatoire}
   APP_ENV: production
   LOG_LEVEL: ${LOG_LEVEL}
   DATABASE_URL: ${DATABASE_URL}

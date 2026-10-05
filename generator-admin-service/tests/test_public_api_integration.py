@@ -31,6 +31,8 @@ def public_api_url() -> Iterator[str]:
     port = _free_port()
     environment = os.environ.copy()
     environment["DATABASE_URL"] = os.environ["DATABASE_URL"]
+    environment["APP_VERSION"] = os.environ.get("APP_VERSION") or "test"
+
     process = subprocess.Popen(
         [
             sys.executable,

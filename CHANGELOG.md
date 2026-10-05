@@ -5,6 +5,10 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+### Modifications
+
+- Ajout de la version dynamique dans le swagger
+
 ## [À 0.3.1] - 2026-10-03
 
 ### Modifications

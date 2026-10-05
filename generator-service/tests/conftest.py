@@ -12,7 +12,10 @@ from app.core.exceptions import (
     DocumentJobNotReadyError,
     DocumentResultUnavailableError,
 )
-from app.main import app
+import os
+os.environ.setdefault("APP_VERSION", "test")
+
+from main import app
 from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
 from app.services.document_job_service import get_document_job_service
 from cv_generator_shared.dto import ApiIdentity
