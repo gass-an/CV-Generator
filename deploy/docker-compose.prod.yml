@@ -30,7 +30,7 @@ services:
     restart: unless-stopped
 
   llm:
-    image: ghcr.io/ggml-org/llama.cpp:server-cuda13
+    image: ghcr.io/ggml-org/llama.cpp@sha256:936e9d2afab78662a05fd300c4a829ba931777bcd8372334da629b468511f90e
     container_name: cv-llm
 
     deploy:
