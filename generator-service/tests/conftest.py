@@ -1,3 +1,4 @@
+import os
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -5,6 +6,10 @@ from typing import Any
 
 import httpx
 import pytest
+
+# Définir la version avant tout import de l'application.
+os.environ.setdefault("APP_VERSION", "test")
+
 from app.api.dependencies import require_api_identity
 from app.core.exceptions import (
     DocumentGenerationFailedError,
@@ -12,10 +17,7 @@ from app.core.exceptions import (
     DocumentJobNotReadyError,
     DocumentResultUnavailableError,
 )
-import os
-os.environ.setdefault("APP_VERSION", "test")
-
-from main import app
+from app.main import app
 from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
 from app.services.document_job_service import get_document_job_service
 from cv_generator_shared.dto import ApiIdentity

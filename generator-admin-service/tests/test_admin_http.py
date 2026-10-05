@@ -271,18 +271,16 @@ async def test_expired_status_active_filter_and_inactive_owner_rejection(
     assert "désactivé" in refused.text
 
 
-
 @pytest.mark.asyncio
 async def test_dates_are_rendered_in_noumea_timezone_and_form_labels_it(
-        browser: httpx.AsyncClient,
+    browser: httpx.AsyncClient,
 ) -> None:
     csrf = await login(browser)
     form = await browser.get("/keys/new")
 
     # Date d'expiration dynamique : J+7, heure de Nouméa
     expires_at_dt = (
-            datetime.now(ZoneInfo("Pacific/Noumea"))
-            + timedelta(days=7)
+        datetime.now(ZoneInfo("Pacific/Noumea")) + timedelta(days=7)
     ).replace(second=0, microsecond=0)
 
     expires_at = expires_at_dt.strftime("%Y-%m-%dT%H:%M")
@@ -326,7 +324,6 @@ async def test_dates_are_rendered_in_noumea_timezone_and_form_labels_it(
     clients = await browser.get("/clients")
     assert "03/10/2026 13:00" in clients.text
     assert "04/10/2026 15:00" in clients.text
-
 
 
 @pytest.mark.asyncio

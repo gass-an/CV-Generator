@@ -23,9 +23,7 @@ def create_app() -> FastAPI:
     app_version = os.environ.get("APP_VERSION", "").strip()
 
     if not app_version:
-        raise RuntimeError(
-            "APP_VERSION doit être définie dans l'environnement"
-        )
+        raise RuntimeError("APP_VERSION doit être définie dans l'environnement")
 
     application = FastAPI(
         title="Service de génération de documents HackAVP",
