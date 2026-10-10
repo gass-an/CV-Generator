@@ -1,8 +1,8 @@
 # CV-Generator
 
-CV-Generator génère des CV et des lettres de motivation adaptés à un avis de
-vacance de poste (AVP) de l'OPT, à partir des seules informations d'un JSON
-Resume.
+CV-Generator génère des CV, des lettres de motivation et des guides de
+préparation à l'entretien adaptés à un avis de vacance de poste (AVP) de l'OPT,
+à partir des seules informations d'un JSON Resume.
 
 Le dépôt sépare :
 
@@ -17,7 +17,7 @@ téléchargement au format DOCX généré à la demande.
 
 La [documentation du backend](generator-service/README.md) détaille
 l'installation et l'API. Les [exemples curl](generator-service/demo/curl-examples.md)
-permettent de tester les deux types de documents. Le
+permettent de tester les trois types de documents. Le
 [déploiement Docker](deploy/README.md) décrit l'installation de production.
 La gestion métier des clés est documentée dans [shared/README.md](shared/README.md).
 Les configurations Docker locales et de production sont centralisées dans

@@ -120,6 +120,34 @@ async def create_cover_letter_document(
     return DocumentJobCreatedResponse(id=job.id, status=job.status)
 
 
+@router.post(
+    "/interview-prep",
+    response_model=DocumentJobCreatedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Créer un guide de préparation à l'entretien",
+    description=(
+        "Démarre la génération asynchrone d'un guide de préparation à "
+        "l'entretien à partir d'un JSON Resume et d'un numéro d'AVP exact."
+    ),
+    response_description=(
+        "Génération démarrée avec un identifiant de document et le statut `pending`."
+    ),
+    responses={422: {"description": "Le payload JSON est invalide."}},
+)
+async def create_interview_prep_document(
+    request: CreateDocumentRequest,
+    service: DocumentService,
+    identity: AuthenticatedIdentity,
+) -> DocumentJobCreatedResponse:
+    job = await service.create_job(
+        client_id=identity.client_id,
+        document_type=DocumentType.INTERVIEW_PREP,
+        avp_number=request.avp_number,
+        resume_data=request.resume,
+    )
+    return DocumentJobCreatedResponse(id=job.id, status=job.status)
+
+
 @router.get(
     "/{id}/status",
     response_model=DocumentJobStatusResponse,
@@ -268,6 +296,7 @@ async def download_document(
     filename_prefix = {
         DocumentType.CV: "cv",
         DocumentType.COVER_LETTER: "lettre-motivation",
+        DocumentType.INTERVIEW_PREP: "guide-entretien",
     }[job.document_type]
     return Response(
         content=content,

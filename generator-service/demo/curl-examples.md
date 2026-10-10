@@ -166,3 +166,44 @@ curl -OJ \
   -H "X-API-Key: ${API_KEY}" \
   http://127.0.0.1:8000/api/v1/documents/<ID>/download
 ```
+
+### Créer un guide de préparation à l'entretien
+
+Cette commande réutilise l'AVP et le JSON Resume fictif non informatique créés
+plus haut. Conservez l'identifiant `id` retourné pour les appels suivants.
+
+```bash
+curl -s \
+  -X POST \
+  http://127.0.0.1:8000/api/v1/documents/interview-prep \
+  -H "X-API-Key: ${API_KEY}" \
+  -H 'Content-Type: application/json' \
+  --data-binary @/tmp/camille-document-request.json \
+  | jq
+```
+
+### Suivre la génération du guide
+
+```bash
+curl -s \
+  -H "X-API-Key: ${API_KEY}" \
+  http://127.0.0.1:8000/api/v1/documents/<ID>/status \
+  | jq
+```
+
+### Récupérer le guide en AsciiDoc
+
+```bash
+curl -s \
+  -H "X-API-Key: ${API_KEY}" \
+  http://127.0.0.1:8000/api/v1/documents/<ID> \
+  | jq -r '.content'
+```
+
+### Télécharger le guide au format DOCX
+
+```bash
+curl -OJ \
+  -H "X-API-Key: ${API_KEY}" \
+  http://127.0.0.1:8000/api/v1/documents/<ID>/download
+```

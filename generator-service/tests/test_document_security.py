@@ -91,7 +91,7 @@ async def test_generation_refuses_missing_or_invalid_key_without_creating_job(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("path", ["cv", "cover-letter"])
+@pytest.mark.parametrize("path", ["cv", "cover-letter", "interview-prep"])
 async def test_generation_assigns_authenticated_client(
     secured_api: tuple[httpx.AsyncClient, FakeDocumentJobService, FakeApiKeyService],
     path: str,

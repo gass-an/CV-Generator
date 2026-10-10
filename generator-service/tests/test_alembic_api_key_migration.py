@@ -92,6 +92,10 @@ async def _schema(database_url: str) -> dict[str, Any]:
                     "document_indexes": {
                         item["name"] for item in inspector.get_indexes("document_job")
                     },
+                    "document_checks": {
+                        item["name"]: item["sqltext"]
+                        for item in inspector.get_check_constraints("document_job")
+                    },
                     "api_client_checks": {
                         item["name"]
                         for item in inspector.get_check_constraints("api_client")
@@ -270,6 +274,30 @@ def test_admin_security_migration_upgrade_and_downgrade() -> None:
         assert "admin_session" not in downgraded["tables"]
         assert "admin_login_attempt" not in downgraded["tables"]
         assert downgraded["document_columns"] == before["document_columns"]
+    finally:
+        _run_alembic(database_url, "upgrade", "head")
+
+
+def test_interview_prep_migration_preserves_existing_types_and_extends_check() -> None:
+    database_url = _migration_database_url()
+    _run_alembic(database_url, "downgrade", "base")
+    try:
+        _run_alembic(database_url, "upgrade", "20261004_0005")
+        before = asyncio.run(_schema(database_url))
+        assert before["revision"] == "20261004_0005"
+        assert (
+            "interview_prep"
+            not in before["document_checks"]["ck_document_job_document_type"]
+        )
+
+        _run_alembic(database_url, "upgrade", "20261010_0006")
+        upgraded = asyncio.run(_schema(database_url))
+        allowed_types = upgraded["document_checks"]["ck_document_job_document_type"]
+        assert upgraded["revision"] == "20261010_0006"
+        assert all(
+            document_type in allowed_types
+            for document_type in ("cv", "cover_letter", "interview_prep")
+        )
     finally:
         _run_alembic(database_url, "upgrade", "head")
 

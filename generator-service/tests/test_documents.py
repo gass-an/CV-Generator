@@ -81,6 +81,24 @@ async def test_create_cover_letter_returns_pending_job_without_exposing_resume(
 
 
 @pytest.mark.asyncio
+async def test_create_interview_prep_returns_owned_pending_job(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    resume = {"basics": {"name": "Malia Exemple"}, "work": []}
+    response = await api_client.post(
+        "/api/v1/documents/interview-prep",
+        json={"avp_number": " REST-2026-014 ", "resume": resume},
+    )
+
+    assert response.status_code == 202
+    job = document_service.jobs[uuid.UUID(response.json()["id"])]
+    assert job.document_type is DocumentType.INTERVIEW_PREP
+    assert job.avp_number == "REST-2026-014"
+    assert job.resume_data == resume
+
+
+@pytest.mark.asyncio
 async def test_get_status_does_not_expose_resume(
     api_client: httpx.AsyncClient,
     document_service: FakeDocumentJobService,
@@ -166,6 +184,22 @@ async def test_completed_cover_letter_uses_existing_result_contract(
 
 
 @pytest.mark.asyncio
+async def test_completed_interview_prep_uses_existing_result_contract(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    job = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        document_type=DocumentType.INTERVIEW_PREP,
+        result_content="= Guide de préparation à l'entretien",
+        result_format="asciidoc",
+    )
+    response = await api_client.get(f"/api/v1/documents/{job.id}")
+    assert response.status_code == 200
+    assert response.json()["type"] == "interview_prep"
+
+
+@pytest.mark.asyncio
 async def test_failed_job_returns_safe_business_error(
     api_client: httpx.AsyncClient,
     document_service: FakeDocumentJobService,
@@ -224,6 +258,22 @@ async def test_create_cover_letter_rejects_invalid_payload(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"resume": {}},
+        {"avp_number": "   ", "resume": {}},
+        {"avp_number": "REST-2026-014", "resume": []},
+    ],
+)
+async def test_create_interview_prep_rejects_invalid_payload(
+    api_client: httpx.AsyncClient, payload: dict[str, object]
+) -> None:
+    response = await api_client.post("/api/v1/documents/interview-prep", json=payload)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_download_completed_job_returns_readable_docx(
     api_client: httpx.AsyncClient,
     document_service: FakeDocumentJobService,
@@ -272,6 +322,28 @@ async def test_download_cover_letter_uses_type_specific_filename(
     )
     document = Document(BytesIO(response.content))
     assert "Lettre de motivation" in [p.text for p in document.paragraphs]
+
+
+@pytest.mark.asyncio
+async def test_download_interview_prep_uses_type_specific_filename(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    job = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        document_type=DocumentType.INTERVIEW_PREP,
+        result_content=(
+            "= Guide de préparation à l'entretien\n\n== Checklist\n\n* Réviser"
+        ),
+        result_format="asciidoc",
+    )
+    response = await api_client.get(f"/api/v1/documents/{job.id}/download")
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == (
+        f'attachment; filename="guide-entretien-{job.id}.docx"'
+    )
+    document = Document(BytesIO(response.content))
+    assert "Guide de préparation à l'entretien" in [p.text for p in document.paragraphs]
 
 
 @pytest.mark.asyncio
@@ -377,6 +449,7 @@ async def test_openapi_documents_generation_routes_in_french(
         "/api/v1/health",
         "/api/v1/documents/cv",
         "/api/v1/documents/cover-letter",
+        "/api/v1/documents/interview-prep",
         "/api/v1/documents/{id}/status",
         "/api/v1/documents/{id}",
         "/api/v1/documents/{id}/download",
@@ -389,6 +462,10 @@ async def test_openapi_documents_generation_routes_in_french(
     assert (
         schema["paths"]["/api/v1/documents/cover-letter"]["post"]["summary"]
         == "Créer une génération de lettre de motivation"
+    )
+    assert (
+        schema["paths"]["/api/v1/documents/interview-prep"]["post"]["summary"]
+        == "Créer un guide de préparation à l'entretien"
     )
 
     for path in (
@@ -406,7 +483,11 @@ async def test_openapi_documents_generation_routes_in_french(
         assert path_parameter["description"] == "Identifiant unique du document."
 
     components = schema["components"]["schemas"]
-    assert components["DocumentType"]["enum"] == ["cv", "cover_letter"]
+    assert components["DocumentType"]["enum"] == [
+        "cv",
+        "cover_letter",
+        "interview_prep",
+    ]
     assert components["DocumentJobStatus"]["enum"] == [
         "pending",
         "processing",

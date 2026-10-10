@@ -4,10 +4,11 @@ Backend de génération asynchrone du projet HackAVP. Les demandes de documents
 sont enregistrées comme jobs persistants dans PostgreSQL, puis traitées par un
 worker séparé de l'API.
 
-Le worker génère un CV ou une lettre de motivation AsciiDoc adapté à un numéro
-d'AVP exact. Il résout la fiche dans le sitemap de données ouvertes officiel de
-l'OPT, récupère son Markdown, puis envoie ce contexte et le JSON Resume à une
-API llama.cpp compatible OpenAI.
+Le worker génère un CV, une lettre de motivation ou un guide de préparation à
+l'entretien au format AsciiDoc, adapté à un numéro d'AVP exact. Il résout la
+fiche dans le sitemap de données ouvertes officiel de l'OPT, récupère son
+Markdown, puis envoie ce contexte et le JSON Resume à une API llama.cpp
+compatible OpenAI.
 
 ## Prérequis
 
@@ -60,6 +61,7 @@ Endpoints de génération disponibles :
 
 - `POST /api/v1/documents/cv`
 - `POST /api/v1/documents/cover-letter`
+- `POST /api/v1/documents/interview-prep`
 - `GET /api/v1/documents/{id}/status`
 - `GET /api/v1/documents/{id}`
 - `GET /api/v1/documents/{id}/download`
@@ -122,7 +124,7 @@ Chaîne de génération :
 
 ```text
 numéro AVP exact -> sitemap OPT -> fiche Markdown officielle
-                 -> prompt dédié -> llama.cpp -> CV ou lettre AsciiDoc
+                 -> prompt dédié -> llama.cpp -> document AsciiDoc
 ```
 
 Le JSON Resume et le Markdown sont délimités séparément dans le prompt et
@@ -199,8 +201,9 @@ Depuis la racine :
 docker compose --env-file deploy/.env.local -f deploy/docker-compose.local.yml --profile generation up --build
 ```
 
-Demander une génération via `POST /api/v1/documents/cv` ou
-`POST /api/v1/documents/cover-letter` avec un JSON Resume fictif et, par
+Demander une génération via `POST /api/v1/documents/cv`,
+`POST /api/v1/documents/cover-letter` ou
+`POST /api/v1/documents/interview-prep` avec un JSON Resume fictif et, par
 exemple, `"avp_number": "3134-26-1382/SR"`. Consulter ensuite
 `GET /api/v1/documents/{id}/status`, puis `GET /api/v1/documents/{id}`. La
 génération doit passer de `PENDING` à `PROCESSING`, puis `COMPLETED`, et

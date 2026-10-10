@@ -11,10 +11,11 @@ from app.core.database import Base
 
 
 class DocumentType(StrEnum):
-    """Types de documents persistés : CV ou lettre de motivation."""
+    """Types de documents persistés et traités par le worker."""
 
     CV = "cv"
     COVER_LETTER = "cover_letter"
+    INTERVIEW_PREP = "interview_prep"
 
 
 class DocumentJobStatus(StrEnum):
@@ -32,7 +33,7 @@ class DocumentJob(Base):
     __tablename__ = "document_job"
     __table_args__ = (
         CheckConstraint(
-            "document_type IN ('cv', 'cover_letter')",
+            "document_type IN ('cv', 'cover_letter', 'interview_prep')",
             name="ck_document_job_document_type",
         ),
         CheckConstraint(

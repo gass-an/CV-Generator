@@ -12,8 +12,12 @@ from app.processors.cover_letter_document_processor import (
     CoverLetterDocumentProcessor,
 )
 from app.processors.cv_document_processor import CvDocumentProcessor
+from app.processors.interview_prep_document_processor import (
+    InterviewPrepDocumentProcessor,
+)
 from app.prompts.cover_letter_prompt_builder import CoverLetterPromptBuilder
 from app.prompts.cv_prompt_builder import CvPromptBuilder
+from app.prompts.interview_prep_prompt_builder import InterviewPrepPromptBuilder
 from app.services.document_worker_service import DocumentWorkerService
 
 logger = logging.getLogger(__name__)
@@ -65,6 +69,11 @@ async def run_worker() -> None:
             DocumentType.COVER_LETTER: CoverLetterDocumentProcessor(
                 avp_client=avp_client,
                 prompt_builder=CoverLetterPromptBuilder(),
+                llm_client=llm_client,
+            ),
+            DocumentType.INTERVIEW_PREP: InterviewPrepDocumentProcessor(
+                avp_client=avp_client,
+                prompt_builder=InterviewPrepPromptBuilder(),
                 llm_client=llm_client,
             ),
         },

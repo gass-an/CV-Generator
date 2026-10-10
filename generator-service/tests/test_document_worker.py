@@ -289,7 +289,7 @@ async def test_success_processing_closes_reservation_transaction() -> None:
 
 
 @pytest.mark.asyncio
-async def test_worker_routes_cv_and_cover_letter_to_their_processors() -> None:
+async def test_worker_routes_all_document_types_to_their_processors() -> None:
     cv_job = make_job(
         DocumentJobStatus.PENDING,
         created_at=datetime.now(UTC) - timedelta(seconds=1),
@@ -298,15 +298,22 @@ async def test_worker_routes_cv_and_cover_letter_to_their_processors() -> None:
         DocumentJobStatus.PENDING,
         document_type=DocumentType.COVER_LETTER,
     )
+    interview_job = make_job(
+        DocumentJobStatus.PENDING,
+        document_type=DocumentType.INTERVIEW_PREP,
+        created_at=datetime.now(UTC) + timedelta(seconds=1),
+    )
     session_factory = FakeSessionFactory()
     cv_processor = RecordingProcessor(session_factory)
     letter_processor = RecordingProcessor(session_factory)
-    FakeWorkerRepository.state = FakeWorkerState([cv_job, letter_job])
+    interview_processor = RecordingProcessor(session_factory)
+    FakeWorkerRepository.state = FakeWorkerState([cv_job, letter_job, interview_job])
     worker = DocumentWorkerService(
         session_factory=session_factory,  # type: ignore[arg-type]
         processors={
             DocumentType.CV: cv_processor,
             DocumentType.COVER_LETTER: letter_processor,
+            DocumentType.INTERVIEW_PREP: interview_processor,
         },
         poll_interval_seconds=0.01,
         stale_job_timeout_seconds=600,
@@ -315,11 +322,14 @@ async def test_worker_routes_cv_and_cover_letter_to_their_processors() -> None:
 
     assert await worker.process_next_job() is True
     assert await worker.process_next_job() is True
+    assert await worker.process_next_job() is True
 
     assert cv_processor.types == [DocumentType.CV]
     assert letter_processor.types == [DocumentType.COVER_LETTER]
+    assert interview_processor.types == [DocumentType.INTERVIEW_PREP]
     assert cv_job.status is DocumentJobStatus.COMPLETED
     assert letter_job.status is DocumentJobStatus.COMPLETED
+    assert interview_job.status is DocumentJobStatus.COMPLETED
 
 
 @pytest.mark.asyncio
