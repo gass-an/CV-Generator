@@ -19,6 +19,7 @@ from app.core.exceptions import (
 )
 from app.main import app
 from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
+from app.repositories.document_job_repository import DocumentHistoryRecord
 from app.services.document_job_service import get_document_job_service
 from cv_generator_shared.dto import ApiIdentity
 
@@ -39,15 +40,18 @@ class FakeDocumentJobService:
         result_format: str | None = None,
         error_message: str | None = None,
         client_id: uuid.UUID | None = DEFAULT_CLIENT_ID,
+        avp_number: str = "1234-26-001",
+        resume_data: dict[str, Any] | None = None,
+        created_at: datetime | None = None,
     ) -> DocumentJob:
-        now = datetime.now(UTC)
+        now = created_at or datetime.now(UTC)
         job = DocumentJob(
             id=uuid.uuid4(),
             client_id=client_id,
             document_type=document_type,
             status=status,
-            avp_number="1234-26-001",
-            resume_data={"private": "must not leak"},
+            avp_number=avp_number,
+            resume_data=resume_data or {"private": "must not leak"},
             result_content=result_content,
             result_format=result_format,
             error_message=error_message,
@@ -56,6 +60,45 @@ class FakeDocumentJobService:
         )
         self.jobs[job.id] = job
         return job
+
+    async def list_history(
+        self,
+        *,
+        client_id: uuid.UUID,
+        limit: int,
+        offset: int,
+        document_type: DocumentType | None = None,
+        status: DocumentJobStatus | None = None,
+    ) -> tuple[list[DocumentHistoryRecord], int]:
+        jobs = [
+            job
+            for job in self.jobs.values()
+            if job.client_id == client_id
+            and (document_type is None or job.document_type is document_type)
+            and (status is None or job.status is status)
+        ]
+        jobs.sort(key=lambda job: (job.created_at, job.id), reverse=True)
+        total = len(jobs)
+        records = []
+        for job in jobs[offset : offset + limit]:
+            basics = job.resume_data.get("basics")
+            name = basics.get("name") if isinstance(basics, dict) else None
+            candidate_name = (
+                name.strip() if isinstance(name, str) and name.strip() else None
+            )
+            records.append(
+                DocumentHistoryRecord(
+                    id=job.id,
+                    document_type=job.document_type,
+                    status=job.status,
+                    avp_number=job.avp_number,
+                    candidate_name=candidate_name,
+                    created_at=job.created_at,
+                    started_at=job.started_at,
+                    completed_at=job.completed_at,
+                )
+            )
+        return records, total
 
     async def create_job(
         self,

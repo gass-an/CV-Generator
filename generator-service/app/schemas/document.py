@@ -59,6 +59,30 @@ class DocumentJobStatusResponse(BaseModel):
     )
 
 
+class DocumentHistoryItemResponse(BaseModel):
+    """Résumé non sensible d'une génération dans l'historique client."""
+
+    id: uuid.UUID = Field(description="Identifiant unique du document.")
+    type: DocumentType = Field(description="Type de document demandé.")
+    status: DocumentJobStatus = Field(description="Statut courant de la génération.")
+    avp_number: str = Field(description="Numéro de l'avis de vacance de poste.")
+    candidate_name: str | None = Field(
+        description="Nom du candidat lorsqu'il est exploitable dans le JSON Resume."
+    )
+    created_at: datetime = Field(description="Date de création de la demande.")
+    started_at: datetime | None = Field(description="Date de début du traitement.")
+    completed_at: datetime | None = Field(description="Date de fin du traitement.")
+
+
+class DocumentHistoryResponse(BaseModel):
+    """Page stable de l'historique des générations d'un client."""
+
+    items: list[DocumentHistoryItemResponse]
+    total: int = Field(ge=0, description="Nombre total avant pagination.")
+    limit: int = Field(ge=1, le=100)
+    offset: int = Field(ge=0)
+
+
 class DocumentResultResponse(BaseModel):
     """Contenu source d'un document généré."""
 

@@ -1,9 +1,16 @@
 import uuid
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
 import httpx
 import pytest
+from app.main import app
 from app.models.document_job import DocumentJobStatus, DocumentType
+from app.services.pdf_conversion_service import (
+    PdfConversionError,
+    PdfConversionTimeoutError,
+    get_pdf_converter,
+)
 from docx import Document
 
 from tests.conftest import FakeDocumentJobService
@@ -30,6 +37,20 @@ Professionnelle organisée.
 
 === Licence en Gestion — Université Exemple
 """
+
+PDF_CONTENT = b"%PDF-1.4\n1 0 obj\nendobj\n%%EOF"
+
+
+class FakePdfConverter:
+    def __init__(self, result: bytes | Exception = PDF_CONTENT) -> None:
+        self.result = result
+        self.docx_content: bytes | None = None
+
+    async def convert(self, docx_content: bytes) -> bytes:
+        self.docx_content = docx_content
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
 
 
 @pytest.mark.asyncio
@@ -96,6 +117,129 @@ async def test_create_interview_prep_returns_owned_pending_job(
     assert job.document_type is DocumentType.INTERVIEW_PREP
     assert job.avp_number == "REST-2026-014"
     assert job.resume_data == resume
+
+
+@pytest.mark.asyncio
+async def test_document_history_returns_all_statuses_in_stable_descending_order(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    base_time = datetime(2026, 10, 11, 8, tzinfo=UTC)
+    jobs = [
+        document_service.add_job(
+            job_status,
+            document_type=document_type,
+            resume_data={
+                "basics": {
+                    "name": " Camille Exemple ",
+                    "email": "prive@example.nc",
+                }
+            },
+            created_at=base_time + timedelta(minutes=index),
+        )
+        for index, (job_status, document_type) in enumerate(
+            [
+                (DocumentJobStatus.PENDING, DocumentType.CV),
+                (DocumentJobStatus.PROCESSING, DocumentType.COVER_LETTER),
+                (DocumentJobStatus.COMPLETED, DocumentType.INTERVIEW_PREP),
+                (DocumentJobStatus.FAILED, DocumentType.CV),
+            ]
+        )
+    ]
+
+    response = await api_client.get("/api/v1/documents")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 4
+    assert payload["limit"] == 20
+    assert payload["offset"] == 0
+    assert [item["id"] for item in payload["items"]] == [
+        str(job.id) for job in reversed(jobs)
+    ]
+    assert {item["status"] for item in payload["items"]} == {
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+    }
+    assert all(item["candidate_name"] == "Camille Exemple" for item in payload["items"])
+    assert "email" not in response.text
+    assert "resume" not in response.text
+    assert "result_content" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_document_history_filters_paginates_and_reports_unpaged_total(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    base_time = datetime(2026, 10, 11, 8, tzinfo=UTC)
+    matching_jobs = [
+        document_service.add_job(
+            DocumentJobStatus.COMPLETED,
+            document_type=DocumentType.CV,
+            created_at=base_time + timedelta(minutes=index),
+            resume_data={"basics": {"name": 42}},
+        )
+        for index in range(3)
+    ]
+    document_service.add_job(
+        DocumentJobStatus.FAILED,
+        document_type=DocumentType.CV,
+        created_at=base_time + timedelta(minutes=4),
+    )
+    document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        document_type=DocumentType.COVER_LETTER,
+        created_at=base_time + timedelta(minutes=5),
+    )
+
+    response = await api_client.get(
+        "/api/v1/documents",
+        params={
+            "document_type": "cv",
+            "status": "completed",
+            "limit": 1,
+            "offset": 1,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 3
+    assert payload["limit"] == 1
+    assert payload["offset"] == 1
+    assert payload["items"][0]["id"] == str(matching_jobs[1].id)
+    assert payload["items"][0]["candidate_name"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"limit": 0},
+        {"limit": 101},
+        {"offset": -1},
+        {"document_type": "unknown"},
+        {"status": "unknown"},
+    ],
+)
+async def test_document_history_rejects_invalid_parameters(
+    api_client: httpx.AsyncClient,
+    params: dict[str, int | str],
+) -> None:
+    response = await api_client.get("/api/v1/documents", params=params)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_document_history_is_empty_for_client_without_documents(
+    api_client: httpx.AsyncClient,
+) -> None:
+    response = await api_client.get("/api/v1/documents")
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "total": 0, "limit": 20, "offset": 0}
 
 
 @pytest.mark.asyncio
@@ -347,6 +491,127 @@ async def test_download_interview_prep_uses_type_specific_filename(
 
 
 @pytest.mark.asyncio
+async def test_pdf_completed_job_returns_inline_pdf_with_private_no_store_cache(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    job = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        result_content=ASCIIDOC_CV,
+        result_format="asciidoc",
+    )
+    converter = FakePdfConverter()
+
+    async def override_converter() -> FakePdfConverter:
+        return converter
+
+    app.dependency_overrides[get_pdf_converter] = override_converter
+
+    response = await api_client.get(f"/api/v1/documents/{job.id}/pdf")
+
+    assert response.status_code == 200
+    assert response.content == PDF_CONTENT
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["content-disposition"] == (
+        f'inline; filename="cv-{job.id}.pdf"'
+    )
+    assert response.headers["cache-control"] == "private, no-store"
+    assert converter.docx_content is not None
+    assert converter.docx_content.startswith(b"PK")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("error", "code"),
+    [
+        (PdfConversionError(), "pdf_conversion_failed"),
+        (PdfConversionTimeoutError(), "pdf_conversion_timeout"),
+    ],
+)
+async def test_pdf_conversion_errors_are_controlled(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+    error: Exception,
+    code: str,
+) -> None:
+    job = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        result_content=ASCIIDOC_CV,
+        result_format="asciidoc",
+    )
+
+    async def override_converter() -> FakePdfConverter:
+        return FakePdfConverter(error)
+
+    app.dependency_overrides[get_pdf_converter] = override_converter
+
+    response = await api_client.get(f"/api/v1/documents/{job.id}/pdf")
+
+    assert response.status_code == 500
+    assert response.json()["detail"]["code"] == code
+    assert "LibreOffice" not in response.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("job_status", "error_code"),
+    [
+        (DocumentJobStatus.PENDING, "document_not_ready"),
+        (DocumentJobStatus.PROCESSING, "document_not_ready"),
+        (DocumentJobStatus.FAILED, "document_generation_failed"),
+    ],
+)
+async def test_pdf_unavailable_job_returns_conflict_without_conversion(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+    job_status: DocumentJobStatus,
+    error_code: str,
+) -> None:
+    job = document_service.add_job(job_status)
+    converter = FakePdfConverter()
+
+    async def override_converter() -> FakePdfConverter:
+        return converter
+
+    app.dependency_overrides[get_pdf_converter] = override_converter
+
+    response = await api_client.get(f"/api/v1/documents/{job.id}/pdf")
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == error_code
+    assert converter.docx_content is None
+
+
+@pytest.mark.asyncio
+async def test_pdf_unknown_job_returns_not_found(
+    api_client: httpx.AsyncClient,
+) -> None:
+    async def override_converter() -> FakePdfConverter:
+        return FakePdfConverter()
+
+    app.dependency_overrides[get_pdf_converter] = override_converter
+    response = await api_client.get(f"/api/v1/documents/{uuid.uuid4()}/pdf")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_pdf_unusable_result_returns_conflict(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    job = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        result_content="= Document",
+        result_format="markdown",
+    )
+
+    response = await api_client.get(f"/api/v1/documents/{job.id}/pdf")
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "document_result_unavailable"
+
+
+@pytest.mark.asyncio
 async def test_download_unknown_job_returns_not_found(
     api_client: httpx.AsyncClient,
 ) -> None:
@@ -450,9 +715,11 @@ async def test_openapi_documents_generation_routes_in_french(
         "/api/v1/documents/cv",
         "/api/v1/documents/cover-letter",
         "/api/v1/documents/interview-prep",
+        "/api/v1/documents",
         "/api/v1/documents/{id}/status",
         "/api/v1/documents/{id}",
         "/api/v1/documents/{id}/download",
+        "/api/v1/documents/{id}/pdf",
     }
     assert set(schema["paths"]) == expected_paths
     assert not any("{job_id}" in path for path in schema["paths"])
@@ -472,6 +739,7 @@ async def test_openapi_documents_generation_routes_in_french(
         "/api/v1/documents/{id}/status",
         "/api/v1/documents/{id}",
         "/api/v1/documents/{id}/download",
+        "/api/v1/documents/{id}/pdf",
     ):
         operation = schema["paths"][path]["get"]
         path_parameter = next(

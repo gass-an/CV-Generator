@@ -207,3 +207,33 @@ curl -OJ \
   -H "X-API-Key: ${API_KEY}" \
   http://127.0.0.1:8000/api/v1/documents/<ID>/download
 ```
+
+## Historique et PDF
+
+### Consulter l'historique paginé
+
+```bash
+curl -sS \
+  -H "X-API-Key: ${API_KEY}" \
+  'http://127.0.0.1:8000/api/v1/documents?limit=20&offset=0' \
+  | jq
+```
+
+### Filtrer l'historique
+
+```bash
+curl -sS \
+  -H "X-API-Key: ${API_KEY}" \
+  'http://127.0.0.1:8000/api/v1/documents?document_type=interview_prep&status=completed' \
+  | jq
+```
+
+### Récupérer un PDF pour prévisualisation
+
+```bash
+curl -sS \
+  -H "X-API-Key: ${API_KEY}" \
+  -H 'Accept: application/pdf' \
+  -o guide-entretien.pdf \
+  http://127.0.0.1:8000/api/v1/documents/<ID>/pdf
+```

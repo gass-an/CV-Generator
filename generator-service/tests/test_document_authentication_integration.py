@@ -46,7 +46,10 @@ async def test_http_authentication_and_ownership_with_real_services() -> None:
             created = await client.post(
                 "/api/v1/documents/cv",
                 headers={"X-API-Key": key_a_1.value},
-                json={"avp_number": "1234-26-001", "resume": {"basics": {}}},
+                json={
+                    "avp_number": "1234-26-001",
+                    "resume": {"basics": {"name": "Camille Exemple"}},
+                },
             )
             assert created.status_code == 202
             job_id = uuid.UUID(created.json()["id"])
@@ -69,6 +72,23 @@ async def test_http_authentication_and_ownership_with_real_services() -> None:
             assert same_client.status_code == 200
             assert other_client.status_code == 404
             assert "resume" not in other_client.text
+
+            history_same_client = await client.get(
+                "/api/v1/documents",
+                headers={"X-API-Key": key_a_2.value},
+            )
+            history_other_client = await client.get(
+                "/api/v1/documents",
+                headers={"X-API-Key": key_b.value},
+            )
+            assert history_same_client.status_code == 200
+            assert history_same_client.json()["total"] == 1
+            assert history_same_client.json()["items"][0]["id"] == str(job_id)
+            assert history_same_client.json()["items"][0]["candidate_name"] == (
+                "Camille Exemple"
+            )
+            assert history_other_client.status_code == 200
+            assert history_other_client.json()["items"] == []
 
             async with async_session_factory() as revoke_session:
                 await ApiKeyService(revoke_session).revoke_key(key_a_1.key.id)

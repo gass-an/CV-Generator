@@ -1,11 +1,26 @@
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentHistoryRecord:
+    """Projection non sensible d'un job destinée à l'historique public."""
+
+    id: uuid.UUID
+    document_type: DocumentType
+    status: DocumentJobStatus
+    avp_number: str
+    candidate_name: str | None
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
 
 
 class DocumentJobRepository:
@@ -48,6 +63,65 @@ class DocumentJobRepository:
             DocumentJob.client_id == client_id,
         )
         return (await self._session.execute(statement)).scalar_one_or_none()
+
+    async def list_for_client(
+        self,
+        *,
+        client_id: uuid.UUID,
+        limit: int,
+        offset: int,
+        document_type: DocumentType | None = None,
+        status: DocumentJobStatus | None = None,
+    ) -> tuple[list[DocumentHistoryRecord], int]:
+        """Retourne une projection paginée sans charger le CV ni le résultat."""
+        filters = [DocumentJob.client_id == client_id]
+        if document_type is not None:
+            filters.append(DocumentJob.document_type == document_type)
+        if status is not None:
+            filters.append(DocumentJob.status == status)
+
+        candidate_value = DocumentJob.resume_data["basics"]["name"]
+        candidate_name = case(
+            (
+                func.jsonb_typeof(candidate_value) == "string",
+                func.nullif(func.btrim(candidate_value.astext), ""),
+            ),
+            else_=None,
+        ).label("candidate_name")
+        statement = (
+            select(
+                DocumentJob.id,
+                DocumentJob.document_type,
+                DocumentJob.status,
+                DocumentJob.avp_number,
+                candidate_name,
+                DocumentJob.created_at,
+                DocumentJob.started_at,
+                DocumentJob.completed_at,
+            )
+            .where(*filters)
+            .order_by(DocumentJob.created_at.desc(), DocumentJob.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        count_statement = select(func.count(DocumentJob.id)).where(*filters)
+
+        rows = (await self._session.execute(statement)).all()
+        total = (await self._session.execute(count_statement)).scalar_one()
+        items = [
+            DocumentHistoryRecord(
+                id=row.id,
+                document_type=row.document_type,
+                status=row.status,
+                avp_number=row.avp_number,
+                candidate_name=row.candidate_name,
+                created_at=row.created_at,
+                started_at=row.started_at,
+                completed_at=row.completed_at,
+            )
+            for row in rows
+        ]
+        return items, total
 
     async def update(self, job: DocumentJob) -> DocumentJob:
         await self._session.flush()

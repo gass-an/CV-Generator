@@ -7,6 +7,7 @@ from app.api.dependencies import get_api_key_service
 from app.main import app
 from app.models.document_job import DocumentJobStatus
 from app.services.document_job_service import get_document_job_service
+from app.services.pdf_conversion_service import get_pdf_converter
 from cv_generator_shared.dto import ApiIdentity
 
 from tests.conftest import FakeDocumentJobService
@@ -37,6 +38,11 @@ class FakeApiKeyService:
         return identity
 
 
+class FakePdfConverter:
+    async def convert(self, docx_content: bytes) -> bytes:
+        return b"%PDF-1.4\n%%EOF"
+
+
 @pytest.fixture
 async def secured_api() -> AsyncIterator[
     tuple[httpx.AsyncClient, FakeDocumentJobService, FakeApiKeyService]
@@ -50,8 +56,12 @@ async def secured_api() -> AsyncIterator[
     async def override_key_service() -> FakeApiKeyService:
         return keys
 
+    async def override_pdf_converter() -> FakePdfConverter:
+        return FakePdfConverter()
+
     app.dependency_overrides[get_document_job_service] = override_document_service
     app.dependency_overrides[get_api_key_service] = override_key_service
+    app.dependency_overrides[get_pdf_converter] = override_pdf_converter
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(
         transport=transport, base_url="http://testserver"
@@ -110,7 +120,7 @@ async def test_generation_assigns_authenticated_client(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("suffix", ["/status", "", "/download"])
+@pytest.mark.parametrize("suffix", ["/status", "", "/download", "/pdf"])
 async def test_only_owner_can_access_every_document_route(
     secured_api: tuple[httpx.AsyncClient, FakeDocumentJobService, FakeApiKeyService],
     suffix: str,
@@ -137,6 +147,37 @@ async def test_only_owner_can_access_every_document_route(
     assert other_response.status_code == 404
     assert other_response.json()["detail"]["code"] == "document_job_not_found"
     assert "Résultat strictement privé" not in other_response.text
+
+
+@pytest.mark.asyncio
+async def test_history_is_shared_by_client_keys_and_isolated_from_other_clients(
+    secured_api: tuple[httpx.AsyncClient, FakeDocumentJobService, FakeApiKeyService],
+) -> None:
+    client, documents, _ = secured_api
+    owned = documents.add_job(
+        DocumentJobStatus.COMPLETED,
+        client_id=CLIENT_A,
+        resume_data={"basics": {"name": "Camille Exemple"}},
+    )
+    documents.add_job(DocumentJobStatus.FAILED, client_id=CLIENT_B)
+    documents.add_job(DocumentJobStatus.COMPLETED, client_id=None)
+
+    first_key = await client.get(
+        "/api/v1/documents", headers=authentication_header(KEY_A_1)
+    )
+    second_key = await client.get(
+        "/api/v1/documents", headers=authentication_header(KEY_A_2)
+    )
+    other_client = await client.get(
+        "/api/v1/documents", headers=authentication_header(KEY_B)
+    )
+
+    assert first_key.status_code == 200
+    assert second_key.json() == first_key.json()
+    assert first_key.json()["total"] == 1
+    assert first_key.json()["items"][0]["id"] == str(owned.id)
+    assert other_client.json()["total"] == 1
+    assert other_client.json()["items"][0]["id"] != str(owned.id)
 
 
 @pytest.mark.asyncio
@@ -184,6 +225,27 @@ async def test_revoked_key_is_refused_but_new_key_of_same_client_keeps_access(
 
     assert revoked_response.status_code == 401
     assert renewed_response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_second_client_key_can_access_pdf(
+    secured_api: tuple[httpx.AsyncClient, FakeDocumentJobService, FakeApiKeyService],
+) -> None:
+    client, documents, _ = secured_api
+    job = documents.add_job(
+        DocumentJobStatus.COMPLETED,
+        client_id=CLIENT_A,
+        result_content="= Document privé",
+        result_format="asciidoc",
+    )
+
+    response = await client.get(
+        f"/api/v1/documents/{job.id}/pdf",
+        headers=authentication_header(KEY_A_2),
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
 
 
 @pytest.mark.asyncio

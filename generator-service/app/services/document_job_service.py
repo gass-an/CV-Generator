@@ -12,7 +12,10 @@ from app.core.exceptions import (
     DocumentResultUnavailableError,
 )
 from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
-from app.repositories.document_job_repository import DocumentJobRepository
+from app.repositories.document_job_repository import (
+    DocumentHistoryRecord,
+    DocumentJobRepository,
+)
 
 
 class DocumentJobService:
@@ -48,6 +51,25 @@ class DocumentJobService:
         if job is None:
             raise DocumentJobNotFoundError(job_id)
         return job
+
+    async def list_history(
+        self,
+        *,
+        client_id: uuid.UUID,
+        limit: int,
+        offset: int,
+        document_type: DocumentType | None = None,
+        status: DocumentJobStatus | None = None,
+    ) -> tuple[list[DocumentHistoryRecord], int]:
+        """Liste les documents du client dans une transaction de lecture courte."""
+        async with self._session.begin():
+            return await self._repository.list_for_client(
+                client_id=client_id,
+                limit=limit,
+                offset=offset,
+                document_type=document_type,
+                status=status,
+            )
 
     async def get_result(
         self, job_id: uuid.UUID, *, client_id: uuid.UUID

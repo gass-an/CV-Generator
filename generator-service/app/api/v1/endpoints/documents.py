@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 
 from app.api.dependencies import AuthenticatedIdentity
 from app.core.exceptions import (
@@ -10,10 +10,12 @@ from app.core.exceptions import (
     DocumentJobNotReadyError,
     DocumentResultUnavailableError,
 )
-from app.models.document_job import DocumentType
+from app.models.document_job import DocumentJobStatus, DocumentType
 from app.renderers import DocxRenderer, DocxRenderingError
 from app.schemas.document import (
     CreateDocumentRequest,
+    DocumentHistoryItemResponse,
+    DocumentHistoryResponse,
     DocumentJobCreatedResponse,
     DocumentJobStatusResponse,
     DocumentResultResponse,
@@ -23,12 +25,18 @@ from app.services.document_job_service import (
     DocumentJobService,
     get_document_job_service,
 )
+from app.services.pdf_conversion_service import (
+    PdfConversionError,
+    PdfConversionTimeoutError,
+    PdfConverter,
+)
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 DOCX_MEDIA_TYPE = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 )
+PDF_MEDIA_TYPE = "application/pdf"
 
 DocumentService = Annotated[DocumentJobService, Depends(get_document_job_service)]
 DocumentId = Annotated[
@@ -58,6 +66,14 @@ def not_found_error() -> HTTPException:
             "message": "Le document est introuvable",
         },
     )
+
+
+def document_filename_prefix(document_type: DocumentType) -> str:
+    return {
+        DocumentType.CV: "cv",
+        DocumentType.COVER_LETTER: "lettre-motivation",
+        DocumentType.INTERVIEW_PREP: "guide-entretien",
+    }[document_type]
 
 
 @router.post(
@@ -146,6 +162,55 @@ async def create_interview_prep_document(
         resume_data=request.resume,
     )
     return DocumentJobCreatedResponse(id=job.id, status=job.status)
+
+
+@router.get(
+    "",
+    response_model=DocumentHistoryResponse,
+    summary="Consulter l'historique des documents",
+    description=(
+        "Retourne une page des générations appartenant au client authentifié, "
+        "sans exposer le JSON Resume ni le contenu des documents."
+    ),
+    response_description="Page de l'historique triée du plus récent au plus ancien.",
+    responses={422: {"description": "Paramètres de pagination ou filtres invalides."}},
+)
+async def list_document_history(
+    service: DocumentService,
+    identity: AuthenticatedIdentity,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    document_type: DocumentType | None = None,
+    status_filter: Annotated[
+        DocumentJobStatus | None,
+        Query(alias="status"),
+    ] = None,
+) -> DocumentHistoryResponse:
+    items, total = await service.list_history(
+        client_id=identity.client_id,
+        limit=limit,
+        offset=offset,
+        document_type=document_type,
+        status=status_filter,
+    )
+    return DocumentHistoryResponse(
+        items=[
+            DocumentHistoryItemResponse(
+                id=item.id,
+                type=item.document_type,
+                status=item.status,
+                avp_number=item.avp_number,
+                candidate_name=item.candidate_name,
+                created_at=item.created_at,
+                started_at=item.started_at,
+                completed_at=item.completed_at,
+            )
+            for item in items
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(
@@ -293,11 +358,7 @@ async def download_document(
             },
         ) from error
 
-    filename_prefix = {
-        DocumentType.CV: "cv",
-        DocumentType.COVER_LETTER: "lettre-motivation",
-        DocumentType.INTERVIEW_PREP: "guide-entretien",
-    }[job.document_type]
+    filename_prefix = document_filename_prefix(job.document_type)
     return Response(
         content=content,
         media_type=DOCX_MEDIA_TYPE,
@@ -305,5 +366,101 @@ async def download_document(
             "Content-Disposition": (
                 f'attachment; filename="{filename_prefix}-{document_id}.docx"'
             ),
+        },
+    )
+
+
+@router.get(
+    "/{id}/pdf",
+    summary="Prévisualiser le document en PDF",
+    description=(
+        "Génère à la demande le DOCX d'un document terminé, puis le convertit "
+        "en PDF pour une prévisualisation authentifiée."
+    ),
+    response_description="Document PDF généré à la demande.",
+    responses={
+        200: {
+            "content": {PDF_MEDIA_TYPE: {}},
+            "description": "Document généré au format PDF.",
+        },
+        404: NOT_FOUND_RESPONSE,
+        409: CONFLICT_RESPONSE,
+        422: {"description": "Identifiant invalide."},
+        500: {
+            "model": ErrorResponse,
+            "description": "Le rendu ou la conversion PDF a échoué.",
+        },
+    },
+)
+async def preview_document_pdf(
+    document_id: DocumentId,
+    service: DocumentService,
+    identity: AuthenticatedIdentity,
+    converter: PdfConverter,
+) -> Response:
+    try:
+        job = await service.get_asciidoc_job(document_id, client_id=identity.client_id)
+        docx_content = DocxRenderer().render(job.result_content or "")
+        pdf_content = await converter.convert(docx_content)
+    except DocumentJobNotFoundError as error:
+        raise not_found_error() from error
+    except DocumentJobNotReadyError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "document_not_ready",
+                "message": "La génération du document n'est pas terminée",
+            },
+        ) from error
+    except DocumentGenerationFailedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "document_generation_failed",
+                "message": "La génération du document a échoué",
+            },
+        ) from error
+    except DocumentResultUnavailableError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "document_result_unavailable",
+                "message": "Le résultat du document est indisponible",
+            },
+        ) from error
+    except DocxRenderingError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "document_rendering_failed",
+                "message": "La génération du fichier DOCX a échoué",
+            },
+        ) from error
+    except PdfConversionTimeoutError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "pdf_conversion_timeout",
+                "message": "La conversion du document en PDF a expiré",
+            },
+        ) from error
+    except PdfConversionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "pdf_conversion_failed",
+                "message": "La conversion du document en PDF a échoué",
+            },
+        ) from error
+
+    filename_prefix = document_filename_prefix(job.document_type)
+    return Response(
+        content=pdf_content,
+        media_type=PDF_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": (
+                f'inline; filename="{filename_prefix}-{document_id}.pdf"'
+            ),
+            "Cache-Control": "private, no-store",
         },
     )

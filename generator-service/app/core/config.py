@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     worker_poll_interval_seconds: float = Field(default=1, gt=0)
     worker_stale_job_timeout_seconds: float = Field(default=600, gt=0)
 
+    libreoffice_executable: str = "libreoffice"
+    pdf_conversion_timeout_seconds: float = Field(default=60, gt=0)
+    pdf_conversion_max_concurrent: int = Field(default=2, ge=1, le=16)
+
 
 @lru_cache
 def get_settings() -> Settings:

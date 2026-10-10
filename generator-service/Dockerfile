@@ -6,6 +6,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# LibreOffice assure un rendu PDF fidèle au DOCX, avec des polices métriquement
+# compatibles disponibles pour l'utilisateur non privilégié.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        fonts-dejavu-core \
+        fonts-liberation \
+        libreoffice-writer \
+    && rm -rf /var/lib/apt/lists/*
+
 # Exécute l'application avec un utilisateur non privilégié.
 RUN groupadd --system generator \
     && useradd --system --gid generator --uid 10001 generator

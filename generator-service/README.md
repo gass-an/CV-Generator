@@ -62,9 +62,11 @@ Endpoints de génération disponibles :
 - `POST /api/v1/documents/cv`
 - `POST /api/v1/documents/cover-letter`
 - `POST /api/v1/documents/interview-prep`
+- `GET /api/v1/documents`
 - `GET /api/v1/documents/{id}/status`
 - `GET /api/v1/documents/{id}`
 - `GET /api/v1/documents/{id}/download`
+- `GET /api/v1/documents/{id}/pdf`
 
 Toutes ces routes documentaires exigent l'en-tête `X-API-Key`. Swagger reste
 public et son bouton **Authorize** permet de renseigner cette clé. Une clé
@@ -89,6 +91,56 @@ curl -OJ \
 
 Le fichier `.docx` est généré à la demande à partir de l'AsciiDoc stocké. Il
 n'est pas persisté séparément en base de données.
+
+### Historique des générations
+
+L'historique est limité au client associé à la clé API. Deux clés valides du
+même client voient donc les mêmes documents. La réponse contient une projection
+non sensible (`id`, type, statut, AVP, nom du candidat et horodatages), sans le
+JSON Resume ni le contenu AsciiDoc.
+
+```bash
+curl -sS \
+  -H "X-API-Key: ${API_KEY}" \
+  'http://127.0.0.1:8000/api/v1/documents?limit=20&offset=0' \
+  | jq
+```
+
+Les filtres `document_type` (`cv`, `cover_letter`, `interview_prep`) et `status`
+(`pending`, `processing`, `completed`, `failed`) sont optionnels :
+
+```bash
+curl -sS \
+  -H "X-API-Key: ${API_KEY}" \
+  'http://127.0.0.1:8000/api/v1/documents?document_type=cv&status=completed&limit=10' \
+  | jq
+```
+
+La réponse contient `items`, `total`, `limit` et `offset`. Une pagination ou un
+filtre invalide produit une réponse `422`.
+
+### Prévisualisation PDF
+
+Un document terminé peut être converti à la demande en PDF :
+
+```bash
+curl -sS \
+  -H "X-API-Key: ${API_KEY}" \
+  -H 'Accept: application/pdf' \
+  -o document.pdf \
+  http://127.0.0.1:8000/api/v1/documents/<ID>/pdf
+```
+
+La réponse utilise `Content-Type: application/pdf`, une disposition `inline` et
+`Cache-Control: private, no-store`. Les erreurs d'accès restent `401` ou `404`,
+un document indisponible produit `409`, et un échec de conversion produit `500`
+avec un code métier stable.
+
+La conversion réutilise le DOCX et LibreOffice Writer en mode headless. L'image
+Docker backend installe LibreOffice et les polices DejaVu/Liberation. Les
+paramètres `LIBREOFFICE_EXECUTABLE`, `PDF_CONVERSION_TIMEOUT_SECONDS` et
+`PDF_CONVERSION_MAX_CONCURRENT` permettent de configurer respectivement le
+binaire, le délai maximal et la limite de conversions simultanées.
 
 Des commandes complètes utilisant des données fictives sont disponibles dans
 [`demo/curl-examples.md`](demo/curl-examples.md).
@@ -156,6 +208,17 @@ ruff check .
 pytest
 ```
 
+Le test réel LibreOffice est optionnel sur la machine de développement :
+
+```bash
+RUN_LIBREOFFICE_INTEGRATION=1 pytest tests/test_pdf_conversion_service.py \
+  -k real_libreoffice
+```
+
+Il nécessite le binaire `libreoffice`. Les autres tests PDF utilisent un
+processus simulé et n'imposent aucune dépendance système à l'environnement de
+test.
+
 Pour appliquer automatiquement le formatage :
 
 ```bash
@@ -179,6 +242,9 @@ LLM_MODEL=nom-du-modele-charge
 LLM_TIMEOUT_SECONDS=120
 WORKER_POLL_INTERVAL_SECONDS=1
 WORKER_STALE_JOB_TIMEOUT_SECONDS=600
+LIBREOFFICE_EXECUTABLE=libreoffice
+PDF_CONVERSION_TIMEOUT_SECONDS=60
+PDF_CONVERSION_MAX_CONCURRENT=2
 ```
 
 Dans l'environnement Docker local décrit plus haut, llama.cpp tourne sur une

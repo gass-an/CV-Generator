@@ -8,7 +8,7 @@ OPENAPI_TAGS = [
     {
         "name": "Documents",
         "description": (
-            "Création, suivi, récupération et téléchargement des documents générés."
+            "Création, historique, suivi, récupération et export des documents."
         ),
     },
     {
@@ -32,7 +32,7 @@ def create_app() -> FastAPI:
             "Une requête POST démarre la génération asynchrone d'un document. "
             "L'API retourne immédiatement un identifiant qui permet de suivre "
             "l'avancement, de récupérer le résultat source en AsciiDoc puis de "
-            "télécharger le document au format DOCX."
+            "télécharger le document au format DOCX ou de le prévisualiser en PDF."
         ),
         version=app_version.removeprefix("v"),
         openapi_tags=OPENAPI_TAGS,
