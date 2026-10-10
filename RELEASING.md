@@ -36,8 +36,8 @@ produire l'archive dans le conteneur et la copier sur l'hôte :
 
 ```powershell
 New-Item -ItemType Directory -Force backups
-docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f /tmp/cv-generator-before-v0.3.0.dump'
-$postgresContainer = docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml ps -q postgres
+docker compose --env-file .env -f docker-compose.prod.yml exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f /tmp/cv-generator-before-v0.3.0.dump'
+$postgresContainer = docker compose --env-file .env -f docker-compose.prod.yml ps -q postgres
 docker cp "${postgresContainer}:/tmp/cv-generator-before-v0.3.0.dump" ".\backups\cv-generator-before-v0.3.0.dump"
 ```
 
@@ -49,12 +49,12 @@ et aucune restauration ne doit être improvisée sans copie supplémentaire.
 
 Préconditions : Docker Desktop en fonctionnement, accès GHCR configuré, GPU
 NVIDIA disponible et dépôt positionné sur le commit de la release. Ne remplacez
-jamais `deploy/.env` par son exemple : modifiez seulement les valeurs nécessaires
+jamais `.env` par son exemple : modifiez seulement les valeurs nécessaires
 dans le fichier réel déjà présent, notamment `APP_VERSION=v0.3.0`.
 
 Si les secrets administrateur se trouvent encore dans un ancien fichier
 séparé, les reporter manuellement dans la section Administration de
-`deploy/.env`, sans les afficher dans le terminal ni écraser automatiquement le
+`.env`, sans les afficher dans le terminal ni écraser automatiquement le
 fichier existant. Placer `ADMIN_PASSWORD_HASH` entre apostrophes simples pour
 préserver les `$`; Docker Compose ne transmet pas ces apostrophes au conteneur.
 
@@ -62,10 +62,10 @@ Depuis la racine du dépôt :
 
 ```powershell
 docker login ghcr.io
-docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml config --quiet
-docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml pull
-docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d
-docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml ps
+docker compose --env-file .env -f docker-compose.prod.yml config --quiet
+docker compose --env-file .env -f docker-compose.prod.yml pull
+docker compose --env-file .env -f docker-compose.prod.yml up -d
+docker compose --env-file .env -f docker-compose.prod.yml ps
 ```
 
 `generator-migrate` attend PostgreSQL et doit terminer avec succès avant le
@@ -73,8 +73,8 @@ démarrage de l'API, du worker et de l'administration. Contrôler son état et l
 logs sans afficher le fichier d'environnement :
 
 ```powershell
-docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml logs --tail=100 generator-migrate
-docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml logs --tail=100 generator-api generator-worker generator-admin
+docker compose --env-file .env -f docker-compose.prod.yml logs --tail=100 generator-migrate
+docker compose --env-file .env -f docker-compose.prod.yml logs --tail=100 generator-api generator-worker generator-admin
 ```
 
 Tester localement :
