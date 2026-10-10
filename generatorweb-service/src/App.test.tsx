@@ -13,15 +13,50 @@ function renderApplication(initialPath = "/") {
 }
 
 describe("App", () => {
-  it("affiche le layout partagé et la page de génération", () => {
+  it("affiche le layout partagé, les logos et une navigation accessible", () => {
     renderApplication();
 
-    expect(screen.getByText("CV-Generator")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "CV-Generator" })).toHaveAttribute(
+      "src",
+      "/logos/CV_Generator.png",
+    );
     expect(
-      screen.getByRole("heading", { name: "Génération de documents" }),
+      screen.getByRole("img", { name: "OPT Nouvelle-Calédonie" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "IAE Nouvelle-Calédonie" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("navigation", { name: "Navigation principale" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Générer/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      screen.getByRole("link", { name: "Aller au contenu" }),
+    ).toHaveAttribute("href", "#contenu-principal");
+  });
+
+  it("présente les trois types de documents sans action factice", () => {
+    renderApplication();
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Préparez une candidature qui vous ressemble",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Curriculum vitæ" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Lettre de motivation" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Préparation à l'entretien" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Aucun document à prévisualiser"),
     ).toBeInTheDocument();
   });
 
@@ -31,12 +66,35 @@ describe("App", () => {
 
     await user.click(screen.getByRole("link", { name: /Historique/ }));
     expect(
-      screen.getByRole("heading", { name: "Historique" }),
+      screen.getByRole("heading", { name: "Historique des documents" }),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("link", { name: /Paramètres/ }));
     expect(
       screen.getByRole("heading", { name: "Paramètres" }),
+    ).toBeInTheDocument();
+  });
+
+  it("affiche l'état vide de l'historique", () => {
+    renderApplication("/historique");
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Aucun document à afficher pour le moment",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("présente les paramètres sans simuler une clé enregistrée", () => {
+    renderApplication("/parametres");
+
+    expect(
+      screen.getByRole("heading", { name: "Paramètres" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Non configurée")).toBeInTheDocument();
+    expect(screen.getByLabelText("Clé API")).toBeDisabled();
+    expect(
+      screen.getByText(/Aucune clé n'est actuellement saisie/),
     ).toBeInTheDocument();
   });
 

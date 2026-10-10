@@ -1,54 +1,95 @@
-import { FileText } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { navigationItems } from "@/app/navigation";
+import { BrandLogo } from "@/components/BrandLogo";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export function AppLayout() {
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="border-border/80 bg-card border-b">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+      <a
+        href="#contenu-principal"
+        className="bg-primary text-primary-foreground fixed top-3 left-3 z-50 -translate-y-20 rounded-md px-4 py-2 text-sm font-semibold transition-transform focus:translate-y-0"
+      >
+        Aller au contenu
+      </a>
+
+      <header className="border-border/80 bg-card/95 sticky top-0 z-40 border-b backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8 lg:px-8">
           <NavLink
             to="/"
-            className="flex w-fit items-center gap-2 rounded-md font-semibold tracking-tight"
+            className="flex w-fit items-center gap-3 rounded-lg"
+            aria-label="CV-Generator — accueil"
           >
-            <span className="bg-primary text-primary-foreground flex size-9 items-center justify-center rounded-lg">
-              <FileText className="size-5" aria-hidden="true" />
+            <BrandLogo brand="cv-generator" />
+            <span className="hidden sm:block">
+              <span className="block text-lg font-bold tracking-tight">
+                CV-Generator
+              </span>
+              <span className="text-muted-foreground block text-xs">
+                Votre candidature, mieux préparée
+              </span>
             </span>
-            <span>CV-Generator</span>
           </NavLink>
 
-          <nav aria-label="Navigation principale">
-            <ul className="flex flex-wrap gap-1">
-              {navigationItems.map(({ label, to, icon: Icon, end }) => (
-                <li key={to}>
-                  <NavLink
-                    to={to}
-                    end={end}
-                    className={({ isActive }) =>
-                      cn(
-                        "text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                        isActive && "bg-muted text-foreground",
-                      )
-                    }
-                  >
-                    <Icon className="size-4" aria-hidden="true" />
-                    {label}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          <div className="flex items-center gap-3 lg:ml-auto">
+            <Badge variant="outline" className="hidden xl:inline-flex">
+              Projet HackAVP
+            </Badge>
+            <nav
+              className="min-w-0 flex-1 lg:flex-none"
+              aria-label="Navigation principale"
+            >
+              <ul className="grid grid-cols-3 gap-1 lg:flex">
+                {navigationItems.map(({ label, to, icon: Icon, end }) => (
+                  <li key={to}>
+                    <NavLink
+                      to={to}
+                      end={end}
+                      className={({ isActive }) =>
+                        cn(
+                          "text-muted-foreground hover:bg-primary/6 hover:text-primary relative flex min-h-11 items-center justify-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold transition-colors sm:px-4",
+                          isActive &&
+                            "bg-primary/10 text-primary after:bg-primary after:absolute after:inset-x-4 after:-bottom-3 after:h-0.5 after:rounded-full lg:after:-bottom-3.5",
+                        )
+                      }
+                    >
+                      <Icon className="size-4" aria-hidden="true" />
+                      {label}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+      <main
+        id="contenu-principal"
+        className="mx-auto flex w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12"
+      >
         <Outlet />
       </main>
 
-      <footer className="border-border/80 text-muted-foreground border-t px-4 py-5 text-center text-sm">
-        CV-Generator — outil de préparation des candidatures HackAVP
+      <footer className="border-border/80 bg-card border-t">
+        <div className="mx-auto flex w-full max-w-7xl flex-col items-center gap-5 px-4 py-6 sm:flex-row sm:justify-between sm:px-6 lg:px-8">
+          <div className="text-center sm:text-left">
+            <p className="text-sm font-semibold">CV-Generator</p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              Une application développée dans le cadre de HackAVP.
+            </p>
+          </div>
+          <div
+            className="flex items-center gap-6 rounded-xl px-3 py-2"
+            aria-label="Organisations du projet"
+          >
+            <BrandLogo brand="opt" />
+            <span className="bg-border h-9 w-px" aria-hidden="true" />
+            <BrandLogo brand="iae" />
+          </div>
+        </div>
       </footer>
     </div>
   );

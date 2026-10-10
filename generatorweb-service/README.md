@@ -1,8 +1,8 @@
 # Interface web CV-Generator
 
-Socle React de l'interface publique de CV-Generator. Cette première étape met
-en place la navigation et les outils de développement ; les appels à l'API et
-les fonctionnalités de génération seront ajoutés ultérieurement.
+Interface publique responsive de CV-Generator. Elle prépare les parcours de
+génération, d'historique et de configuration ; les appels à l'API et les
+fonctionnalités métier seront ajoutés ultérieurement.
 
 ## Stack technique
 
@@ -49,8 +49,8 @@ Les autres commandes disponibles sont :
 src/
 ├── app/             # Déclaration des routes
 ├── components/
-│   ├── layout/      # Structure partagée de l'application
-│   └── ui/          # Composants shadcn/ui locaux
+│   ├── layout/      # Structure partagée et navigation
+│   └── ui/          # Composants shadcn/ui locaux (cartes et badges)
 ├── lib/             # Utilitaires communs
 ├── pages/           # Écrans associés aux routes
 ├── App.tsx
@@ -62,8 +62,13 @@ Les futurs appels HTTP seront placés dans `src/services/`, la logique React
 réutilisable dans `src/hooks/` et les contrats dans `src/types/` lorsqu'ils
 deviendront nécessaires.
 
-Le répertoire `public/logos/` est réservé aux logos officiels qui seront
-fournis ultérieurement. Aucun visuel de remplacement n'est inclus.
+Les routes disponibles sont `/` pour préparer une génération, `/historique`
+pour les documents du client et `/parametres` pour la future configuration de
+la clé API. Les routes inconnues affichent une page 404 dans le layout commun.
+
+Les logos officiels CV-Generator, OPT et IAE sont servis depuis
+`public/logos/`. Le composant `BrandLogo` centralise leurs chemins, textes
+alternatifs et dimensions afin de préserver leurs proportions respectives.
 
 ## Proxy API en développement
 
@@ -81,6 +86,7 @@ aucune clé API. En production, le reverse proxy Nginx assurera le routage.
 
 ## Étapes suivantes
 
-Les écrans actuels sont volontairement informatifs. La gestion de la clé API,
-l'import JSON Resume, la génération, le suivi des jobs, l'historique et les
-téléchargements feront l'objet d'évolutions séparées.
+Les écrans actuels présentent les emplacements et états vides définitifs, mais
+leurs contrôles sont volontairement désactivés. La gestion de la clé API,
+l'import JSON Resume, la génération, le suivi des jobs, l'historique dynamique
+et les téléchargements feront l'objet d'évolutions séparées.
