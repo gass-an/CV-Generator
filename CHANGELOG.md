@@ -5,6 +5,10 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+### Ajouts
+
+- Guide de préparation à l'entretien
+
 ### Modifications
 
 - Ajout de la version dynamique dans le swagger
