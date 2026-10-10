@@ -46,7 +46,10 @@ def test_system_prompt_requires_fidelity_asciidoc_and_structural_examples() -> N
     assert "N'invente jamais une expérience" in system_prompt
     assert "présente uniquement dans l'AVP en fait candidat" in system_prompt
     assert "format AsciiDoc" in system_prompt
-    assert "aucun titre avec « # »" in system_prompt
+    assert "« **texte** », « - élément », « # Titre »" in system_prompt
+    assert "espaces en fin de ligne" in system_prompt
+    assert "*mot en gras*" in system_prompt
+    assert "** Sous-élément" in system_prompt
     assert "exclusivement syntaxique et structurel" in system_prompt
     assert "aucune donnée, phrase ou formulation" in system_prompt
     assert "<coordonnées disponibles du candidat>" in system_prompt

@@ -1,9 +1,19 @@
+import re
 from io import BytesIO
 
 from docx import Document
 from docx.enum.section import WD_SECTION
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.shared import Cm, Pt
+
+from app.asciidoc import normalize_asciidoc
+
+UNORDERED_LIST_ITEM = re.compile(r"^(?P<markers>\*+)[ \t]+(?P<text>.+)$")
+ORDERED_LIST_ITEM = re.compile(r"^(?P<markers>\.+)[ \t]+(?P<text>.+)$")
+ASCIIDOC_HEADING = re.compile(r"^(?P<markers>={1,6})[ \t]+(?P<text>.+)$")
+INLINE_STYLE = re.compile(
+    r"(?<![\\\w])(?P<marker>[*_])(?=\S)(?P<text>.+?)(?<=\S)(?P=marker)(?!\w)"
+)
 
 
 class DocxRenderingError(Exception):
@@ -21,7 +31,7 @@ class DocxRenderer:
         try:
             document = Document()
             self._configure_document(document)
-            self._add_content(document, asciidoc)
+            self._add_content(document, normalize_asciidoc(asciidoc))
 
             output = BytesIO()
             document.save(output)
@@ -75,10 +85,29 @@ class DocxRenderer:
         heading_2.paragraph_format.space_before = Pt(8)
         heading_2.paragraph_format.space_after = Pt(3)
 
+        heading_3 = styles["Heading 3"]
+        heading_3.font.name = "Arial"
+        heading_3.font.size = Pt(10.5)
+        heading_3.font.bold = True
+        heading_3.paragraph_format.space_before = Pt(6)
+        heading_3.paragraph_format.space_after = Pt(3)
+
         list_bullet = styles["List Bullet"]
         list_bullet.font.name = "Arial"
         list_bullet.font.size = Pt(10.5)
         list_bullet.paragraph_format.space_after = Pt(3)
+
+        for style_name in (
+            "List Bullet 2",
+            "List Bullet 3",
+            "List Number",
+            "List Number 2",
+            "List Number 3",
+        ):
+            style = styles[style_name]
+            style.font.name = "Arial"
+            style.font.size = Pt(10.5)
+            style.paragraph_format.space_after = Pt(3)
 
     def _add_content(self, document: Document, asciidoc: str) -> None:
         for raw_line in asciidoc.splitlines():
@@ -86,14 +115,64 @@ class DocxRenderer:
             if not line.strip():
                 continue
 
-            if line.startswith("=== "):
-                document.add_paragraph(line[4:].strip(), style="Heading 2")
-            elif line.startswith("== "):
-                document.add_paragraph(line[3:].strip(), style="Heading 1")
-            elif line.startswith("= "):
-                paragraph = document.add_paragraph(line[2:].strip(), style="Title")
-                paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
-            elif line.startswith("* "):
-                document.add_paragraph(line[2:].strip(), style="List Bullet")
+            if heading := ASCIIDOC_HEADING.fullmatch(line):
+                self._add_heading(
+                    document,
+                    heading.group("text"),
+                    level=len(heading.group("markers")),
+                )
+            elif unordered := UNORDERED_LIST_ITEM.fullmatch(line):
+                self._add_list_item(
+                    document,
+                    unordered.group("text"),
+                    level=len(unordered.group("markers")),
+                    ordered=False,
+                )
+            elif ordered := ORDERED_LIST_ITEM.fullmatch(line):
+                self._add_list_item(
+                    document,
+                    ordered.group("text"),
+                    level=len(ordered.group("markers")),
+                    ordered=True,
+                )
             else:
-                document.add_paragraph(line.strip(), style="Normal")
+                paragraph = document.add_paragraph(style="Normal")
+                self._add_inline_content(paragraph, line.strip())
+
+    def _add_heading(self, document: Document, text: str, *, level: int) -> None:
+        style_name = "Title" if level == 1 else f"Heading {min(level - 1, 9)}"
+        paragraph = document.add_paragraph(style=style_name)
+        self._add_inline_content(paragraph, text.strip())
+        if level == 1:
+            paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+
+    def _add_list_item(
+        self,
+        document: Document,
+        text: str,
+        *,
+        level: int,
+        ordered: bool,
+    ) -> None:
+        family = "List Number" if ordered else "List Bullet"
+        style_level = min(level, 3)
+        style_name = family if style_level == 1 else f"{family} {style_level}"
+        paragraph = document.add_paragraph(style=style_name)
+        paragraph.paragraph_format.left_indent = Cm(0.63 * level)
+        paragraph.paragraph_format.first_line_indent = Cm(-0.32)
+        self._add_inline_content(paragraph, text.strip())
+
+    @staticmethod
+    def _add_inline_content(paragraph: object, text: str) -> None:
+        cursor = 0
+        for match in INLINE_STYLE.finditer(text):
+            if match.start() > cursor:
+                paragraph.add_run(text[cursor : match.start()])
+            run = paragraph.add_run(match.group("text"))
+            if match.group("marker") == "*":
+                run.bold = True
+            else:
+                run.italic = True
+            cursor = match.end()
+        if cursor < len(text):
+            paragraph.add_run(text[cursor:])

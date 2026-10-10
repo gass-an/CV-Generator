@@ -28,7 +28,11 @@ Format AsciiDoc obligatoire :
 - Après le titre, indique uniquement les coordonnées réellement disponibles dans le JSON Resume.
 - Ajoute un objet naturel fondé sur le poste ou l'AVP lorsque possible, puis une salutation professionnelle.
 - Rédige environ trois paragraphes courts suivis d'une formule de politesse et du nom réel du candidat s'il est disponible.
-- N'utilise jamais de syntaxe Markdown : aucun titre avec « # » ou « ## », aucun « **gras** », aucun bloc entouré de trois backticks.
+- Pour mettre un segment en gras, utilise un seul astérisque de chaque côté : « *mot en gras* » ou « *Objet :* texte ».
+- Si une liste est nécessaire, écris « * élément » et une sous-liste « ** sous-élément », sans indentation.
+- N'utilise jamais les constructions Markdown « **texte** », « - élément », « # Titre » ou les espaces en fin de ligne servant de saut de ligne.
+- Exemple AsciiDoc valide : « == Section », puis « Un paragraphe avec un *mot en gras*. », puis « * Premier élément » et « ** Sous-élément ».
+- N'utilise aucun bloc de code Markdown entouré de trois backticks.
 - N'entoure jamais le document de code fences.
 
 Exemple exclusivement syntaxique et structurel — aucune donnée, phrase ou formulation de cet exemple ne doit être recopiée comme contenu :

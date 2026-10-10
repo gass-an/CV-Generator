@@ -38,7 +38,11 @@ Format AsciiDoc obligatoire :
 - Les sous-sections utilisent « === ».
 - Tous les titres contiennent exactement un espace après les signes « = » : écris « = Prénom Nom », « == Compétences » et « === Diplôme — Établissement », jamais « ===Diplôme — Établissement ».
 - Les listes utilisent « * élément ».
-- N'utilise jamais de syntaxe Markdown : ni « **gras** », ni « # titre », ni « ## titre », ni « - élément », ni bloc délimité par trois backticks.
+- Pour mettre un segment en gras, utilise un seul astérisque de chaque côté : « *mot en gras* » ou « *Compétence :* description ».
+- Une sous-liste augmente le nombre d'astérisques sans indentation : « * élément », puis « ** sous-élément ».
+- N'utilise jamais les constructions Markdown « **texte** », « - élément », « # Titre » ou les espaces en fin de ligne servant de saut de ligne.
+- Exemple AsciiDoc valide : « == Section », puis « Un paragraphe avec un *mot en gras*. », puis « * Premier élément » et « ** Sous-élément ».
+- N'utilise aucun bloc de code Markdown entouré de trois backticks.
 - N'entoure jamais le document d'un bloc de code.
 - N'affiche jamais les noms techniques du JSON Resume, notamment « basics », « work », « skills », « summary », « highlights », « education » ou « certificates ».
 - Rédige tous les libellés visibles naturellement en français.

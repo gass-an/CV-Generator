@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
+from app.asciidoc import normalize_asciidoc
 from app.clients.avp_client import (
     AvpClient,
     AvpClientError,
@@ -129,7 +130,7 @@ class AvpLlmDocumentProcessor:
                 code="invalid_generated_document",
                 message="Le document généré est vide",
             )
-        generated_content = generated_content.strip()
+        generated_content = normalize_asciidoc(generated_content)
         if FENCED_DOCUMENT.fullmatch(generated_content):
             raise DocumentProcessingError(
                 code="invalid_generated_document",

@@ -75,7 +75,10 @@ def test_system_prompt_enforces_fidelity_prioritization_and_asciidoc() -> None:
     assert "exactement un espace après les signes « = »" in system_prompt
     assert "jamais « ===Diplôme — Établissement »" in system_prompt
     assert "* Compétence réelle" in system_prompt
-    assert "**gras**" in system_prompt
+    assert "« **texte** », « - élément », « # Titre »" in system_prompt
+    assert "espaces en fin de ligne" in system_prompt
+    assert "*mot en gras*" in system_prompt
+    assert "** Sous-élément" in system_prompt
     assert "trois backticks" in system_prompt
     assert "noms techniques du JSON Resume" in system_prompt
     assert "aucun texte ni aucune donnée de cet exemple ne doit être recopié" in (

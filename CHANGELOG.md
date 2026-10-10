@@ -3,19 +3,30 @@
 Toutes les évolutions notables du projet sont documentées dans ce fichier. La
 structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
-## [À 0.4.0] - 2026-10-10
+## [À venir]
+
+## [0.4.1] - 2026-10-10
+
+### Corrections
+
+- Correction de la mise en forme AsciiDoc des documents générés
+- Amélioration du rendu DOCX (gras, italique, listes et sous-listes)
+- Normalisation des réponses du LLM pour corriger les erreurs de syntaxe Markdown
+- Fixation de l'image postgres 18 
+
+## [0.4.0] - 2026-10-10
 
 ### Ajouts
 
 - Guide de préparation à l'entretien
 
-## [À 0.3.2] - 2026-10-05
+## [0.3.2] - 2026-10-05
 
 ### Modifications
 
 - Ajout de la version dynamique dans le swagger
 
-## [À 0.3.1] - 2026-10-03
+## [0.3.1] - 2026-10-03
 
 ### Modifications
 

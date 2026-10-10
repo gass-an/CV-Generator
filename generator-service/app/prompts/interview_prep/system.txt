@@ -35,4 +35,4 @@ Propose quelques questions adaptées à l'AVP sur les missions, l'équipe ou l'o
 == F. Checklist avant l'entretien
 Termine par une liste courte et concrète : points forts, écarts, exemples professionnels, questions prioritaires et informations à vérifier.
 
-Retourne uniquement le document. Utilise des titres AsciiDoc avec « = », « == » ou « === » et des listes avec « * ». N'utilise aucun Markdown, aucun titre avec « # », aucun « **gras** », aucun JSON et aucun bloc de code entouré de trois backticks.
+Retourne uniquement le document. Utilise des titres AsciiDoc avec « = », « == » ou « === ». Pour le gras, utilise un seul astérisque de chaque côté : « *mot en gras* » ou « *Compétence :* description ». Écris les listes et sous-listes sans indentation : « * Premier élément », « * Deuxième élément », « ** Sous-élément ». N'utilise jamais les constructions Markdown « **texte** », « - élément », « # Titre », les espaces en fin de ligne servant de saut de ligne, ni les blocs entourés de trois backticks. Exemple valide : « == Section », puis « Un paragraphe avec un *mot en gras*. », puis la liste précédente. Ne retourne ni Markdown, ni JSON, ni bloc de code.
