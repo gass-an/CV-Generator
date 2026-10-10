@@ -13,6 +13,11 @@ function renderApplication(initialPath = "/") {
 }
 
 describe("App", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+
   it("affiche le layout partagé, les logos et une navigation accessible", () => {
     renderApplication();
 
@@ -92,10 +97,8 @@ describe("App", () => {
       screen.getByRole("heading", { name: "Paramètres" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Non configurée")).toBeInTheDocument();
-    expect(screen.getByLabelText("Clé API")).toBeDisabled();
-    expect(
-      screen.getByText(/Aucune clé n'est actuellement saisie/),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Clé API")).toBeEnabled();
+    expect(screen.getByLabelText("Clé API")).toHaveValue("");
   });
 
   it("affiche une page 404 pour une route inconnue", () => {

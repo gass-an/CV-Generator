@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -6,16 +7,23 @@ import {
   KeyRound,
   Mail,
   Sparkles,
-  UploadCloud,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { DocumentPreview } from "@/components/DocumentPreview";
 import { DocumentTypeCard } from "@/components/DocumentTypeCard";
 import { PageHeader } from "@/components/PageHeader";
+import { ResumeImporter } from "@/components/ResumeImporter";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useAppState } from "@/hooks/useAppState";
+import { MAX_AVP_NUMBER_LENGTH, validateAvpNumber } from "@/lib/resume";
 
 export function GenerationPage() {
+  const { auth, draft } = useAppState();
+  const [avpTouched, setAvpTouched] = useState(false);
+  const avpError = avpTouched ? validateAvpNumber(draft.avpNumber) : null;
+
   return (
     <div className="w-full space-y-8 lg:space-y-10">
       <PageHeader
@@ -45,20 +53,7 @@ export function GenerationPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="border-primary/20 bg-primary/[0.025] flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed px-5 py-8 text-center">
-                <UploadCloud
-                  className="text-primary size-8"
-                  aria-hidden="true"
-                />
-                <p className="mt-3 font-semibold">Import JSON Resume</p>
-                <p className="text-muted-foreground mt-1 max-w-sm text-sm leading-6">
-                  La sélection et la validation du fichier seront disponibles à
-                  la prochaine étape.
-                </p>
-                <Badge variant="muted" className="mt-4">
-                  Bientôt disponible
-                </Badge>
-              </div>
+              <ResumeImporter />
             </CardContent>
           </Card>
 
@@ -86,11 +81,37 @@ export function GenerationPage() {
                 <input
                   id="avp-number"
                   type="text"
-                  disabled
-                  placeholder="Saisie disponible prochainement"
-                  className="border-border bg-muted/40 text-muted-foreground min-h-11 w-full cursor-not-allowed rounded-lg border pr-4 pl-10 text-sm opacity-80"
+                  value={draft.avpNumber}
+                  maxLength={MAX_AVP_NUMBER_LENGTH}
+                  placeholder="3134-26-1382/SR"
+                  aria-invalid={Boolean(avpError)}
+                  aria-describedby="avp-help avp-error"
+                  onBlur={() => {
+                    draft.setAvpNumber(draft.avpNumber.trim());
+                    setAvpTouched(true);
+                  }}
+                  onChange={(event) => draft.setAvpNumber(event.target.value)}
+                  className="border-border bg-card focus:border-primary focus:ring-primary/15 min-h-11 w-full rounded-lg border pr-4 pl-10 text-sm transition-shadow focus:ring-4 focus:outline-none"
                 />
               </div>
+              <div className="mt-2 flex items-start justify-between gap-4 text-xs">
+                <p id="avp-help" className="text-muted-foreground">
+                  Exemple : 3134-26-1382/SR. Tirets, barres obliques et suffixes
+                  sont acceptés.
+                </p>
+                <span className="text-muted-foreground shrink-0">
+                  {draft.avpNumber.length}/{MAX_AVP_NUMBER_LENGTH}
+                </span>
+              </div>
+              {avpError ? (
+                <p
+                  id="avp-error"
+                  className="text-accent mt-2 text-sm"
+                  role="alert"
+                >
+                  {avpError}
+                </p>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -142,14 +163,23 @@ export function GenerationPage() {
                 <div>
                   <h2 className="font-semibold">Prêt à générer ?</h2>
                   <p className="text-muted-foreground mt-1 text-sm leading-6">
-                    La clé API et les informations du document seront requises.
+                    {auth.status === "valid"
+                      ? "Votre clé API est vérifiée. Importez un profil et renseignez l'AVP pour préparer la prochaine étape."
+                      : "Configurez et vérifiez votre clé API avant de pouvoir générer un document."}
                   </p>
                 </div>
               </div>
-              <div className="text-muted-foreground flex items-center gap-2 text-sm font-semibold">
-                Fonction disponible prochainement
-                <ArrowRight className="size-4" aria-hidden="true" />
-              </div>
+              {auth.status === "valid" ? (
+                <Badge variant="default">Clé vérifiée</Badge>
+              ) : (
+                <Link
+                  to="/parametres"
+                  className="text-primary hover:bg-primary/8 flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors"
+                >
+                  Configurer la clé
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+              )}
             </CardContent>
           </Card>
         </div>

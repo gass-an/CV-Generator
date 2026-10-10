@@ -7,6 +7,8 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ### Ajouts
 
+- Ajout de la configuration et de la vérification des clés API dans le frontend.
+- Ajout de l'import JSON Resume et de la saisie du numéro AVP.
 - Création de l'interface responsive HackAVP et intégration des logos officiels.
 - Initialisation du frontend React avec TypeScript, Vite et Tailwind CSS.
 - Ajout d'un historique paginé des documents générés, accessible par client API.

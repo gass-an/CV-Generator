@@ -1,16 +1,74 @@
-import { CircleHelp, KeyRound, LockKeyhole, ShieldCheck } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import {
+  CheckCircle2,
+  CircleHelp,
+  Eye,
+  EyeOff,
+  KeyRound,
+  LoaderCircle,
+  LockKeyhole,
+  ShieldCheck,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useAppState } from "@/hooks/useAppState";
+
+const statusPresentation = {
+  absent: { label: "Non configurée", variant: "muted" as const },
+  verifying: { label: "Vérification…", variant: "outline" as const },
+  valid: { label: "Connecté", variant: "default" as const },
+  rejected: { label: "Clé refusée", variant: "accent" as const },
+  unavailable: { label: "Service indisponible", variant: "outline" as const },
+};
 
 export function SettingsPage() {
+  const { auth } = useAppState();
+  const [keyInput, setKeyInput] = useState(auth.credentialKey ?? "");
+  const [showKey, setShowKey] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    kind: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFeedback(null);
+    setIsSubmitting(true);
+    const result = await auth.authenticate(keyInput, auth.remember);
+    setIsSubmitting(false);
+    setFeedback(
+      result.ok
+        ? {
+            kind: "success",
+            message: "La clé a été vérifiée et enregistrée.",
+          }
+        : { kind: "error", message: result.message },
+    );
+  }
+
+  function handleClear() {
+    auth.clearCredential();
+    setKeyInput("");
+    setShowKey(false);
+    setFeedback({
+      kind: "success",
+      message: "La clé API a été supprimée de ce navigateur.",
+    });
+  }
+
+  const presentation = statusPresentation[auth.status];
+
   return (
     <div className="w-full space-y-8">
       <PageHeader
         eyebrow="Configuration"
         title="Paramètres"
-        description="Cette page accueillera les informations nécessaires pour connecter l'interface à votre espace CV-Generator."
+        description="Vérifiez votre clé API pour connecter l'interface à votre espace CV-Generator et accéder ensuite à vos documents."
       />
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
@@ -22,50 +80,153 @@ export function SettingsPage() {
             <div>
               <h2 className="font-semibold">Accès à l'API</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                Une clé valide sera nécessaire pour accéder à vos documents.
+                Seule une clé acceptée par le backend devient active.
               </p>
             </div>
-            <Badge variant="muted" className="mt-2 sm:mt-0">
-              Non configurée
-            </Badge>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div>
-              <label htmlFor="api-key" className="text-sm font-semibold">
-                Clé API
-              </label>
-              <div className="relative mt-2">
-                <LockKeyhole
-                  className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2"
+            <Badge variant={presentation.variant} className="mt-2 sm:mt-0">
+              {auth.status === "verifying" ? (
+                <LoaderCircle
+                  className="mr-1.5 size-3.5 animate-spin"
                   aria-hidden="true"
                 />
-                <input
-                  id="api-key"
-                  type="password"
-                  disabled
-                  placeholder="Configuration disponible prochainement"
-                  className="border-border bg-muted/40 text-muted-foreground min-h-11 w-full cursor-not-allowed rounded-lg border pr-4 pl-10 text-sm opacity-80"
-                />
-              </div>
-              <p className="text-muted-foreground mt-2 text-xs leading-5">
-                Aucune clé n'est actuellement saisie, enregistrée ou transmise.
-              </p>
-            </div>
+              ) : null}
+              {presentation.label}
+            </Badge>
+          </CardHeader>
 
-            <label className="text-muted-foreground flex cursor-not-allowed items-start gap-3 text-sm opacity-70">
-              <input
-                type="checkbox"
-                disabled
-                className="border-border mt-0.5 size-4 rounded"
-              />
-              <span>
-                Mémoriser la clé sur cet appareil
-                <span className="mt-1 block text-xs">
-                  Cette option sera configurable lors de l'intégration de
-                  l'authentification.
+          <CardContent>
+            <form className="space-y-5" onSubmit={handleSubmit}>
+              <div>
+                <label htmlFor="api-key" className="text-sm font-semibold">
+                  Clé API
+                </label>
+                <div className="relative mt-2">
+                  <LockKeyhole
+                    className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2"
+                    aria-hidden="true"
+                  />
+                  <input
+                    id="api-key"
+                    type={showKey ? "text" : "password"}
+                    value={keyInput}
+                    autoComplete="off"
+                    spellCheck="false"
+                    disabled={isSubmitting || auth.status === "verifying"}
+                    placeholder="Saisissez votre clé API"
+                    onChange={(event) => {
+                      setKeyInput(event.target.value);
+                      setFeedback(null);
+                    }}
+                    className="border-border bg-card focus:border-primary focus:ring-primary/15 min-h-11 w-full rounded-lg border pr-12 pl-10 text-sm transition-shadow focus:ring-4 focus:outline-none disabled:cursor-wait disabled:opacity-70"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey((visible) => !visible)}
+                    disabled={!keyInput || isSubmitting}
+                    className="text-muted-foreground hover:text-primary absolute top-1/2 right-1.5 flex size-9 -translate-y-1/2 items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label={
+                      showKey ? "Masquer la clé API" : "Afficher la clé API"
+                    }
+                  >
+                    {showKey ? (
+                      <EyeOff className="size-4" aria-hidden="true" />
+                    ) : (
+                      <Eye className="size-4" aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
+                <p className="text-muted-foreground mt-2 text-xs leading-5">
+                  La clé est envoyée uniquement dans l'en-tête sécurisé
+                  X-API-Key lors des appels authentifiés.
+                </p>
+              </div>
+
+              <label className="flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={auth.remember}
+                  disabled={isSubmitting}
+                  onChange={(event) => auth.setRemember(event.target.checked)}
+                  className="border-border accent-primary mt-0.5 size-4 rounded"
+                />
+                <span>
+                  <span className="font-semibold">
+                    Mémoriser la clé sur cet appareil
+                  </span>
+                  <span className="text-muted-foreground mt-1 block text-xs leading-5">
+                    Sinon, elle sera conservée uniquement pour la session de cet
+                    onglet. Le stockage navigateur n'est pas chiffré.
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+
+              {feedback ? (
+                <div
+                  className={`flex gap-2 rounded-lg border p-3 text-sm ${
+                    feedback.kind === "success"
+                      ? "border-primary/20 bg-primary/5 text-primary"
+                      : "border-accent/20 bg-accent/5 text-accent"
+                  }`}
+                  role={feedback.kind === "error" ? "alert" : "status"}
+                >
+                  {feedback.kind === "success" ? (
+                    <CheckCircle2
+                      className="mt-0.5 size-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <TriangleAlert
+                      className="mt-0.5 size-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span>{feedback.message}</span>
+                </div>
+              ) : null}
+
+              {auth.storageError ? (
+                <p className="text-accent text-sm" role="alert">
+                  {auth.storageError}
+                </p>
+              ) : null}
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                {auth.credentialKey ? (
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    disabled={isSubmitting}
+                    className="text-accent hover:bg-accent/8 flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="size-4" aria-hidden="true" />
+                    Supprimer la clé
+                  </button>
+                ) : (
+                  <span />
+                )}
+                <button
+                  type="submit"
+                  disabled={
+                    !keyInput.trim() ||
+                    isSubmitting ||
+                    auth.status === "verifying"
+                  }
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <LoaderCircle
+                      className="size-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <ShieldCheck className="size-4" aria-hidden="true" />
+                  )}
+                  {auth.credentialKey
+                    ? "Vérifier et remplacer"
+                    : "Vérifier et enregistrer"}
+                </button>
+              </div>
+            </form>
           </CardContent>
         </Card>
 
@@ -79,9 +240,9 @@ export function SettingsPage() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground text-sm leading-6">
-                La clé API permettra d'identifier votre espace et de protéger
-                l'accès à votre historique. Ne la partagez pas et saisissez-la
-                uniquement dans cette interface.
+                La clé API identifie votre espace et protège l'accès à votre
+                historique. Ne la partagez pas et saisissez-la uniquement dans
+                cette interface.
               </p>
             </CardContent>
           </Card>
@@ -92,8 +253,8 @@ export function SettingsPage() {
               aria-hidden="true"
             />
             <p className="text-muted-foreground leading-6">
-              La vérification de connexion sera ajoutée avec les prochains
-              outils de configuration.
+              Une erreur réseau signifie que l'API est injoignable ; elle ne
+              permet pas de conclure que votre clé est invalide.
             </p>
           </div>
         </div>
