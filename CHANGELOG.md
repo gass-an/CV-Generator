@@ -7,6 +7,7 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ### Ajouts
 
+- Initialisation du frontend React avec TypeScript, Vite et Tailwind CSS.
 - Ajout d'un historique paginé des documents générés, accessible par client API.
 - Ajout de la génération et de la prévisualisation des documents au format PDF.
 
