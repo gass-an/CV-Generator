@@ -7,12 +7,17 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ### Ajouts
 
+- Ajout de la génération des trois documents et du suivi asynchrone des traitements.
 - Ajout de la configuration et de la vérification des clés API dans le frontend.
 - Ajout de l'import JSON Resume et de la saisie du numéro AVP.
 - Création de l'interface responsive HackAVP et intégration des logos officiels.
 - Initialisation du frontend React avec TypeScript, Vite et Tailwind CSS.
 - Ajout d'un historique paginé des documents générés, accessible par client API.
 - Ajout de la génération et de la prévisualisation des documents au format PDF.
+
+### Corrections
+
+- Sécurisation des relances de génération, du suivi et des changements de clé API.
 
 ## [0.4.1] - 2026-10-10
 

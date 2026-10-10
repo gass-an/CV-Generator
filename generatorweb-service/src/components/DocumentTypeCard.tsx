@@ -1,15 +1,18 @@
-import type { LucideIcon } from "lucide-react";
+import { Check, type LucideIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import type { DocumentType } from "@/types/document";
 
 type DocumentTypeCardProps = {
   icon: LucideIcon;
   title: string;
   description: string;
   accent: "blue" | "cyan" | "red";
+  value: DocumentType;
   selected?: boolean;
   disabled?: boolean;
+  onSelect: (value: DocumentType) => void;
 };
 
 const accents = {
@@ -23,20 +26,37 @@ export function DocumentTypeCard({
   title,
   description,
   accent,
+  value,
   selected = false,
-  disabled = true,
+  disabled = false,
+  onSelect,
 }: DocumentTypeCardProps) {
   return (
-    <article
+    <label
       className={cn(
-        "border-border bg-card relative flex min-h-44 flex-col rounded-xl border p-4 shadow-sm transition-[border-color,box-shadow,transform] sm:p-5",
-        selected && "border-primary ring-primary/15 ring-2",
+        "border-border bg-card focus-within:ring-primary relative flex min-h-44 cursor-pointer flex-col rounded-xl border p-4 shadow-sm transition-[border-color,box-shadow,transform] focus-within:ring-2 focus-within:ring-offset-2 sm:p-5",
+        selected && "border-primary bg-primary/[0.025] ring-primary/15 ring-2",
         disabled
-          ? "opacity-90"
+          ? "cursor-not-allowed opacity-60"
           : "hover:border-primary/40 hover:-translate-y-0.5 hover:shadow-md",
       )}
       aria-disabled={disabled || undefined}
     >
+      <input
+        type="radio"
+        name="document-type"
+        value={value}
+        checked={selected}
+        disabled={disabled}
+        onChange={() => onSelect(value)}
+        className="sr-only"
+      />
+      {selected ? (
+        <span className="bg-primary text-primary-foreground absolute top-3 right-3 flex size-6 items-center justify-center rounded-full">
+          <Check className="size-3.5" aria-hidden="true" />
+          <span className="sr-only">Sélectionné</span>
+        </span>
+      ) : null}
       <div
         className={cn(
           "flex size-10 items-center justify-center rounded-xl ring-1",
@@ -49,11 +69,19 @@ export function DocumentTypeCard({
       <p className="text-muted-foreground mt-1.5 flex-1 text-sm leading-6">
         {description}
       </p>
-      {disabled ? (
-        <Badge variant="muted" className="mt-4">
-          Bientôt disponible
+      {selected ? (
+        <Badge variant="default" className="mt-4">
+          Sélectionné
         </Badge>
-      ) : null}
-    </article>
+      ) : disabled ? (
+        <Badge variant="muted" className="mt-4">
+          Indisponible
+        </Badge>
+      ) : (
+        <span className="text-muted-foreground mt-4 text-xs font-semibold">
+          Choisir ce document
+        </span>
+      )}
+    </label>
   );
 }

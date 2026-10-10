@@ -159,4 +159,25 @@ describe("préparation de la génération", () => {
     expect(screen.getByText("Camille Exemple")).toBeInTheDocument();
     expect(screen.getByLabelText("Numéro AVP")).toHaveValue("AVP-PERSISTANT");
   });
+
+  it("sélectionne un seul type de document et explique les prérequis manquants", async () => {
+    const user = userEvent.setup();
+    renderGeneration();
+    const cv = screen.getByRole("radio", { name: /Curriculum vitæ/ });
+    const letter = screen.getByRole("radio", { name: /Lettre de motivation/ });
+
+    expect(
+      screen.getByRole("button", { name: "Générer le document" }),
+    ).toBeDisabled();
+    expect(screen.getByText("Clé API vérifiée")).toBeInTheDocument();
+    expect(screen.getByText("Profil JSON Resume importé")).toBeInTheDocument();
+
+    await user.click(cv);
+    expect(cv).toBeChecked();
+    expect(letter).not.toBeChecked();
+
+    await user.click(letter);
+    expect(letter).toBeChecked();
+    expect(cv).not.toBeChecked();
+  });
 });

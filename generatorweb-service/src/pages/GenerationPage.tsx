@@ -1,11 +1,14 @@
 import { useState } from "react";
 import {
-  ArrowRight,
   BriefcaseBusiness,
+  CheckCircle2,
+  Circle,
   FileText,
   GraduationCap,
   KeyRound,
+  LoaderCircle,
   Mail,
+  Send,
   Sparkles,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -20,9 +23,30 @@ import { useAppState } from "@/hooks/useAppState";
 import { MAX_AVP_NUMBER_LENGTH, validateAvpNumber } from "@/lib/resume";
 
 export function GenerationPage() {
-  const { auth, draft } = useAppState();
+  const { auth, draft, generation } = useAppState();
   const [avpTouched, setAvpTouched] = useState(false);
   const avpError = avpTouched ? validateAvpNumber(draft.avpNumber) : null;
+  const generationBusy =
+    generation.state.phase === "creating" ||
+    generation.state.phase === "pending" ||
+    generation.state.phase === "processing" ||
+    generation.state.phase === "interrupted" ||
+    (generation.state.phase === "creation_error" && generation.state.uncertain);
+  const requirements = [
+    {
+      met: auth.status === "valid",
+      label: "Clé API vérifiée",
+      link: "/parametres",
+    },
+    { met: draft.profileValid, label: "Profil JSON Resume importé" },
+    { met: draft.avpValid, label: "Numéro AVP valide" },
+    {
+      met: draft.selectedDocumentType !== null,
+      label: "Type de document sélectionné",
+    },
+  ];
+  const canStart =
+    requirements.every((requirement) => requirement.met) && !generationBusy;
 
   return (
     <div className="w-full space-y-8 lg:space-y-10">
@@ -132,30 +156,43 @@ export function GenerationPage() {
                 </p>
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div
+              className="grid gap-3 sm:grid-cols-3"
+              role="radiogroup"
+              aria-labelledby="document-types-title"
+            >
               <DocumentTypeCard
                 icon={FileText}
                 title="Curriculum vitæ"
                 description="Valorisez votre parcours au regard du poste visé."
                 accent="blue"
+                value="cv"
+                selected={draft.selectedDocumentType === "cv"}
+                onSelect={draft.setSelectedDocumentType}
               />
               <DocumentTypeCard
                 icon={Mail}
                 title="Lettre de motivation"
                 description="Présentez une motivation claire et personnalisée."
                 accent="cyan"
+                value="cover_letter"
+                selected={draft.selectedDocumentType === "cover_letter"}
+                onSelect={draft.setSelectedDocumentType}
               />
               <DocumentTypeCard
                 icon={GraduationCap}
                 title="Préparation à l'entretien"
                 description="Anticipez les questions et préparez vos réponses."
                 accent="red"
+                value="interview_prep"
+                selected={draft.selectedDocumentType === "interview_prep"}
+                onSelect={draft.setSelectedDocumentType}
               />
             </div>
           </section>
 
           <Card className="border-primary/20 bg-primary/[0.025]">
-            <CardContent className="flex flex-col gap-4 border-0 pt-0 sm:flex-row sm:items-center sm:justify-between">
+            <CardContent className="space-y-5 border-0 pt-0">
               <div className="flex gap-3">
                 <span className="bg-card text-primary flex size-10 shrink-0 items-center justify-center rounded-xl border shadow-sm">
                   <KeyRound className="size-5" aria-hidden="true" />
@@ -163,23 +200,92 @@ export function GenerationPage() {
                 <div>
                   <h2 className="font-semibold">Prêt à générer ?</h2>
                   <p className="text-muted-foreground mt-1 text-sm leading-6">
-                    {auth.status === "valid"
-                      ? "Votre clé API est vérifiée. Importez un profil et renseignez l'AVP pour préparer la prochaine étape."
-                      : "Configurez et vérifiez votre clé API avant de pouvoir générer un document."}
+                    Vérifiez les informations avant d'envoyer une demande au
+                    service de génération.
                   </p>
                 </div>
               </div>
-              {auth.status === "valid" ? (
-                <Badge variant="default">Clé vérifiée</Badge>
-              ) : (
-                <Link
-                  to="/parametres"
-                  className="text-primary hover:bg-primary/8 flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors"
+
+              <ul className="grid gap-2 text-sm sm:grid-cols-2">
+                {requirements.map((requirement) => (
+                  <li
+                    key={requirement.label}
+                    className={`flex items-center gap-2 ${
+                      requirement.met ? "text-primary" : "text-muted-foreground"
+                    }`}
+                  >
+                    {requirement.met ? (
+                      <CheckCircle2
+                        className="size-4 shrink-0"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Circle className="size-4 shrink-0" aria-hidden="true" />
+                    )}
+                    {requirement.link && !requirement.met ? (
+                      <Link
+                        to={requirement.link}
+                        className="hover:text-primary underline-offset-4 hover:underline"
+                      >
+                        {requirement.label}
+                      </Link>
+                    ) : (
+                      requirement.label
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              {generation.state.phase === "creation_error" ? (
+                <div
+                  className="border-accent/20 bg-accent/5 space-y-3 rounded-lg border p-4"
+                  role="alert"
                 >
-                  Configurer la clé
-                  <ArrowRight className="size-4" aria-hidden="true" />
-                </Link>
-              )}
+                  <p className="text-accent text-sm leading-6">
+                    {generation.state.message}
+                  </p>
+                  {generation.state.uncertain ? (
+                    <div className="space-y-3">
+                      <p className="text-muted-foreground text-sm leading-6">
+                        Consultez votre historique lorsqu'il sera disponible. Si
+                        vous choisissez de continuer, une seconde demande pourra
+                        créer un doublon.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={generation.allowUncertainRetry}
+                        className="border-accent/30 text-accent hover:bg-accent/8 min-h-11 rounded-lg border px-4 text-sm font-semibold transition-colors"
+                      >
+                        J'ai compris, autoriser une nouvelle demande
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                disabled={!canStart}
+                onClick={() => void generation.start()}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                {generation.state.phase === "creating" ? (
+                  <LoaderCircle
+                    className="size-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Send className="size-4" aria-hidden="true" />
+                )}
+                {generation.state.phase === "creating"
+                  ? "Envoi de la demande…"
+                  : generation.state.phase === "creation_error" &&
+                      generation.state.uncertain
+                    ? "Confirmation requise"
+                    : generationBusy
+                      ? "Génération en cours"
+                      : "Générer le document"}
+              </button>
             </CardContent>
           </Card>
         </div>

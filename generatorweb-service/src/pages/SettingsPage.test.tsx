@@ -203,4 +203,26 @@ describe("configuration de la clé API", () => {
     expect(window.sessionStorage.getItem(SESSION_KEY)).toBeNull();
     expect(screen.getByLabelText("Clé API")).toHaveValue("");
   });
+
+  it("ne réactive pas une clé supprimée pendant sa revalidation initiale", async () => {
+    window.sessionStorage.setItem(SESSION_KEY, "ancienne-cle");
+    let resolveRequest: ((value: Response) => void) | undefined;
+    vi.mocked(fetch).mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveRequest = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    renderSettings();
+
+    expect(screen.getByText("Vérification…")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Supprimer la clé" }));
+    expect(screen.getByText("Non configurée")).toBeInTheDocument();
+
+    resolveRequest?.(response());
+    await waitFor(() =>
+      expect(screen.getByText("Non configurée")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Connecté")).not.toBeInTheDocument();
+  });
 });

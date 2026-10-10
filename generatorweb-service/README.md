@@ -1,8 +1,8 @@
 # Interface web CV-Generator
 
-Interface publique responsive de CV-Generator. Elle prépare les parcours de
-génération, d'historique et de configuration ; les appels à l'API et les
-fonctionnalités métier seront ajoutés ultérieurement.
+Interface publique responsive de CV-Generator. Elle permet de configurer
+l'accès à l'API, préparer une candidature, lancer la génération d'un document
+et suivre son traitement asynchrone.
 
 ## Stack technique
 
@@ -61,9 +61,9 @@ src/
 └── index.css
 ```
 
-`AppProvider` conserve séparément la configuration d'authentification et le
-brouillon de candidature. Le hook `useAppState` les rend disponibles pendant
-la navigation sans gestionnaire d'état externe.
+`AppProvider` conserve séparément la configuration d'authentification, le
+brouillon de candidature et le job suivi. Le hook `useAppState` les rend
+disponibles pendant la navigation sans gestionnaire d'état externe.
 
 Les routes disponibles sont `/` pour préparer une génération, `/historique`
 pour les documents du client et `/parametres` pour la future configuration de
@@ -122,9 +122,32 @@ valide. Le profil complet reste uniquement dans la mémoire React : il n'est
 lors du simple import. Un rechargement complet impose donc de réimporter le
 fichier.
 
+## Génération et suivi asynchrone
+
+Après validation de la clé, du profil et du numéro AVP, l'utilisateur choisit
+un CV, une lettre de motivation ou un guide de préparation à l'entretien. Une
+seule requête `POST` est envoyée vers la route FastAPI correspondante. En cas
+d'erreur réseau ou de timeout pendant cet envoi, l'application ne réessaie pas
+automatiquement, car le backend peut déjà avoir créé le job.
+Une réponse de création incertaine bloque donc toute nouvelle soumission jusqu'à
+ce que l'utilisateur confirme explicitement qu'il accepte le risque de doublon.
+
+Le job retourné est conservé dans `AppProvider` pendant la navigation. Son
+statut est consulté environ toutes les 2,5 secondes, sans requêtes
+concurrentes. Le suivi s'arrête sur `completed` ou `failed`. Une interruption
+réseau est distinguée d'un échec du traitement et peut être reprise sur le même
+identifiant, sans soumettre une nouvelle génération. L'utilisateur peut aussi
+arrêter ce suivi local sans annuler le traitement côté serveur. Cet état reste
+en mémoire uniquement et est perdu lors d'un rechargement complet à ce stade.
+
+La suppression d'une clé ou son remplacement réussi par une clé différente
+réinitialise le job suivi et le brouillon de candidature. Cela évite d'afficher
+ou de réutiliser les données personnelles du client précédent sur un navigateur
+partagé. Un remplacement refusé conserve au contraire la clé, le brouillon et
+le suivi existants.
+
 ## Étapes suivantes
 
-La clé API, l'import JSON Resume et le numéro AVP sont fonctionnels. La
-sélection du type de document, la génération, le polling, l'historique
-dynamique, la prévisualisation et les téléchargements restent volontairement
-inactifs jusqu'aux prochaines étapes.
+La configuration, l'import, la sélection, la génération et le suivi sont
+fonctionnels. L'historique dynamique, la prévisualisation PDF et les
+téléchargements restent volontairement inactifs jusqu'aux prochaines étapes.
