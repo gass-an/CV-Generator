@@ -3,11 +3,13 @@
 Toutes les évolutions notables du projet sont documentées dans ce fichier. La
 structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
-## [À venir]
+## [À 0.4.0] - 2026-10-10
 
 ### Ajouts
 
 - Guide de préparation à l'entretien
+
+## [À 0.3.2] - 2026-10-05
 
 ### Modifications
 
