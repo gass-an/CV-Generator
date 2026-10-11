@@ -1,10 +1,11 @@
-import { Eye, FileClock, LoaderCircle, RefreshCw, X } from "lucide-react";
+import { Eye, FileClock, LoaderCircle, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { DocumentDownloadActions } from "@/components/DocumentDownloadActions";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
+import { PdfPreviewDialog } from "@/components/PdfPreviewDialog";
 import { PdfViewer } from "@/components/PdfViewer";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -65,89 +66,28 @@ function PreviewDialog({
   onClose: () => void;
   onApiKeyRejected: (apiKey: string) => void;
 }) {
-  const dialog = useRef<HTMLDivElement>(null);
-  const closeButton = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    closeButton.current?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab" || !dialog.current) return;
-      const focusable = Array.from(
-        dialog.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], object, [tabindex]:not([tabindex="-1"])',
-        ),
-      );
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable.at(-1)!;
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (
-        !event.shiftKey &&
-        (document.activeElement === last ||
-          !dialog.current.contains(document.activeElement))
-      ) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      if (selection.opener?.isConnected) selection.opener.focus();
-    };
-  }, [onClose, selection.opener]);
-
   const item = selection.item;
   return (
-    <div
-      ref={dialog}
-      className="bg-foreground/30 fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-6"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="history-preview-title"
+    <PdfPreviewDialog
+      title={documentTypeLabels[item.type]}
+      subtitle={
+        <>
+          {item.candidate_name || "Candidat non renseigné"} · AVP{" "}
+          {item.avp_number}
+        </>
+      }
+      opener={selection.opener}
+      onClose={onClose}
+      footer={<DocumentDownloadActions document={metadata(item)} />}
     >
-      <div className="bg-card border-border my-auto w-full max-w-5xl rounded-xl border shadow-xl">
-        <div className="border-border flex items-start justify-between gap-4 border-b p-4 sm:p-5">
-          <div>
-            <h2 id="history-preview-title" className="font-semibold">
-              {documentTypeLabels[item.type]}
-            </h2>
-            <p className="text-muted-foreground mt-1 text-sm">
-              {item.candidate_name || "Candidat non renseigné"} · AVP{" "}
-              {item.avp_number}
-            </p>
-          </div>
-          <button
-            ref={closeButton}
-            type="button"
-            onClick={onClose}
-            className="hover:bg-muted flex size-10 items-center justify-center rounded-lg"
-            aria-label="Fermer la prévisualisation"
-          >
-            <X className="size-5" aria-hidden="true" />
-          </button>
-        </div>
-        <div className="bg-muted/50 p-3 sm:p-5">
-          <PdfViewer
-            documentId={item.id}
-            apiKey={selection.apiKey}
-            enabled
-            title={`Aperçu PDF — ${documentTypeLabels[item.type]}`}
-            onApiKeyRejected={onApiKeyRejected}
-          />
-        </div>
-        <div className="border-border border-t p-4 sm:p-5">
-          <DocumentDownloadActions document={metadata(item)} />
-        </div>
-      </div>
-    </div>
+      <PdfViewer
+        documentId={item.id}
+        apiKey={selection.apiKey}
+        enabled
+        title={`Aperçu PDF — ${documentTypeLabels[item.type]}`}
+        onApiKeyRejected={onApiKeyRejected}
+      />
+    </PdfPreviewDialog>
   );
 }
 

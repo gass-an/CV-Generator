@@ -3,21 +3,42 @@ import {
   CircleX,
   FileSearch,
   LoaderCircle,
+  Maximize2,
   Send,
   WifiOff,
 } from "lucide-react";
+import { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { DocumentDownloadActions } from "@/components/DocumentDownloadActions";
-import { PdfViewer } from "@/components/PdfViewer";
+import { PdfPreviewDialog } from "@/components/PdfPreviewDialog";
+import { PdfPreviewContent } from "@/components/PdfViewer";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { useAppState } from "@/hooks/useAppState";
+import { usePdfPreview } from "@/hooks/usePdfPreview";
 import { documentTypeLabels } from "@/types/document";
 
 export function DocumentPreview() {
   const { auth, generation } = useAppState();
   const state = generation.state;
+  const completedJob = state.phase === "completed" ? state.job : null;
+  const [previewSelection, setPreviewSelection] = useState<{
+    documentId: string;
+    opener: HTMLButtonElement;
+  } | null>(null);
+  const closePreview = useCallback(() => setPreviewSelection(null), []);
+  const pdfPreview = usePdfPreview({
+    documentId: completedJob?.id ?? null,
+    apiKey: auth.activeApiKey,
+    enabled: completedJob !== null,
+    onApiKeyRejected: auth.reportApiKeyRejected,
+  });
+
+  const previewOpener =
+    previewSelection && previewSelection.documentId === completedJob?.id
+      ? previewSelection.opener
+      : null;
   const request =
     state.phase === "idle"
       ? null
@@ -141,14 +162,25 @@ export function DocumentPreview() {
               </p>
             </div>
             <div className="bg-card border-border rounded-lg border p-2 shadow-sm">
-              <PdfViewer
-                documentId={state.job.id}
-                apiKey={auth.activeApiKey}
-                enabled
+              <PdfPreviewContent
+                state={pdfPreview.state}
                 title={`Aperçu PDF — ${documentTypeLabels[state.job.documentType]}`}
-                onApiKeyRejected={auth.reportApiKeyRejected}
+                onRetry={pdfPreview.retry}
               />
             </div>
+            <button
+              type="button"
+              onClick={(event) =>
+                setPreviewSelection({
+                  documentId: state.job.id,
+                  opener: event.currentTarget,
+                })
+              }
+              className="border-border text-primary hover:bg-primary/5 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold"
+            >
+              <Maximize2 className="size-4" aria-hidden="true" />
+              Agrandir l’aperçu
+            </button>
           </div>
         ) : (
           <div className="bg-card border-border mx-auto flex aspect-[1/1.32] min-h-80 max-w-md flex-col items-center justify-center rounded-lg border px-5 text-center shadow-sm">
@@ -244,6 +276,38 @@ export function DocumentPreview() {
           />
         ) : null}
       </div>
+
+      {previewOpener && completedJob ? (
+        <PdfPreviewDialog
+          title={documentTypeLabels[completedJob.documentType]}
+          subtitle={
+            <>
+              {completedJob.candidateName || "Candidat non renseigné"} · AVP{" "}
+              {completedJob.avpNumber}
+            </>
+          }
+          opener={previewOpener}
+          onClose={closePreview}
+          footer={
+            <DocumentDownloadActions
+              document={{
+                id: completedJob.id,
+                documentType: completedJob.documentType,
+                status: completedJob.status,
+                avpNumber: completedJob.avpNumber,
+                candidateName: completedJob.candidateName,
+                createdAt: completedJob.createdAt,
+              }}
+            />
+          }
+        >
+          <PdfPreviewContent
+            state={pdfPreview.state}
+            title={`Aperçu PDF agrandi — ${documentTypeLabels[completedJob.documentType]}`}
+            onRetry={pdfPreview.retry}
+          />
+        </PdfPreviewDialog>
+      ) : null}
     </Card>
   );
 }

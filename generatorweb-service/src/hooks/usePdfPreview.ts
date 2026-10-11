@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "@/services/apiClient";
 import { getDocumentPdf } from "@/services/documentService";
 
-type PdfPreviewState =
+export type PdfPreviewState =
   | { status: "idle" | "loading" }
   | { status: "ready"; url: string; documentId: string; apiKey: string }
   | { status: "error"; message: string; documentId: string; apiKey: string };

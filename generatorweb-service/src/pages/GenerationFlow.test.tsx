@@ -151,6 +151,55 @@ describe("génération et suivi d'un document", () => {
     expect(latestPollingOptions().enabled).toBe(false);
   });
 
+  it("agrandit le PDF déjà chargé sans nouvel appel ni révocation prématurée", async () => {
+    vi.mocked(createDocumentJob).mockResolvedValue({
+      id: "job-apercu",
+      status: "pending",
+    });
+    const user = userEvent.setup();
+    await prepareGeneration(user);
+    await user.click(
+      screen.getByRole("button", { name: "Générer le document" }),
+    );
+    await screen.findByText("Votre document est en attente de traitement.");
+
+    await act(async () =>
+      latestPollingOptions().onStatus({
+        id: "job-apercu",
+        status: "completed",
+        created_at: "2026-10-11T08:00:00+11:00",
+        started_at: "2026-10-11T08:00:03+11:00",
+        completed_at: "2026-10-11T08:01:00+11:00",
+      }),
+    );
+
+    expect(await screen.findByLabelText(/^Aperçu PDF —/)).toHaveAttribute(
+      "data",
+      "blob:preview",
+    );
+    expect(getDocumentPdf).toHaveBeenCalledOnce();
+
+    const enlarge = screen.getByRole("button", {
+      name: "Agrandir l’aperçu",
+    });
+    await user.click(enlarge);
+    expect(
+      await screen.findByLabelText(/^Aperçu PDF agrandi —/),
+    ).toHaveAttribute("data", "blob:preview");
+    expect(getDocumentPdf).toHaveBeenCalledOnce();
+
+    await user.click(
+      screen.getByRole("button", { name: "Fermer la prévisualisation" }),
+    );
+    expect(screen.getByLabelText(/^Aperçu PDF —/)).toBeInTheDocument();
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    expect(enlarge).toHaveFocus();
+
+    await user.click(enlarge);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(getDocumentPdf).toHaveBeenCalledOnce();
+  });
+
   it("affiche l'échec terminal et autorise une nouvelle génération", async () => {
     vi.mocked(createDocumentJob).mockResolvedValue({
       id: "job-echec",
