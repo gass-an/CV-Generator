@@ -6,6 +6,7 @@ import { App } from "@/App";
 import { ApiError } from "@/services/apiClient";
 import {
   createDocumentJob,
+  getDocumentAvpNumbers,
   getDocumentDocx,
   getDocumentHistory,
   getDocumentPdf,
@@ -19,6 +20,7 @@ vi.mock("@/services/documentService", () => ({
   createDocumentJob: vi.fn(),
   getDocumentJobStatus: vi.fn(),
   getDocumentHistory: vi.fn(),
+  getDocumentAvpNumbers: vi.fn(),
   getDocumentPdf: vi.fn(),
   getDocumentDocx: vi.fn(),
 }));
@@ -101,6 +103,17 @@ describe("historique documentaire", () => {
     );
     vi.mocked(getDocumentHistory).mockReset();
     vi.mocked(getDocumentHistory).mockResolvedValue(page());
+    vi.mocked(getDocumentAvpNumbers).mockReset();
+    vi.mocked(getDocumentAvpNumbers).mockResolvedValue([
+      "AVP-3",
+      "AVP-1",
+      "avp-1",
+      "AVP-2",
+      "AVP-3",
+      "AVP-4",
+      "AVP-5",
+      "AVP-6",
+    ]);
     vi.mocked(getDocumentPdf).mockResolvedValue(
       new Blob(["%PDF"], { type: "application/pdf" }),
     );
@@ -178,6 +191,127 @@ describe("historique documentaire", () => {
         expect.any(AbortSignal),
       ),
     );
+  });
+
+  it("propose tous les AVP triés sans doublon et filtre par préfixe", async () => {
+    const user = userEvent.setup();
+    renderHistory();
+    const combobox = await screen.findByRole("combobox", {
+      name: "Numéro AVP",
+    });
+    await waitFor(() => expect(getDocumentAvpNumbers).toHaveBeenCalledOnce());
+
+    await user.click(combobox);
+    const listbox = await screen.findByRole("listbox", {
+      name: "Numéros AVP disponibles",
+    });
+    expect(within(listbox).getAllByRole("option")).toHaveLength(7);
+    expect(
+      within(listbox)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["AVP-1", "avp-1", "AVP-2", "AVP-3", "AVP-4", "AVP-5", "AVP-6"]);
+
+    await user.type(combobox, "  avp-1  ");
+    expect(within(listbox).getAllByRole("option")).toHaveLength(2);
+    expect(getDocumentHistory).toHaveBeenCalledOnce();
+  });
+
+  it("sélectionne et efface un AVP au clavier en le combinant aux autres filtres", async () => {
+    const user = userEvent.setup();
+    renderHistory();
+    const combobox = await screen.findByRole("combobox", {
+      name: "Numéro AVP",
+    });
+    await waitFor(() => expect(getDocumentAvpNumbers).toHaveBeenCalledOnce());
+
+    await user.type(combobox, "avp-3");
+    await user.keyboard("{ArrowDown}{Enter}");
+    await waitFor(() =>
+      expect(getDocumentHistory).toHaveBeenLastCalledWith(
+        expect.objectContaining({ offset: 0, avpNumber: "AVP-3" }),
+        "cle-valide",
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(combobox).toHaveValue("AVP-3");
+
+    await user.selectOptions(
+      screen.getByLabelText("Filtrer par type"),
+      "interview_prep",
+    );
+    await waitFor(() =>
+      expect(getDocumentHistory).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          documentType: "interview_prep",
+          avpNumber: "AVP-3",
+        }),
+        "cle-valide",
+        expect.any(AbortSignal),
+      ),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Effacer le filtre AVP" }),
+    );
+    await waitFor(() =>
+      expect(getDocumentHistory).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          documentType: "interview_prep",
+          avpNumber: undefined,
+        }),
+        "cle-valide",
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(combobox).toHaveValue("");
+  });
+
+  it("réaffiche tous les AVP après une sélection et garde l'option clavier visible", async () => {
+    const user = userEvent.setup();
+    renderHistory();
+    const combobox = await screen.findByRole("combobox", {
+      name: "Numéro AVP",
+    });
+    await waitFor(() => expect(getDocumentAvpNumbers).toHaveBeenCalledOnce());
+
+    await user.type(combobox, "avp-3");
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(combobox).toHaveValue("AVP-3");
+
+    await user.click(combobox);
+    const listbox = screen.getByRole("listbox", {
+      name: "Numéros AVP disponibles",
+    });
+    const options = within(listbox).getAllByRole("option");
+    expect(options).toHaveLength(7);
+    expect(combobox).toHaveValue("AVP-3");
+
+    Object.defineProperty(listbox, "clientHeight", { value: 44 });
+    Object.defineProperty(options[1], "offsetTop", { value: 44 });
+    Object.defineProperty(options[1], "offsetHeight", { value: 44 });
+
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+    expect(listbox.scrollTop).toBe(44);
+
+    await user.clear(combobox);
+    await user.type(combobox, "avp-5");
+    expect(within(listbox).getAllByRole("option")).toHaveLength(1);
+  });
+
+  it("annonce une recherche AVP sans résultat et ferme la liste avec Échap", async () => {
+    const user = userEvent.setup();
+    renderHistory();
+    const combobox = await screen.findByRole("combobox", {
+      name: "Numéro AVP",
+    });
+    await waitFor(() => expect(getDocumentAvpNumbers).toHaveBeenCalledOnce());
+
+    await user.type(combobox, "inexistant");
+    expect(screen.getByText("Aucun AVP correspondant")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(combobox).toHaveAttribute("aria-expanded", "false");
   });
 
   it("pagine avec limit, offset et total", async () => {

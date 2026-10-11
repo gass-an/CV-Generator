@@ -60,6 +60,7 @@ class DocumentJobService:
         offset: int,
         document_type: DocumentType | None = None,
         status: DocumentJobStatus | None = None,
+        avp_number: str | None = None,
     ) -> tuple[list[DocumentHistoryRecord], int]:
         """Liste les documents du client dans une transaction de lecture courte."""
         async with self._session.begin():
@@ -69,6 +70,21 @@ class DocumentJobService:
                 offset=offset,
                 document_type=document_type,
                 status=status,
+                avp_number=avp_number,
+            )
+
+    async def list_avp_numbers(
+        self,
+        *,
+        client_id: uuid.UUID,
+        prefix: str | None = None,
+    ) -> list[str]:
+        """Liste les AVP distincts du client dans une transaction courte."""
+        normalized_prefix = prefix.strip() if prefix else None
+        async with self._session.begin():
+            return await self._repository.list_distinct_avp_numbers_for_client(
+                client_id=client_id,
+                prefix=normalized_prefix or None,
             )
 
     async def get_result(

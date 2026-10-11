@@ -1,6 +1,7 @@
 import { ApiError, apiRequest, apiRequestBody } from "@/services/apiClient";
 import type {
   CreateDocumentPayload,
+  DocumentAvpNumbersResponse,
   DocumentJobCreatedResponse,
   DocumentJobStatusResponse,
   DocumentHistoryQuery,
@@ -67,12 +68,28 @@ export async function getDocumentHistory(
   if (query.status) {
     parameters.set("status", query.status);
   }
+  if (query.avpNumber) {
+    parameters.set("avp_number", query.avpNumber);
+  }
   const response = await apiRequest(`/documents?${parameters.toString()}`, {
     method: "GET",
     apiKey,
     signal,
   });
   return (await response.json()) as DocumentHistoryResponse;
+}
+
+export async function getDocumentAvpNumbers(
+  apiKey: string,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const response = await apiRequest("/documents/avp-numbers", {
+    method: "GET",
+    apiKey,
+    signal,
+  });
+  const payload = (await response.json()) as DocumentAvpNumbersResponse;
+  return payload.items;
 }
 
 async function getDocumentBlob(

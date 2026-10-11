@@ -14,6 +14,7 @@ from app.models.document_job import DocumentJobStatus, DocumentType
 from app.renderers import DocxRenderer, DocxRenderingError
 from app.schemas.document import (
     CreateDocumentRequest,
+    DocumentAvpNumbersResponse,
     DocumentHistoryItemResponse,
     DocumentHistoryResponse,
     DocumentJobCreatedResponse,
@@ -185,6 +186,7 @@ async def list_document_history(
         DocumentJobStatus | None,
         Query(alias="status"),
     ] = None,
+    avp_number: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
 ) -> DocumentHistoryResponse:
     items, total = await service.list_history(
         client_id=identity.client_id,
@@ -192,6 +194,7 @@ async def list_document_history(
         offset=offset,
         document_type=document_type,
         status=status_filter,
+        avp_number=avp_number.strip() if avp_number else None,
     )
     return DocumentHistoryResponse(
         items=[
@@ -211,6 +214,27 @@ async def list_document_history(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get(
+    "/avp-numbers",
+    response_model=DocumentAvpNumbersResponse,
+    summary="Lister les numéros AVP de l'historique",
+    description=(
+        "Retourne les numéros AVP distincts appartenant au client authentifié, "
+        "triés alphabétiquement. Un préfixe insensible à la casse peut être fourni."
+    ),
+)
+async def list_document_avp_numbers(
+    service: DocumentService,
+    identity: AuthenticatedIdentity,
+    prefix: Annotated[str | None, Query(max_length=128)] = None,
+) -> DocumentAvpNumbersResponse:
+    items = await service.list_avp_numbers(
+        client_id=identity.client_id,
+        prefix=prefix,
+    )
+    return DocumentAvpNumbersResponse(items=items)
 
 
 @router.get(

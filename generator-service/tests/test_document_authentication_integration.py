@@ -90,6 +90,17 @@ async def test_http_authentication_and_ownership_with_real_services() -> None:
             assert history_other_client.status_code == 200
             assert history_other_client.json()["items"] == []
 
+            avps_same_client = await client.get(
+                "/api/v1/documents/avp-numbers",
+                headers={"X-API-Key": key_a_2.value},
+            )
+            avps_other_client = await client.get(
+                "/api/v1/documents/avp-numbers",
+                headers={"X-API-Key": key_b.value},
+            )
+            assert avps_same_client.json() == {"items": ["1234-26-001"]}
+            assert avps_other_client.json() == {"items": []}
+
             async with async_session_factory() as revoke_session:
                 await ApiKeyService(revoke_session).revoke_key(key_a_1.key.id)
             revoked = await client.get(

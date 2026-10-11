@@ -101,6 +101,18 @@
   }
 }
 
+@keyframes generation-spinner-rotation {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.generation-spinner {
+  animation: generation-spinner-rotation 1s linear infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -109,5 +121,9 @@
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+
+  .generation-spinner {
+    animation: none !important;
   }
 }

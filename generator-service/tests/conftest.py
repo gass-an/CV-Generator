@@ -69,6 +69,7 @@ class FakeDocumentJobService:
         offset: int,
         document_type: DocumentType | None = None,
         status: DocumentJobStatus | None = None,
+        avp_number: str | None = None,
     ) -> tuple[list[DocumentHistoryRecord], int]:
         jobs = [
             job
@@ -76,6 +77,7 @@ class FakeDocumentJobService:
             if job.client_id == client_id
             and (document_type is None or job.document_type is document_type)
             and (status is None or job.status is status)
+            and (avp_number is None or job.avp_number.strip() == avp_number.strip())
         ]
         jobs.sort(key=lambda job: (job.created_at, job.id), reverse=True)
         total = len(jobs)
@@ -99,6 +101,24 @@ class FakeDocumentJobService:
                 )
             )
         return records, total
+
+    async def list_avp_numbers(
+        self,
+        *,
+        client_id: uuid.UUID,
+        prefix: str | None = None,
+    ) -> list[str]:
+        normalized_prefix = prefix.strip().casefold() if prefix else ""
+        return sorted(
+            {
+                job.avp_number.strip()
+                for job in self.jobs.values()
+                if job.client_id == client_id
+                and job.avp_number.strip()
+                and job.avp_number.strip().casefold().startswith(normalized_prefix)
+            },
+            key=lambda value: (value.casefold(), value),
+        )
 
     async def create_job(
         self,

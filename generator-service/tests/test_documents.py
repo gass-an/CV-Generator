@@ -215,6 +215,75 @@ async def test_document_history_filters_paginates_and_reports_unpaged_total(
 
 
 @pytest.mark.asyncio
+async def test_document_history_filters_exactly_by_avp(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    matching = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        avp_number="3134-26-1382/SR",
+    )
+    document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        avp_number="3134-26-1382/SR-AUTRE",
+    )
+
+    response = await api_client.get(
+        "/api/v1/documents",
+        params={"avp_number": "3134-26-1382/SR"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["id"] == str(matching.id)
+
+
+@pytest.mark.asyncio
+async def test_document_history_matches_avp_stored_with_peripheral_spaces(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    matching = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        avp_number="  3134-26-1382/SR  ",
+    )
+
+    suggestions = await api_client.get("/api/v1/documents/avp-numbers")
+    history = await api_client.get(
+        "/api/v1/documents",
+        params={"avp_number": "3134-26-1382/SR"},
+    )
+
+    assert suggestions.json()["items"] == ["3134-26-1382/SR"]
+    assert history.status_code == 200
+    assert history.json()["total"] == 1
+    assert history.json()["items"][0]["id"] == str(matching.id)
+
+
+@pytest.mark.asyncio
+async def test_avp_numbers_are_distinct_sorted_and_filterable_by_prefix(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    for avp_number in ["b", "a", "az", "a", "BN", "cv"]:
+        document_service.add_job(
+            DocumentJobStatus.COMPLETED,
+            avp_number=avp_number,
+        )
+
+    all_response = await api_client.get("/api/v1/documents/avp-numbers")
+    prefix_response = await api_client.get(
+        "/api/v1/documents/avp-numbers",
+        params={"prefix": " A "},
+    )
+
+    assert all_response.status_code == 200
+    assert all_response.json() == {"items": ["a", "az", "b", "BN", "cv"]}
+    assert prefix_response.status_code == 200
+    assert prefix_response.json() == {"items": ["a", "az"]}
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "params",
     [
@@ -716,6 +785,7 @@ async def test_openapi_documents_generation_routes_in_french(
         "/api/v1/documents/cover-letter",
         "/api/v1/documents/interview-prep",
         "/api/v1/documents",
+        "/api/v1/documents/avp-numbers",
         "/api/v1/documents/{id}/status",
         "/api/v1/documents/{id}",
         "/api/v1/documents/{id}/download",

@@ -5,6 +5,15 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+### Ajouts
+
+- Ajout d'une combobox de filtrage par numéro AVP dans l'historique, avec récupération des AVP distincts et filtrage exact côté API.
+
+### Corrections
+
+- Fiabilisation de l'indicateur de génération avec respect de `prefers-reduced-motion`.
+- Amélioration de la navigation clavier dans la combobox et cohérence du filtrage des numéros AVP comportant des espaces périphériques.
+
 ## [0.5.2] - 2026-10-11
 
 ### Ajouts

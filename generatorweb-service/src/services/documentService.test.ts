@@ -1,6 +1,7 @@
 import {
   createDocumentJob,
   DOCX_MEDIA_TYPE,
+  getDocumentAvpNumbers,
   getDocumentDocx,
   getDocumentHistory,
   getDocumentJobStatus,
@@ -87,13 +88,32 @@ describe("documentService", () => {
         offset: 20,
         documentType: "cover_letter",
         status: "completed",
+        avpNumber: "3134-26-1382/SR",
       },
       "cle-api",
     );
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "/api/v1/documents?limit=20&offset=20&document_type=cover_letter&status=completed",
+      "/api/v1/documents?limit=20&offset=20&document_type=cover_letter&status=completed&avp_number=3134-26-1382%2FSR",
     );
+  });
+
+  it("récupère les AVP distincts avec la clé active", async () => {
+    const fetchMock = vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ items: ["AVP-1", "AVP-2"] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(getDocumentAvpNumbers("cle-api")).resolves.toEqual([
+      "AVP-1",
+      "AVP-2",
+    ]);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/documents/avp-numbers");
+    expect(
+      new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("X-API-Key"),
+    ).toBe("cle-api");
   });
 
   it.each([

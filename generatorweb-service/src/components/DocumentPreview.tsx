@@ -190,7 +190,7 @@ export function DocumentPreview() {
           <div className="bg-card border-border mx-auto flex aspect-[1/1.32] min-h-80 max-w-md flex-col items-center justify-center rounded-lg border px-5 text-center shadow-sm">
             <span className="bg-primary/8 text-primary flex size-14 items-center justify-center rounded-2xl">
               <StatusIcon
-                className={`size-7 ${isRunning && state.phase !== "creating" ? "animate-spin" : ""}`}
+                className={`size-7 ${isRunning && state.phase !== "creating" ? "generation-spinner" : ""}`}
                 aria-hidden="true"
               />
             </span>

@@ -72,6 +72,7 @@ class DocumentJobRepository:
         offset: int,
         document_type: DocumentType | None = None,
         status: DocumentJobStatus | None = None,
+        avp_number: str | None = None,
     ) -> tuple[list[DocumentHistoryRecord], int]:
         """Retourne une projection paginée sans charger le CV ni le résultat."""
         filters = [DocumentJob.client_id == client_id]
@@ -79,6 +80,8 @@ class DocumentJobRepository:
             filters.append(DocumentJob.document_type == document_type)
         if status is not None:
             filters.append(DocumentJob.status == status)
+        if avp_number is not None:
+            filters.append(func.btrim(DocumentJob.avp_number) == avp_number.strip())
 
         candidate_value = DocumentJob.resume_data["basics"]["name"]
         candidate_name = case(
@@ -122,6 +125,28 @@ class DocumentJobRepository:
             for row in rows
         ]
         return items, total
+
+    async def list_distinct_avp_numbers_for_client(
+        self,
+        *,
+        client_id: uuid.UUID,
+        prefix: str | None = None,
+    ) -> list[str]:
+        """Retourne tous les AVP distincts d'un client, sans charger ses jobs."""
+        normalized_avp = func.btrim(DocumentJob.avp_number).label("avp_number")
+        filters = [DocumentJob.client_id == client_id]
+        if prefix:
+            escaped_prefix = (
+                prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            )
+            filters.append(normalized_avp.ilike(f"{escaped_prefix}%", escape="\\"))
+        statement = (
+            select(normalized_avp)
+            .where(*filters, normalized_avp != "")
+            .group_by(normalized_avp)
+            .order_by(func.lower(normalized_avp), normalized_avp)
+        )
+        return list((await self._session.execute(statement)).scalars().all())
 
     async def update(self, job: DocumentJob) -> DocumentJob:
         await self._session.flush()

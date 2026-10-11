@@ -2,6 +2,7 @@ import { Eye, FileClock, LoaderCircle, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { AvpCombobox } from "@/components/AvpCombobox";
 import { DocumentDownloadActions } from "@/components/DocumentDownloadActions";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
@@ -11,7 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { useAppState } from "@/hooks/useAppState";
 import { ApiError } from "@/services/apiClient";
-import { getDocumentHistory } from "@/services/documentService";
+import {
+  getDocumentAvpNumbers,
+  getDocumentHistory,
+} from "@/services/documentService";
 import {
   documentStatusLabels,
   documentTypeLabels,
@@ -101,6 +105,12 @@ export function HistoryPage() {
   const [offset, setOffset] = useState(0);
   const [typeFilter, setTypeFilter] = useState<DocumentType | "">("");
   const [statusFilter, setStatusFilter] = useState<DocumentJobStatus | "">("");
+  const [avpFilter, setAvpFilter] = useState<string | null>(null);
+  const [avpOptions, setAvpOptions] = useState<string[]>([]);
+  const [avpLoadState, setAvpLoadState] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [avpError, setAvpError] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [loadState, setLoadState] = useState<
     "idle" | "loading" | "ready" | "error" | "rejected"
@@ -110,6 +120,50 @@ export function HistoryPage() {
   const [previewed, setPreviewed] = useState<OwnedSelection | null>(null);
   const [replacement, setReplacement] = useState<OwnedSelection | null>(null);
   const requestSequence = useRef(0);
+  const avpRequestSequence = useRef(0);
+  const avpLoadedApiKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    const sequence = ++avpRequestSequence.current;
+    if (auth.status !== "valid" || !auth.activeApiKey) return;
+    const apiKey = auth.activeApiKey;
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (avpRequestSequence.current !== sequence) return;
+      if (avpLoadedApiKey.current !== apiKey) {
+        setAvpOptions([]);
+        setAvpFilter(null);
+      }
+      setAvpLoadState("loading");
+      setAvpError(null);
+    });
+    getDocumentAvpNumbers(apiKey, controller.signal)
+      .then((values) => {
+        if (avpRequestSequence.current !== sequence) return;
+        avpLoadedApiKey.current = apiKey;
+        setAvpOptions(values);
+        setAvpLoadState("ready");
+      })
+      .catch((error: unknown) => {
+        if (
+          avpRequestSequence.current !== sequence ||
+          (error instanceof ApiError && error.kind === "aborted")
+        )
+          return;
+        if (error instanceof ApiError && error.status === 401) {
+          reportApiKeyRejected(apiKey);
+          return;
+        }
+        setAvpOptions([]);
+        setAvpLoadState("error");
+        setAvpError(
+          error instanceof ApiError
+            ? error.message
+            : "Impossible de charger les numéros AVP.",
+        );
+      });
+    return () => controller.abort();
+  }, [auth.activeApiKey, auth.status, refreshToken, reportApiKeyRejected]);
 
   useEffect(() => {
     const sequence = ++requestSequence.current;
@@ -131,6 +185,7 @@ export function HistoryPage() {
         offset,
         documentType: typeFilter || undefined,
         status: statusFilter || undefined,
+        avpNumber: avpFilter || undefined,
       },
       auth.activeApiKey,
       controller.signal,
@@ -174,6 +229,7 @@ export function HistoryPage() {
     reportApiKeyRejected,
     statusFilter,
     typeFilter,
+    avpFilter,
   ]);
 
   function changeType(value: DocumentType | "") {
@@ -184,6 +240,11 @@ export function HistoryPage() {
   function changeStatus(value: DocumentJobStatus | "") {
     setOffset(0);
     setStatusFilter(value);
+  }
+
+  function changeAvp(value: string | null) {
+    setOffset(0);
+    setAvpFilter(value);
   }
 
   function follow(selection: OwnedSelection, replace = false) {
@@ -200,7 +261,7 @@ export function HistoryPage() {
 
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const noFilters = !typeFilter && !statusFilter;
+  const noFilters = !typeFilter && !statusFilter && !avpFilter;
   const historyMatchesIdentity = loadedApiKey === auth.activeApiKey;
   const visibleItems = historyMatchesIdentity ? items : [];
   const visibleLoadState = historyMatchesIdentity ? loadState : "loading";
@@ -251,7 +312,7 @@ export function HistoryPage() {
       ) : (
         <>
           <Card className="p-4 sm:p-5">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
               <label className="text-sm font-semibold">
                 Type de document
                 <select
@@ -287,6 +348,14 @@ export function HistoryPage() {
                   <option value="failed">Échec</option>
                 </select>
               </label>
+              <AvpCombobox
+                key={auth.activeApiKey}
+                options={avpOptions}
+                selectedValue={avpFilter}
+                loading={avpLoadState === "loading"}
+                error={avpError}
+                onSelect={changeAvp}
+              />
               <button
                 type="button"
                 disabled={visibleLoadState === "loading"}

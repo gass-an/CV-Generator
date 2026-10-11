@@ -7,6 +7,7 @@ import { useDocumentPolling } from "@/hooks/useDocumentPolling";
 import { ApiError } from "@/services/apiClient";
 import {
   createDocumentJob,
+  getDocumentAvpNumbers,
   getDocumentHistory,
   getDocumentPdf,
 } from "@/services/documentService";
@@ -18,6 +19,7 @@ vi.mock("@/services/documentService", () => ({
   createDocumentJob: vi.fn(),
   getDocumentJobStatus: vi.fn(),
   getDocumentHistory: vi.fn(),
+  getDocumentAvpNumbers: vi.fn(),
   getDocumentPdf: vi.fn(),
   getDocumentDocx: vi.fn(),
 }));
@@ -86,6 +88,7 @@ describe("génération et suivi d'un document", () => {
       limit: 20,
       offset: 0,
     });
+    vi.mocked(getDocumentAvpNumbers).mockResolvedValue([]);
     vi.mocked(getDocumentPdf).mockResolvedValue(
       new Blob(["%PDF-1.4"], { type: "application/pdf" }),
     );
@@ -131,6 +134,11 @@ describe("génération et suivi d'un document", () => {
     expect(
       screen.getByText("L'IA prépare votre document…"),
     ).toBeInTheDocument();
+    expect(
+      screen
+        .getByText("L'IA prépare votre document…")
+        .parentElement?.querySelector("svg"),
+    ).toHaveClass("generation-spinner");
 
     await user.click(screen.getByRole("link", { name: /Historique/ }));
     await user.click(screen.getByRole("link", { name: /Générer/ }));
@@ -148,6 +156,7 @@ describe("génération et suivi d'un document", () => {
       }),
     );
     expect(screen.getByText("Votre document est prêt !")).toBeInTheDocument();
+    expect(document.querySelector(".generation-spinner")).toBeNull();
     expect(latestPollingOptions().enabled).toBe(false);
   });
 

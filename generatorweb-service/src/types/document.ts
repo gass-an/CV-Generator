@@ -45,6 +45,11 @@ export type DocumentHistoryQuery = {
   offset: number;
   documentType?: DocumentType;
   status?: DocumentJobStatus;
+  avpNumber?: string;
+};
+
+export type DocumentAvpNumbersResponse = {
+  items: string[];
 };
 
 export type DocumentMetadata = {

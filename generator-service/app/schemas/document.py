@@ -83,6 +83,12 @@ class DocumentHistoryResponse(BaseModel):
     offset: int = Field(ge=0)
 
 
+class DocumentAvpNumbersResponse(BaseModel):
+    """Numéros AVP distincts appartenant au client authentifié."""
+
+    items: list[str]
+
+
 class DocumentResultResponse(BaseModel):
     """Contenu source d'un document généré."""
 
