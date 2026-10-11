@@ -12,6 +12,7 @@ permissions:
 env:
   BACKEND_IMAGE_NAME: ghcr.io/gass-an/cv-generator
   ADMIN_IMAGE_NAME: ghcr.io/gass-an/cv-generator-admin
+  FRONTEND_IMAGE_NAME: ghcr.io/gass-an/cv-generator-web
 
 jobs:
   release:
@@ -43,9 +44,28 @@ jobs:
       ADMIN_LOGIN_MAX_ATTEMPTS: 3
       ADMIN_BASE_URL: http://testserver
       ADMIN_TIMEZONE: Pacific/Noumea
+      POSTGRES_DB: cv_generator_test
+      POSTGRES_USER: cv_generator
+      POSTGRES_PASSWORD: cv_generator
+      OPT_AVP_BASE_URL: https://example.invalid/avp
+      LLM_BASE_URL: http://llm:8080
+      LLM_MODEL: test-model
+      LLM_CTX_SIZE: 8192
+      LLM_TIMEOUT_SECONDS: 120
+      WORKER_POLL_INTERVAL_SECONDS: 1
+      WORKER_STALE_JOB_TIMEOUT_SECONDS: 600
+      WEB_PORT: 8082
     steps:
       - name: Récupérer le dépôt
         uses: actions/checkout@v4
+
+      - name: Vérifier le format du tag
+        shell: bash
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Le tag doit respecter vX.Y.Z."
+            exit 1
+          fi
 
       - name: Configurer Python
         uses: actions/setup-python@v5
@@ -109,6 +129,42 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator_admin_test
         run: pytest generator-admin-service
 
+      - name: Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+          cache: npm
+          cache-dependency-path: generatorweb-service/package-lock.json
+
+      - name: Installer le frontend de manière reproductible
+        working-directory: generatorweb-service
+        run: npm ci
+
+      - name: Vérifier le frontend
+        working-directory: generatorweb-service
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run format:check
+          npm run test:ci
+          npm run build
+
+      - name: Valider la construction des trois images avant publication
+        run: |
+          docker build -f generator-service/Dockerfile -t cv-generator:release-check .
+          docker build -f generator-admin-service/Dockerfile -t cv-generator-admin:release-check .
+          docker build -f generatorweb-service/Dockerfile -t cv-generator-web:release-check .
+
+      - name: Tester Nginx, le fallback SPA et le reverse proxy
+        run: >-
+          bash scripts/smoke_frontend_proxy.sh
+          cv-generator-web:release-check cv-generator:release-check
+
+      - name: Valider les configurations Compose
+        run: |
+          docker compose --env-file deploy/.env.example -f deploy/docker-compose.local.yml config --quiet
+          docker compose --env-file deploy/.env.example -f deploy/docker-compose.prod.yml config --quiet
+
       - name: Configurer Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -154,6 +210,24 @@ jobs:
           push: true
           tags: ${{ steps.admin-metadata.outputs.tags }}
           labels: ${{ steps.admin-metadata.outputs.labels }}
+
+      - name: Générer les métadonnées de l'image frontend
+        id: frontend-metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.FRONTEND_IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ github.ref_name }}
+            type=raw,value=latest
+
+      - name: Construire et publier l'image frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: generatorweb-service/Dockerfile
+          push: true
+          tags: ${{ steps.frontend-metadata.outputs.tags }}
+          labels: ${{ steps.frontend-metadata.outputs.labels }}
 
       - name: Créer la version GitHub
         env:

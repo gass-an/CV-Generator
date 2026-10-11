@@ -67,6 +67,19 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    networks:
+      default:
+        aliases:
+          - generator-api
+
+  generator-web:
+    image: cv-generator-web:local
+    build:
+      context: ..
+      dockerfile: generatorweb-service/Dockerfile
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8082}:80"
+    restart: unless-stopped
 
   admin:
     image: cv-generator-admin:local
@@ -76,9 +89,9 @@ services:
     environment:
       APP_ENV: development
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-cv_generator}:${POSTGRES_PASSWORD:-cv_generator}@postgres:5432/${POSTGRES_DB:-cv_generator_local}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:?Renseignez ADMIN_USERNAME dans deploy/.env.local}
-      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?Renseignez ADMIN_PASSWORD_HASH dans deploy/.env.local}
-      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?Renseignez ADMIN_SESSION_SECRET dans deploy/.env.local}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?Renseignez ADMIN_USERNAME dans deploy/.env}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?Renseignez ADMIN_PASSWORD_HASH dans deploy/.env}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?Renseignez ADMIN_SESSION_SECRET dans deploy/.env}
       ADMIN_SESSION_TTL_SECONDS: ${ADMIN_SESSION_TTL_SECONDS:-3600}
       ADMIN_SESSION_COOKIE_NAME: ${ADMIN_SESSION_COOKIE_NAME:-cv_generator_admin_session}
       ADMIN_CSRF_COOKIE_NAME: ${ADMIN_CSRF_COOKIE_NAME:-cv_generator_admin_csrf}

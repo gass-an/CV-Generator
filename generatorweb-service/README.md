@@ -179,5 +179,17 @@ frontend dédié de 90 secondes.
 ## Étapes suivantes
 
 La configuration, la génération, le suivi, l'historique, la prévisualisation
-PDF et les téléchargements sont fonctionnels. L'intégration Docker/Nginx et la
-CI/CD du frontend restent prévues pour une étape ultérieure.
+PDF et les téléchargements sont fonctionnels. L'image Docker/Nginx et la CI du
+frontend sont intégrées ; le déploiement sur la tour reste volontairement
+manuel.
+
+## Image de production
+
+Le Dockerfile multi-stage installe les dépendances avec `npm ci`, construit les
+ressources Vite puis copie uniquement `dist/` dans Nginx. Nginx fournit le
+fallback SPA pour `/historique` et `/parametres` et relaie `/api/v1` vers le
+service Compose `generator-api`. Les URL applicatives restent relatives et
+aucune clé API ni adresse de production n'est injectée dans l'image.
+
+La configuration Nginx autorise les aperçus PDF en URL `blob:`, désactive le
+cache partagé des réponses API et accorde 95 secondes aux conversions PDF.

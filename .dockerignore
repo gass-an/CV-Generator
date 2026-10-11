@@ -8,12 +8,16 @@
 !**/.env.example
 !**/.env.local.example
 **/.venv
+**/node_modules
 **/__pycache__
 **/*.py[cod]
 **/.pytest_cache
 **/.ruff_cache
 **/.coverage
 **/htmlcov
+**/coverage
+**/.vite
+**/*.tsbuildinfo
 **/dist
 **/build
 **/*.egg-info
@@ -22,7 +26,6 @@ generator-service/tests
 generator-service/demo
 shared/tests
 generator-admin-service/tests
-generatorweb-service
 deploy
 
 # Les deux images Python utilisent la racine comme contexte ; seuls leurs

@@ -23,6 +23,19 @@ La gestion métier des clés est documentée dans [shared/README.md](shared/READ
 Les configurations Docker locales et de production sont centralisées dans
 [`deploy/`](deploy/README.md).
 
+Le frontend de production est servi par Nginx sur le port loopback configurable
+`WEB_PORT` (8082 par défaut). Le même Nginx transmet `/api/v1` à FastAPI sur le
+réseau Docker : le navigateur ne connaît donc aucune adresse interne.
+
+## Validation sélective
+
+Le workflow principal détecte les chemins modifiés avant de lancer les suites
+Shared, backend, administration, frontend et Docker nécessaires. Une
+modification de `shared/` teste également les deux services Python qui en
+dépendent ; un lancement manuel ou une modification des workflows exécute la
+validation complète. Le job final `Résultat de la validation` reste toujours
+présent, y compris pour un changement documentaire seul.
+
 ## Publication des versions
 
 La procédure de version, de publication et de déploiement manuel est décrite

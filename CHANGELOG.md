@@ -7,6 +7,7 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ### Ajouts
 
+- Ajout de la CI sélective et de l'image frontend Nginx intégrée au déploiement.
 - Ajout de l'historique interactif, de la prévisualisation PDF et des téléchargements DOCX/PDF.
 - Ajout de la génération des trois documents et du suivi asynchrone des traitements.
 - Ajout de la configuration et de la vérification des clés API dans le frontend.

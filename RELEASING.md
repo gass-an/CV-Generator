@@ -1,64 +1,72 @@
-# Préparer et déployer la version v0.3.0
+# Publier et déployer une version
 
-Le dépôt publie deux images pour chaque tag :
+Un tag manuel `vX.Y.Z` déclenche une validation complète puis publie trois
+images portant exactement ce tag :
 
-- `ghcr.io/gass-an/cv-generator:v0.3.0` pour l'API, le worker et Alembic ;
-- `ghcr.io/gass-an/cv-generator-admin:v0.3.0` pour l'administration.
+- `ghcr.io/gass-an/cv-generator:vX.Y.Z` ;
+- `ghcr.io/gass-an/cv-generator-admin:vX.Y.Z` ;
+- `ghcr.io/gass-an/cv-generator-web:vX.Y.Z`.
 
-Le workflow ne déploie rien. La création du tag et la publication restent des
-opérations manuelles à effectuer seulement après validation du diff.
+Le workflow ne déploie rien sur la tour. `GITHUB_TOKEN` doit disposer de
+`contents: write` pour la release GitHub et de `packages: write` pour GHCR. Les
+pull requests ne publient jamais d'image.
 
 ## Préparer la release
 
-Depuis la racine, sur une branche propre et à jour :
+Depuis une branche propre et à jour :
 
 ```bash
-git status
 python run_all_tests.py
-docker build -f generator-service/Dockerfile -t cv-generator:v0.3.0 .
-docker build -f generator-admin-service/Dockerfile -t cv-generator-admin:v0.3.0 .
+cd generatorweb-service
+npm ci
+npm run typecheck
+npm run lint
+npm run format:check
+npm run test:ci
+npm run build
+cd ..
+docker build -f generator-service/Dockerfile -t cv-generator:check .
+docker build -f generator-admin-service/Dockerfile -t cv-generator-admin:check .
+docker build -f generatorweb-service/Dockerfile -t cv-generator-web:check .
 ```
 
-Après revue et commit, les opérations manuelles de publication seront :
+Après revue et commit, créer et pousser explicitement le tag :
 
 ```bash
-git tag -a v0.3.0 -m "Version 0.3.0"
+git tag -a vX.Y.Z -m "Version X.Y.Z"
 git push origin master
-git push origin v0.3.0
+git push origin vX.Y.Z
 ```
 
-Elles ne doivent pas être exécutées pendant la préparation locale.
+Vérifier dans GitHub Actions que les suites Shared, backend, administration et
+frontend ont réussi, puis que les trois paquets GHCR possèdent le même tag.
 
-## Sauvegarde PostgreSQL sur la tour Windows
+## Sauvegarder PostgreSQL sur la tour Windows
 
-Avant une mise à jour, créer le dossier `backups` depuis PowerShell, puis faire
-produire l'archive dans le conteneur et la copier sur l'hôte :
+Depuis `deploy/` dans PowerShell, créer une sauvegarde avant toute mise à jour :
 
 ```powershell
 New-Item -ItemType Directory -Force backups
-docker compose --env-file .env -f docker-compose.prod.yml exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f /tmp/cv-generator-before-v0.3.0.dump'
+docker compose --env-file .env -f docker-compose.prod.yml exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f /tmp/cv-generator-before-update.dump'
 $postgresContainer = docker compose --env-file .env -f docker-compose.prod.yml ps -q postgres
-docker cp "${postgresContainer}:/tmp/cv-generator-before-v0.3.0.dump" ".\backups\cv-generator-before-v0.3.0.dump"
+docker cp "${postgresContainer}:/tmp/cv-generator-before-update.dump" ".\backups\cv-generator-before-update.dump"
+Get-Item ".\backups\cv-generator-before-update.dump"
 ```
 
-Vérifier que le fichier existe et possède une taille non nulle. Cette procédure
-est documentée seulement : elle ne doit pas être lancée depuis une autre machine
-et aucune restauration ne doit être improvisée sans copie supplémentaire.
+Ne jamais remplacer le véritable `deploy/.env` par `.env.example`, afficher ses
+secrets, ni utiliser `docker compose down -v` ou `docker volume prune`.
 
-## Déploiement manuel sur la tour
+## Déployer manuellement
 
-Préconditions : Docker Desktop en fonctionnement, accès GHCR configuré, GPU
-NVIDIA disponible et dépôt positionné sur le commit de la release. Ne remplacez
-jamais `.env` par son exemple : modifiez seulement les valeurs nécessaires
-dans le fichier réel déjà présent, notamment `APP_VERSION=v0.3.0`.
+Vérifier d'abord que `WEB_PORT` est libre ; 8082 n'est qu'une valeur par défaut :
 
-Si les secrets administrateur se trouvent encore dans un ancien fichier
-séparé, les reporter manuellement dans la section Administration de
-`.env`, sans les afficher dans le terminal ni écraser automatiquement le
-fichier existant. Placer `ADMIN_PASSWORD_HASH` entre apostrophes simples pour
-préserver les `$`; Docker Compose ne transmet pas ces apostrophes au conteneur.
+```powershell
+Get-NetTCPConnection -LocalPort 8082 -ErrorAction SilentlyContinue
+docker ps --format "table {{.Names}}\t{{.Ports}}"
+```
 
-Depuis la racine du dépôt :
+Modifier manuellement `APP_VERSION=vX.Y.Z` dans `deploy/.env`, sans toucher aux
+secrets, puis :
 
 ```powershell
 docker login ghcr.io
@@ -66,40 +74,54 @@ docker compose --env-file .env -f docker-compose.prod.yml config --quiet
 docker compose --env-file .env -f docker-compose.prod.yml pull
 docker compose --env-file .env -f docker-compose.prod.yml up -d
 docker compose --env-file .env -f docker-compose.prod.yml ps
-```
-
-`generator-migrate` attend PostgreSQL et doit terminer avec succès avant le
-démarrage de l'API, du worker et de l'administration. Contrôler son état et les
-logs sans afficher le fichier d'environnement :
-
-```powershell
 docker compose --env-file .env -f docker-compose.prod.yml logs --tail=100 generator-migrate
-docker compose --env-file .env -f docker-compose.prod.yml logs --tail=100 generator-api generator-worker generator-admin
+docker compose --env-file .env -f docker-compose.prod.yml logs --tail=100 generator-api generator-worker generator-admin generator-web
 ```
 
-Tester localement :
+`generator-migrate` doit terminer avec succès. Les volumes nommés
+`cv-generator_postgres-data` et `cv-generator-models` doivent être conservés.
+
+Tester ensuite le chemin public unique du frontend :
 
 ```powershell
-curl.exe http://127.0.0.1:8000/api/v1/health
-curl.exe -i http://127.0.0.1:8001/login
+curl.exe -I http://127.0.0.1:8082/
+curl.exe -I http://127.0.0.1:8082/historique
+curl.exe -I http://127.0.0.1:8082/parametres
+curl.exe http://127.0.0.1:8082/api/v1/health
 ```
 
-L'administration reste liée à `127.0.0.1:8001`. Une future configuration
-Tailscale Serve devra relayer cette adresse en HTTPS sans modifier les services
-Docker, avec `ADMIN_BASE_URL` réglée sur l'URL HTTPS privée. Ne modifiez pas la
-configuration Tailscale existante pendant le déploiement Docker.
-llama.cpp reste temporairement lié à `127.0.0.1:8080` afin de préserver cette
-configuration Tailscale Serve existante ; ne la réinitialisez pas pendant la
-mise à jour.
+## Tailscale Serve
+
+Cette procédure ne configure pas Tailscale automatiquement. Examiner les routes
+existantes avant tout changement :
+
+```powershell
+tailscale serve status
+```
+
+Choisir un point d'entrée HTTPS libre et configurer manuellement Tailscale
+Serve vers `http://127.0.0.1:$WEB_PORT` avec la syntaxe de la version installée.
+Ne pas exécuter `tailscale serve reset` et ne pas supposer que 443 est libre.
+Vérifier depuis une autre machine du tailnet le frontend et
+`/api/v1/health`. Serve est privé ; Funnel rendrait le service public et ne doit
+pas être activé sans demande explicite.
+
+## Checklist fonctionnelle réelle
+
+Ces contrôles doivent être effectués sur la tour et consignés ; la CI ne les
+remplace pas :
+
+- importer un JSON Resume et saisir un numéro AVP ;
+- générer un CV et observer `pending`, `processing`, puis `completed` ;
+- prévisualiser le PDF et télécharger DOCX et PDF ;
+- actualiser l'application et retrouver le document dans l'historique ;
+- reprendre un job en cours ;
+- vérifier deux clés d'un même client puis l'isolation de deux clients ;
+- vérifier les messages lorsque FastAPI ou llama.cpp est indisponible.
 
 ## Retour arrière applicatif
 
-Un retour arrière consiste à remettre l'ancienne valeur explicite de
-`APP_VERSION`, puis à exécuter `pull` et `up -d`. Attention : les migrations de
-base ne sont pas automatiquement annulées. Ne lancez jamais de downgrade
-Alembic sur la production sans procédure dédiée et sauvegarde vérifiée.
-
-Les commandes de déploiement ci-dessus préservent les volumes
-`cv-generator_postgres-data` et `cv-generator-models`. Ne lancez jamais
-`docker compose down -v`, `docker volume prune` ou une recréation manuelle de
-ces volumes.
+Remettre l'ancienne valeur explicite de `APP_VERSION`, puis exécuter `pull` et
+`up -d`. Ce retour arrière ne rétrograde pas la base. Ne lancer aucun downgrade
+Alembic automatique ; une incompatibilité de migration exige une procédure
+dédiée et une sauvegarde vérifiée.

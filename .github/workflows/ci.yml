@@ -3,136 +3,211 @@ name: Intégration continue
 on:
   pull_request:
   push:
-    branches:
-      - master
+    branches: [master]
+  workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  detect:
+    name: Déterminer les composants affectés
+    runs-on: ubuntu-latest
+    outputs:
+      shared: ${{ steps.scope.outputs.shared }}
+      backend: ${{ steps.scope.outputs.backend }}
+      admin: ${{ steps.scope.outputs.admin }}
+      frontend: ${{ steps.scope.outputs.frontend }}
+      docker: ${{ steps.scope.outputs.docker }}
+      exclusions: ${{ steps.scope.outputs.exclusions }}
+      documentation_only: ${{ steps.scope.outputs.documentation_only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changes
+        uses: dorny/paths-filter@v4
+        with:
+          predicate-quantifier: some-with-excludes
+          filters: |
+            shared:
+              - 'shared/**'
+              - '!shared/**/*.md'
+            backend:
+              - 'generator-service/**'
+              - '!generator-service/**/*.md'
+            admin:
+              - 'generator-admin-service/**'
+              - '!generator-admin-service/**/*.md'
+            frontend:
+              - 'generatorweb-service/**'
+              - '!generatorweb-service/**/*.md'
+              - '!generatorweb-service/nginx/**'
+              - '!generatorweb-service/Dockerfile'
+            migrations:
+              - 'generator-service/alembic/**'
+              - 'generator-service/alembic.ini'
+            nginx:
+              - 'generatorweb-service/nginx/**'
+              - 'scripts/nginx_smoke_backend.py'
+              - 'scripts/smoke_frontend_proxy.sh'
+            exclusions:
+              - '.gitignore'
+            python_common:
+              - 'run_all_tests.py'
+              - 'pyproject.toml'
+              - 'ruff.toml'
+              - '.python-version'
+            workflows:
+              - '.github/workflows/**'
+            docker_transversal:
+              - 'deploy/**'
+              - '!deploy/**/*.md'
+              - '.dockerignore'
+              - '**/Dockerfile'
+            unclassified:
+              - '**'
+              - '!**/*.md'
+              - '!shared/**'
+              - '!generator-service/**'
+              - '!generator-admin-service/**'
+              - '!generatorweb-service/**'
+              - '!deploy/**'
+              - '!scripts/nginx_smoke_backend.py'
+              - '!scripts/smoke_frontend_proxy.sh'
+              - '!run_all_tests.py'
+              - '!pyproject.toml'
+              - '!ruff.toml'
+              - '!.python-version'
+              - '!.github/workflows/**'
+              - '!.dockerignore'
+              - '!.gitignore'
+            technical:
+              - '**'
+              - '!**/*.md'
+      - id: scope
+        name: Calculer la matrice d'impact
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SHARED_CHANGED: ${{ steps.changes.outputs.shared }}
+          BACKEND_CHANGED: ${{ steps.changes.outputs.backend }}
+          ADMIN_CHANGED: ${{ steps.changes.outputs.admin }}
+          FRONTEND_CHANGED: ${{ steps.changes.outputs.frontend }}
+          PYTHON_COMMON_CHANGED: ${{ steps.changes.outputs.python_common }}
+          WORKFLOWS_CHANGED: ${{ steps.changes.outputs.workflows }}
+          MIGRATIONS_CHANGED: ${{ steps.changes.outputs.migrations }}
+          NGINX_CHANGED: ${{ steps.changes.outputs.nginx }}
+          EXCLUSIONS_CHANGED: ${{ steps.changes.outputs.exclusions }}
+          DOCKER_TRANSVERSAL_CHANGED: ${{ steps.changes.outputs.docker_transversal }}
+          TECHNICAL_CHANGED: ${{ steps.changes.outputs.technical }}
+          UNCLASSIFIED_CHANGED: ${{ steps.changes.outputs.unclassified }}
+        run: |
+          full=false
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$WORKFLOWS_CHANGED" == "true" || "$UNCLASSIFIED_CHANGED" == "true" ]]; then full=true; fi
+          shared=$SHARED_CHANGED
+          backend=$BACKEND_CHANGED
+          admin=$ADMIN_CHANGED
+          frontend=$FRONTEND_CHANGED
+          docker=$NGINX_CHANGED
+          exclusions=$EXCLUSIONS_CHANGED
+          if [[ "$PYTHON_COMMON_CHANGED" == "true" ]]; then shared=true; backend=true; admin=true; fi
+          if [[ "$SHARED_CHANGED" == "true" ]]; then backend=true; admin=true; fi
+          if [[ "$MIGRATIONS_CHANGED" == "true" ]]; then backend=true; admin=true; fi
+          if [[ "$DOCKER_TRANSVERSAL_CHANGED" == "true" ]]; then
+            shared=true; backend=true; admin=true; frontend=true; docker=true
+          fi
+          if [[ "$full" == "true" ]]; then
+            shared=true; backend=true; admin=true; frontend=true; docker=true; exclusions=true
+          fi
+          documentation_only=false
+          if [[ "$TECHNICAL_CHANGED" != "true" && "$EVENT_NAME" != "workflow_dispatch" ]]; then documentation_only=true; fi
+          {
+            echo "shared=$shared"
+            echo "backend=$backend"
+            echo "admin=$admin"
+            echo "frontend=$frontend"
+            echo "docker=$docker"
+            echo "exclusions=$exclusions"
+            echo "documentation_only=$documentation_only"
+          } >> "$GITHUB_OUTPUT"
+
   shared:
     name: Vérifier le package partagé
+    needs: detect
+    if: needs.detect.outputs.shared == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:18
-        env:
-          POSTGRES_DB: cv_generator_test
-          POSTGRES_USER: cv_generator
-          POSTGRES_PASSWORD: cv_generator
-        ports:
-          - 5432:5432
+        env: {POSTGRES_DB: cv_generator_test, POSTGRES_USER: cv_generator, POSTGRES_PASSWORD: cv_generator}
+        ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U cv_generator -d cv_generator_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       TEST_DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator_test
     steps:
-      - name: Récupérer le dépôt
-        uses: actions/checkout@v4
-
-      - name: Configurer Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: shared/pyproject.toml
-
-      - name: Installer le package partagé
-        run: python -m pip install -e 'shared[dev]'
-
-      - name: Vérifier le formatage
-        run: ruff format --check shared
-
-      - name: Analyser le code
-        run: ruff check shared
-
-      - name: Exécuter les tests PostgreSQL
-        run: pytest shared
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12', cache: pip, cache-dependency-path: shared/pyproject.toml}
+      - run: python -m pip install -e 'shared[dev]'
+      - run: ruff format --check shared
+      - run: ruff check shared
+      - run: pytest shared
 
   backend:
     name: Vérifier le backend
+    needs: detect
+    if: needs.detect.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
-      run:
-        working-directory: generator-service
+      run: {working-directory: generator-service}
     services:
       postgres:
         image: postgres:18
-        env:
-          POSTGRES_DB: cv_generator_test
-          POSTGRES_USER: cv_generator
-          POSTGRES_PASSWORD: cv_generator
-        ports:
-          - 5432:5432
+        env: {POSTGRES_DB: cv_generator_test, POSTGRES_USER: cv_generator, POSTGRES_PASSWORD: cv_generator}
+        ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U cv_generator -d cv_generator_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator_test
       TEST_DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator_test
       MIGRATION_TEST_DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator_migration_test
     steps:
-      - name: Récupérer le dépôt
-        uses: actions/checkout@v4
-
-      - name: Configurer Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
           cache: pip
           cache-dependency-path: |
             generator-service/pyproject.toml
             shared/pyproject.toml
-
-      - name: Installer les dépendances du backend
-        run: python -m pip install -e ../shared -e '.[dev]'
-
+      - run: python -m pip install -e ../shared -e '.[dev]'
       - name: Créer la base jetable des migrations
-        env:
-          PGPASSWORD: cv_generator
-        run: >-
-          createdb
-          --host localhost
-          --username cv_generator
-          cv_generator_migration_test
-
-      - name: Appliquer les migrations
-        run: alembic upgrade head
-
-      - name: Vérifier la révision courante
-        run: alembic current --check-heads
-
-      - name: Vérifier le formatage
-        run: ruff format --check .
-
-      - name: Analyser le code
-        run: ruff check .
-
-      - name: Exécuter les tests
-        run: pytest
+        env: {PGPASSWORD: cv_generator}
+        run: createdb --host localhost --username cv_generator cv_generator_migration_test
+      - run: alembic upgrade head
+      - run: alembic current --check-heads
+      - run: ruff format --check .
+      - run: ruff check .
+      - run: pytest
 
   admin:
     name: Vérifier l'administration privée
+    needs: detect
+    if: needs.detect.outputs.admin == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:18
-        env:
-          POSTGRES_DB: cv_generator_admin_test
-          POSTGRES_USER: cv_generator
-          POSTGRES_PASSWORD: cv_generator
-        ports:
-          - 5432:5432
+        env: {POSTGRES_DB: cv_generator_admin_test, POSTGRES_USER: cv_generator, POSTGRES_PASSWORD: cv_generator}
+        ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U cv_generator -d cv_generator_admin_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator_admin_test
       ADMIN_TEST_DATABASE_URL: postgresql+asyncpg://cv_generator:cv_generator@localhost:5432/cv_generator_admin_test
@@ -142,66 +217,155 @@ jobs:
       ADMIN_SESSION_SECRET: ci-session-secret-non-production-48-characters-long
       ADMIN_LOGIN_MAX_ATTEMPTS: 3
       ADMIN_BASE_URL: http://testserver
+      ADMIN_TIMEZONE: Pacific/Noumea
+      ADMIN_COOKIE_SECURE: 'false'
     steps:
-      - name: Récupérer le dépôt
-        uses: actions/checkout@v4
-
-      - name: Configurer Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
           cache: pip
           cache-dependency-path: |
             generator-admin-service/pyproject.toml
             generator-service/pyproject.toml
             shared/pyproject.toml
-
-      - name: Installer les trois composants Python
-        run: >-
-          python -m pip install
-          -e ./shared
-          -e './generator-service[dev]'
-          -e './generator-admin-service[dev]'
-
+      - run: python -m pip install -e ./shared -e './generator-service[dev]' -e './generator-admin-service[dev]'
       - name: Appliquer les migrations
         working-directory: generator-service
         run: alembic upgrade head
-
-      - name: Vérifier le formatage des trois packages
-        run: ruff format --check shared generator-service generator-admin-service
-
-      - name: Analyser les trois packages
-        run: ruff check shared generator-service generator-admin-service
-
+      - run: ruff format --check shared generator-service generator-admin-service
+      - run: ruff check shared generator-service generator-admin-service
       - name: Vérifier le démarrage indépendant
         working-directory: generator-admin-service
         run: >-
-          python -c
-          "from app.config import get_settings;
-          from app.main import app;
-          get_settings().validate_security();
-          assert app.title"
+          python -c "from app.config import get_settings; from app.main import app;
+          get_settings().validate_security(); assert app.title"
+      - run: pytest generator-admin-service
 
-      - name: Exécuter les tests de l'administration
-        run: pytest generator-admin-service
+  frontend:
+    name: Vérifier le frontend
+    needs: detect
+    if: needs.detect.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run: {working-directory: generatorweb-service}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: npm
+          cache-dependency-path: generatorweb-service/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run test:ci
+      - run: npm run build
 
-  docker:
-    name: Construire l'image Docker
+  exclusions:
+    name: Vérifier les exclusions Git
+    needs: detect
+    if: needs.detect.outputs.exclusions == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Récupérer le dépôt
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - name: Vérifier les fichiers ignorés et versionnables
+        run: |
+          git check-ignore -q generatorweb-service/node_modules/example
+          git check-ignore -q generatorweb-service/dist/index.html
+          git check-ignore -q generator-service/.venv/bin/python
+          git check-ignore -q deploy/.env
+          for tracked in generatorweb-service/package-lock.json generatorweb-service/.env.example deploy/.env.example; do
+            if git check-ignore --no-index -q "$tracked"; then
+              echo "$tracked ne doit pas être ignoré."
+              exit 1
+            fi
+          done
 
-      - name: Construire l'image de production
-        run: >-
-          docker build
-          -f generator-service/Dockerfile
-          -t cv-generator:test
-          .
+  docker:
+    name: Valider Docker et Compose
+    needs: detect
+    if: needs.detect.outputs.docker == 'true'
+    runs-on: ubuntu-latest
+    env:
+      APP_VERSION: v0.0.0-ci
+      LOG_LEVEL: INFO
+      POSTGRES_DB: cv_generator
+      POSTGRES_USER: cv_generator
+      POSTGRES_PASSWORD: ci-only
+      DATABASE_URL: postgresql+asyncpg://cv_generator:ci-only@postgres:5432/cv_generator
+      OPT_AVP_BASE_URL: https://example.invalid/avp
+      LLM_BASE_URL: http://llm:8080
+      LLM_MODEL: test-model
+      LLM_CTX_SIZE: 8192
+      LLM_TIMEOUT_SECONDS: 120
+      WORKER_POLL_INTERVAL_SECONDS: 1
+      WORKER_STALE_JOB_TIMEOUT_SECONDS: 600
+      ADMIN_USERNAME: administrateur
+      ADMIN_PASSWORD_HASH: ci-placeholder
+      ADMIN_SESSION_SECRET: ci-session-secret-non-production-48-characters-long
+      ADMIN_BASE_URL: https://admin.example.invalid
+      WEB_PORT: 8082
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose --env-file deploy/.env.example -f deploy/docker-compose.local.yml config --quiet
+      - run: docker compose --env-file deploy/.env.example -f deploy/docker-compose.prod.yml config --quiet
+      - run: docker build -f generator-service/Dockerfile -t cv-generator:test .
+      - run: docker build -f generator-admin-service/Dockerfile -t cv-generator-admin:test .
+      - run: docker build -f generatorweb-service/Dockerfile -t cv-generator-web:test .
+      - name: Tester Nginx, le fallback SPA et le reverse proxy
+        run: bash scripts/smoke_frontend_proxy.sh cv-generator-web:test cv-generator:test
 
-      - name: Construire l'image d'administration
-        run: >-
-          docker build
-          -f generator-admin-service/Dockerfile
-          -t cv-generator-admin:test
-          .
+  validation:
+    name: Résultat de la validation
+    if: always()
+    needs: [detect, shared, backend, admin, frontend, exclusions, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier les résultats requis
+        env:
+          DETECT_RESULT: ${{ needs.detect.result }}
+          SHARED_RESULT: ${{ needs.shared.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          ADMIN_RESULT: ${{ needs.admin.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          EXCLUSIONS_RESULT: ${{ needs.exclusions.result }}
+          DOCKER_RESULT: ${{ needs.docker.result }}
+          SHARED_REQUIRED: ${{ needs.detect.outputs.shared }}
+          BACKEND_REQUIRED: ${{ needs.detect.outputs.backend }}
+          ADMIN_REQUIRED: ${{ needs.detect.outputs.admin }}
+          FRONTEND_REQUIRED: ${{ needs.detect.outputs.frontend }}
+          EXCLUSIONS_REQUIRED: ${{ needs.detect.outputs.exclusions }}
+          DOCKER_REQUIRED: ${{ needs.detect.outputs.docker }}
+          DOCUMENTATION_ONLY: ${{ needs.detect.outputs.documentation_only }}
+        run: |
+          if [[ "$DETECT_RESULT" != "success" ]]; then
+            echo "La détection des changements n'a pas réussi."
+            exit 1
+          fi
+
+          check_result() {
+            local name=$1 required=$2 result=$3
+            if [[ "$required" == "true" && "$result" != "success" ]]; then
+              echo "$name était requis mais son résultat est $result."
+              exit 1
+            fi
+            if [[ "$required" != "true" && "$result" != "success" && "$result" != "skipped" ]]; then
+              echo "$name n'était pas requis mais a terminé avec $result."
+              exit 1
+            fi
+          }
+
+          check_result "Shared" "$SHARED_REQUIRED" "$SHARED_RESULT"
+          check_result "Backend" "$BACKEND_REQUIRED" "$BACKEND_RESULT"
+          check_result "Administration" "$ADMIN_REQUIRED" "$ADMIN_RESULT"
+          check_result "Frontend" "$FRONTEND_REQUIRED" "$FRONTEND_RESULT"
+          check_result "Exclusions Git" "$EXCLUSIONS_REQUIRED" "$EXCLUSIONS_RESULT"
+          check_result "Docker" "$DOCKER_REQUIRED" "$DOCKER_RESULT"
+
+          if [[ "$DOCUMENTATION_ONLY" == "true" ]]; then
+            echo "Modification documentaire uniquement : aucune suite applicative nécessaire."
+          else
+            echo "Toutes les validations requises ont réussi."
+          fi

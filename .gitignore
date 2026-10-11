@@ -3,6 +3,7 @@
 *.env
 .env.*
 .venv/
+.venv*/
 
 # Python
 __pycache__/
@@ -14,6 +15,15 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+*.docx
+*.docx#
+
+# Frontend
+node_modules/
+dist/
+coverage/
+.vite/
+*.tsbuildinfo
 
 # Keep the two documented configuration templates.
 !**/.env.example
@@ -29,3 +39,11 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Temporary files and local exports
+*.tmp
+*.bak
+*.swp
+*.zip
+*.tar
+*.tar.gz
