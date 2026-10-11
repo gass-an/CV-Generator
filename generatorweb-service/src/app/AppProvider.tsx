@@ -15,6 +15,7 @@ import { verifyApiKey } from "@/services/authService";
 import { createDocumentJob } from "@/services/documentService";
 import type {
   DocumentJobStatusResponse,
+  DocumentHistoryItem,
   DocumentType,
   GenerationState,
   TrackedDocumentJob,
@@ -44,6 +45,7 @@ type AuthState = {
   ) => Promise<AuthenticationResult>;
   setRemember: (remember: boolean) => void;
   clearCredential: () => void;
+  reportApiKeyRejected: (apiKey: string) => void;
 };
 
 type ApplicationDraftState = {
@@ -66,6 +68,10 @@ type GenerationContextState = {
   allowUncertainRetry: () => void;
   resumeTracking: () => void;
   stopTracking: () => void;
+  trackExistingJob: (
+    item: DocumentHistoryItem,
+    replaceCurrent?: boolean,
+  ) => "started" | "confirmation_required";
 };
 
 type AppContextValue = {
@@ -180,6 +186,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const validationInProgress = useRef(false);
   const creationInProgress = useRef(false);
   const authOperation = useRef(0);
+  const activeCredential = useRef(storedAtStartup.key);
   const generationOperation = useRef(0);
   const identityRevision = useRef(0);
   const generationAbortController = useRef<AbortController | null>(null);
@@ -198,6 +205,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSelectedDocumentType(null);
     }
   }, []);
+
+  const reportApiKeyRejected = useCallback(
+    (apiKey: string) => {
+      if (!apiKey || activeCredential.current !== apiKey) return;
+      authOperation.current += 1;
+      invalidateGeneration(true);
+      setAuthStatus("rejected");
+    },
+    [invalidateGeneration],
+  );
 
   useEffect(() => {
     if (!storedAtStartup.key) {
@@ -263,6 +280,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (changesIdentity) {
           invalidateGeneration(true);
         }
+        activeCredential.current = normalized;
         setCredentialKey(normalized);
         setRememberState(shouldRemember);
         setAuthStatus("valid");
@@ -293,6 +311,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearCredential = useCallback(() => {
     authOperation.current += 1;
+    activeCredential.current = null;
     invalidateGeneration(true);
     setStorageError(removeStoredCredentials());
     setCredentialKey(null);
@@ -531,6 +550,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const trackExistingJob = useCallback(
+    (
+      item: DocumentHistoryItem,
+      replaceCurrent = false,
+    ): "started" | "confirmation_required" => {
+      if (!credentialKey || authStatus !== "valid") {
+        return "confirmation_required";
+      }
+      const currentIsActive =
+        generationState.phase === "creating" ||
+        generationState.phase === "pending" ||
+        generationState.phase === "processing" ||
+        generationState.phase === "interrupted";
+      const currentJobId =
+        generationState.phase === "pending" ||
+        generationState.phase === "processing" ||
+        generationState.phase === "interrupted"
+          ? generationState.job.id
+          : null;
+      if (currentIsActive && currentJobId !== item.id && !replaceCurrent) {
+        return "confirmation_required";
+      }
+
+      generationOperation.current += 1;
+      generationAbortController.current?.abort();
+      generationAbortController.current = null;
+      creationInProgress.current = false;
+      setPollingRetryToken((value) => value + 1);
+      const job: TrackedDocumentJob = {
+        id: item.id,
+        status: item.status,
+        documentType: item.type,
+        avpNumber: item.avp_number,
+        candidateName: item.candidate_name,
+        requestedAt: item.created_at,
+        createdAt: item.created_at,
+        startedAt: item.started_at,
+        completedAt: item.completed_at,
+      };
+      setGenerationState({ phase: item.status, job });
+      return "started";
+    },
+    [authStatus, credentialKey, generationState],
+  );
+
   const value = useMemo<AppContextValue>(
     () => ({
       auth: {
@@ -542,6 +606,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         authenticate,
         setRemember,
         clearCredential,
+        reportApiKeyRejected,
       },
       draft: {
         importedResume,
@@ -560,6 +625,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         allowUncertainRetry,
         resumeTracking,
         stopTracking,
+        trackExistingJob,
       },
     }),
     [
@@ -573,6 +639,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       importedResume,
       generationState,
       remember,
+      reportApiKeyRejected,
       removeResume,
       resumeTracking,
       selectedDocumentType,
@@ -580,6 +647,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       startGeneration,
       stopTracking,
       storageError,
+      trackExistingJob,
     ],
   );
 

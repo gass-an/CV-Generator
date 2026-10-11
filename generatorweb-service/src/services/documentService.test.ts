@@ -1,6 +1,12 @@
 import {
   createDocumentJob,
+  DOCX_MEDIA_TYPE,
+  getDocumentDocx,
+  getDocumentHistory,
   getDocumentJobStatus,
+  getDocumentPdf,
+  PDF_TIMEOUT_MS,
+  PDF_MEDIA_TYPE,
 } from "@/services/documentService";
 import type { DocumentType } from "@/types/document";
 
@@ -62,5 +68,93 @@ describe("documentService", () => {
       "/api/v1/documents/job%2Favec%20espace/status",
     );
     expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("GET");
+  });
+
+  it("applique les filtres et la pagination à l'historique", async () => {
+    const fetchMock = vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ items: [], total: 0, limit: 20, offset: 20 }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+
+    await getDocumentHistory(
+      {
+        limit: 20,
+        offset: 20,
+        documentType: "cover_letter",
+        status: "completed",
+      },
+      "cle-api",
+    );
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/v1/documents?limit=20&offset=20&document_type=cover_letter&status=completed",
+    );
+  });
+
+  it.each([
+    ["pdf", getDocumentPdf, "/api/v1/documents/job-1/pdf", PDF_MEDIA_TYPE],
+    [
+      "docx",
+      getDocumentDocx,
+      "/api/v1/documents/job-1/download",
+      DOCX_MEDIA_TYPE,
+    ],
+  ] as const)(
+    "récupère le Blob %s authentifié",
+    async (_format, loader, path, mediaType) => {
+      const fetchMock = vi.mocked(fetch).mockResolvedValue(
+        new Response(new Blob(["document"], { type: mediaType }), {
+          status: 200,
+          headers: { "Content-Type": mediaType },
+        }),
+      );
+
+      const blob = await loader("job-1", "cle-secrete");
+
+      expect(blob.type).toBe(mediaType);
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(path);
+      expect(
+        new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("X-API-Key"),
+      ).toBe("cle-secrete");
+      expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("cle-secrete");
+    },
+  );
+
+  it("refuse une réponse JSON présentée à la place d'un PDF", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ detail: { message: "Erreur" } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(getDocumentPdf("job-1", "cle-api")).rejects.toMatchObject({
+      code: "invalid_document_media_type",
+    });
+  });
+
+  it("accorde 90 secondes à la conversion PDF sans modifier le timeout général", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetch).mockImplementation(
+      (_input, options) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          );
+        }),
+    );
+
+    const request = getDocumentPdf("job-1", "cle-api");
+    const rejection = expect(request).rejects.toMatchObject({
+      kind: "timeout",
+    });
+    await vi.advanceTimersByTimeAsync(PDF_TIMEOUT_MS);
+    await rejection;
+    vi.useRealTimers();
   });
 });

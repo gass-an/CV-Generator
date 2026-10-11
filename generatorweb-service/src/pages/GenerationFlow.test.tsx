@@ -5,7 +5,11 @@ import { MemoryRouter } from "react-router-dom";
 import { App } from "@/App";
 import { useDocumentPolling } from "@/hooks/useDocumentPolling";
 import { ApiError } from "@/services/apiClient";
-import { createDocumentJob } from "@/services/documentService";
+import {
+  createDocumentJob,
+  getDocumentHistory,
+  getDocumentPdf,
+} from "@/services/documentService";
 
 vi.mock("@/hooks/useDocumentPolling", () => ({
   useDocumentPolling: vi.fn(),
@@ -13,6 +17,9 @@ vi.mock("@/hooks/useDocumentPolling", () => ({
 vi.mock("@/services/documentService", () => ({
   createDocumentJob: vi.fn(),
   getDocumentJobStatus: vi.fn(),
+  getDocumentHistory: vi.fn(),
+  getDocumentPdf: vi.fn(),
+  getDocumentDocx: vi.fn(),
 }));
 
 const SESSION_KEY = "cv-generator.api-key.session";
@@ -73,9 +80,23 @@ describe("génération et suivi d'un document", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(authResponse()));
     vi.mocked(useDocumentPolling).mockReset();
     vi.mocked(createDocumentJob).mockReset();
+    vi.mocked(getDocumentHistory).mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 20,
+      offset: 0,
+    });
+    vi.mocked(getDocumentPdf).mockResolvedValue(
+      new Blob(["%PDF-1.4"], { type: "application/pdf" }),
+    );
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:preview");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
   });
 
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it("crée le job puis affiche les transitions jusqu'à completed", async () => {
     vi.mocked(createDocumentJob).mockResolvedValue({

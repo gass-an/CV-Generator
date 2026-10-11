@@ -80,13 +80,11 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
-  it("affiche l'état vide de l'historique", () => {
+  it("invite à configurer une clé avant d'afficher l'historique", () => {
     renderApplication("/historique");
 
     expect(
-      screen.getByRole("heading", {
-        name: "Aucun document à afficher pour le moment",
-      }),
+      screen.getByText("Une clé API valide est nécessaire."),
     ).toBeInTheDocument();
   });
 

@@ -61,10 +61,11 @@ async function errorFromResponse(response: Response): Promise<ApiError> {
   });
 }
 
-export async function apiRequest(
+async function executeRequest<T>(
   path: string,
-  options: ApiRequestOptions = {},
-): Promise<Response> {
+  options: ApiRequestOptions,
+  consume: (response: Response) => Promise<T>,
+): Promise<T> {
   const {
     apiKey,
     headers: inputHeaders,
@@ -95,7 +96,7 @@ export async function apiRequest(
     if (!response.ok) {
       throw await errorFromResponse(response);
     }
-    return response;
+    return await consume(response);
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
@@ -117,4 +118,19 @@ export async function apiRequest(
   } finally {
     window.clearTimeout(timeoutId);
   }
+}
+
+export function apiRequest(
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<Response> {
+  return executeRequest(path, options, async (response) => response);
+}
+
+export function apiRequestBody<T>(
+  path: string,
+  options: ApiRequestOptions,
+  consume: (response: Response) => Promise<T>,
+): Promise<T> {
+  return executeRequest(path, options, consume);
 }

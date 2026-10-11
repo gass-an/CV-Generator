@@ -7,6 +7,7 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ### Ajouts
 
+- Ajout de l'historique interactif, de la prévisualisation PDF et des téléchargements DOCX/PDF.
 - Ajout de la génération des trois documents et du suivi asynchrone des traitements.
 - Ajout de la configuration et de la vérification des clés API dans le frontend.
 - Ajout de l'import JSON Resume et de la saisie du numéro AVP.
@@ -17,6 +18,7 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ### Corrections
 
+- Fiabilisation des téléchargements, des aperçus PDF et de l'authentification du frontend.
 - Sécurisation des relances de génération, du suivi et des changements de clé API.
 
 ## [0.4.1] - 2026-10-10

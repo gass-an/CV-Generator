@@ -138,7 +138,8 @@ concurrentes. Le suivi s'arrête sur `completed` ou `failed`. Une interruption
 réseau est distinguée d'un échec du traitement et peut être reprise sur le même
 identifiant, sans soumettre une nouvelle génération. L'utilisateur peut aussi
 arrêter ce suivi local sans annuler le traitement côté serveur. Cet état reste
-en mémoire uniquement et est perdu lors d'un rechargement complet à ce stade.
+en mémoire uniquement, mais un job peut être retrouvé et repris depuis
+l'historique après un rechargement complet.
 
 La suppression d'une clé ou son remplacement réussi par une clé différente
 réinitialise le job suivi et le brouillon de candidature. Cela évite d'afficher
@@ -146,8 +147,37 @@ ou de réutiliser les données personnelles du client précédent sur un navigat
 partagé. Un remplacement refusé conserve au contraire la clé, le brouillon et
 le suivi existants.
 
+## Historique et fichiers générés
+
+La page `/historique` charge des pages de 20 générations appartenant au client
+API authentifié. Plusieurs clés du même client voient donc le même historique :
+il ne s'agit pas d'un historique individuel. Les filtres de type et de statut
+sont appliqués par l'API, et les jobs en attente ou en cours peuvent être repris
+sans nouvel import et sans nouvelle requête de création.
+
+Pour un document terminé, le frontend récupère les fichiers avec `X-API-Key` :
+`/documents/{id}/download` pour le DOCX et `/documents/{id}/pdf` pour le PDF.
+Le PDF est généré à la demande par LibreOffice côté backend puis affiché depuis
+une Blob URL locale ; la clé API n'apparaît jamais dans l'URL du visualiseur.
+Les téléchargements utilisent des noms lisibles construits à partir du type,
+du candidat, de l'AVP et de la date.
+
+Les Blob URLs sont libérées après usage, à la fermeture d'un aperçu, lors d'un
+changement de document ou de clé et au démontage des composants. Aucun PDF,
+DOCX, contenu AsciiDoc ou JSON Resume n'est conservé dans un stockage navigateur
+persistant. Le timeout couvre aussi la lecture complète des réponses binaires.
+Un refus `401` de la clé active invalide immédiatement la session et masque les
+données du client devenues inaccessibles ; une réponse tardive liée à une
+ancienne clé est ignorée. Les erreurs `409`, conversion, timeout et réseau sont
+présentées sans nouvelle conversion automatique ; l'utilisateur peut relancer
+manuellement un aperçu.
+
+Le futur reverse proxy Nginx devra autoriser une durée suffisante pour les
+conversions PDF, cohérente avec le timeout backend de 60 secondes et le timeout
+frontend dédié de 90 secondes.
+
 ## Étapes suivantes
 
-La configuration, l'import, la sélection, la génération et le suivi sont
-fonctionnels. L'historique dynamique, la prévisualisation PDF et les
-téléchargements restent volontairement inactifs jusqu'aux prochaines étapes.
+La configuration, la génération, le suivi, l'historique, la prévisualisation
+PDF et les téléchargements sont fonctionnels. L'intégration Docker/Nginx et la
+CI/CD du frontend restent prévues pour une étape ultérieure.

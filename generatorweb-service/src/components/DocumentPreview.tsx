@@ -1,7 +1,6 @@
 import {
   CircleCheck,
   CircleX,
-  Download,
   FileSearch,
   LoaderCircle,
   Send,
@@ -9,6 +8,8 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
+import { DocumentDownloadActions } from "@/components/DocumentDownloadActions";
+import { PdfViewer } from "@/components/PdfViewer";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { useAppState } from "@/hooks/useAppState";
@@ -41,7 +42,6 @@ export function DocumentPreview() {
       case "idle":
         return {
           badge: "En attente",
-          variant: "outline" as const,
           icon: FileSearch,
           title: "Aucun document à prévisualiser",
           description:
@@ -50,7 +50,6 @@ export function DocumentPreview() {
       case "creating":
         return {
           badge: "Envoi",
-          variant: "outline" as const,
           icon: Send,
           title: "Envoi de votre demande…",
           description:
@@ -59,7 +58,6 @@ export function DocumentPreview() {
       case "pending":
         return {
           badge: "En attente",
-          variant: "outline" as const,
           icon: LoaderCircle,
           title: "Votre document est en attente de traitement.",
           description:
@@ -68,7 +66,6 @@ export function DocumentPreview() {
       case "processing":
         return {
           badge: "En cours",
-          variant: "default" as const,
           icon: LoaderCircle,
           title: "L'IA prépare votre document…",
           description:
@@ -77,16 +74,14 @@ export function DocumentPreview() {
       case "completed":
         return {
           badge: "Terminé",
-          variant: "default" as const,
           icon: CircleCheck,
           title: "Votre document est prêt !",
           description:
-            "La prévisualisation PDF et les téléchargements seront activés à la prochaine étape.",
+            "Le PDF est généré à la demande pour sa prévisualisation.",
         };
       case "failed":
         return {
           badge: "Échec",
-          variant: "accent" as const,
           icon: CircleX,
           title: "La génération du document a échoué.",
           description:
@@ -95,7 +90,6 @@ export function DocumentPreview() {
       case "interrupted":
         return {
           badge: "Suivi interrompu",
-          variant: "accent" as const,
           icon: WifiOff,
           title: "Connexion interrompue",
           description: state.message,
@@ -103,7 +97,6 @@ export function DocumentPreview() {
       case "creation_error":
         return {
           badge: "Demande non confirmée",
-          variant: "accent" as const,
           icon: state.uncertain ? WifiOff : CircleX,
           title: state.uncertain
             ? "La création du job n'a pas pu être confirmée."
@@ -123,103 +116,133 @@ export function DocumentPreview() {
             Statut réel communiqué par le backend
           </p>
         </div>
-        <Badge variant={content.variant}>{content.badge}</Badge>
+        <Badge
+          variant={
+            state.phase === "failed" ||
+            state.phase === "interrupted" ||
+            state.phase === "creation_error"
+              ? "accent"
+              : state.phase === "processing" || state.phase === "completed"
+                ? "default"
+                : "outline"
+          }
+        >
+          {content.badge}
+        </Badge>
       </div>
 
       <div className="bg-muted/60 p-4 sm:p-6">
-        <div className="bg-card border-border mx-auto flex aspect-[1/1.32] min-h-80 max-w-md flex-col items-center justify-center rounded-lg border px-5 text-center shadow-sm">
-          <span className="bg-primary/8 text-primary flex size-14 items-center justify-center rounded-2xl">
-            <StatusIcon
-              className={`size-7 ${isRunning && state.phase !== "creating" ? "animate-spin" : ""}`}
-              aria-hidden="true"
-            />
-          </span>
-          <p className="mt-5 font-semibold">{content.title}</p>
-          <p className="text-muted-foreground mt-2 max-w-xs text-sm leading-6">
-            {content.description}
-          </p>
-
-          {request ? (
-            <dl className="border-border mt-6 w-full max-w-xs space-y-2 border-t pt-4 text-left text-xs">
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">Document</dt>
-                <dd className="text-right font-semibold">
-                  {documentTypeLabels[request.documentType]}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">AVP</dt>
-                <dd className="text-right font-semibold break-all">
-                  {request.avpNumber}
-                </dd>
-              </div>
-              {job ? (
-                <div className="flex flex-col gap-1 pt-1">
-                  <dt className="text-muted-foreground">Identifiant du job</dt>
-                  <dd className="font-mono text-[11px] break-all">{job.id}</dd>
-                </div>
-              ) : null}
-            </dl>
-          ) : null}
-
-          {state.phase === "interrupted" ? (
-            <div className="mt-5 flex w-full max-w-xs flex-col gap-2">
-              {auth.status === "valid" ? (
-                <button
-                  type="button"
-                  onClick={generation.resumeTracking}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-11 rounded-lg px-4 text-sm font-semibold transition-colors"
-                >
-                  Reprendre le suivi
-                </button>
-              ) : (
-                <Link
-                  to="/parametres"
-                  className="text-primary hover:bg-primary/8 flex min-h-11 items-center justify-center rounded-lg px-4 text-sm font-semibold"
-                >
-                  Vérifier la clé API
-                </Link>
-              )}
-              <button
-                type="button"
-                onClick={generation.stopTracking}
-                className="text-muted-foreground hover:bg-muted min-h-11 rounded-lg px-4 text-sm font-semibold transition-colors"
-              >
-                Arrêter le suivi
-              </button>
-              <p className="text-muted-foreground text-xs leading-5">
-                Cette action arrête seulement le suivi dans ce navigateur. Le
-                traitement continue côté serveur.
+        {state.phase === "completed" ? (
+          <div className="mx-auto w-full max-w-2xl space-y-3">
+            <div className="text-center">
+              <p className="font-semibold">Votre document est prêt !</p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Le PDF est généré à la demande pour sa prévisualisation.
               </p>
             </div>
-          ) : null}
-        </div>
+            <div className="bg-card border-border rounded-lg border p-2 shadow-sm">
+              <PdfViewer
+                documentId={state.job.id}
+                apiKey={auth.activeApiKey}
+                enabled
+                title={`Aperçu PDF — ${documentTypeLabels[state.job.documentType]}`}
+                onApiKeyRejected={auth.reportApiKeyRejected}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="bg-card border-border mx-auto flex aspect-[1/1.32] min-h-80 max-w-md flex-col items-center justify-center rounded-lg border px-5 text-center shadow-sm">
+            <span className="bg-primary/8 text-primary flex size-14 items-center justify-center rounded-2xl">
+              <StatusIcon
+                className={`size-7 ${isRunning && state.phase !== "creating" ? "animate-spin" : ""}`}
+                aria-hidden="true"
+              />
+            </span>
+            <p className="mt-5 font-semibold">{content.title}</p>
+            <p className="text-muted-foreground mt-2 max-w-xs text-sm leading-6">
+              {content.description}
+            </p>
+            {request ? (
+              <dl className="border-border mt-6 w-full max-w-xs space-y-2 border-t pt-4 text-left text-xs">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-muted-foreground">Document</dt>
+                  <dd className="text-right font-semibold">
+                    {documentTypeLabels[request.documentType]}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-muted-foreground">AVP</dt>
+                  <dd className="text-right font-semibold break-all">
+                    {request.avpNumber}
+                  </dd>
+                </div>
+                {job ? (
+                  <div className="flex flex-col gap-1 pt-1">
+                    <dt className="text-muted-foreground">
+                      Identifiant du job
+                    </dt>
+                    <dd className="font-mono text-[11px] break-all">
+                      {job.id}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            ) : null}
+            {state.phase === "interrupted" ? (
+              <div className="mt-5 flex w-full max-w-xs flex-col gap-2">
+                {auth.status === "valid" ? (
+                  <button
+                    type="button"
+                    onClick={generation.resumeTracking}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-11 rounded-lg px-4 text-sm font-semibold"
+                  >
+                    Reprendre le suivi
+                  </button>
+                ) : (
+                  <Link
+                    to="/parametres"
+                    className="text-primary hover:bg-primary/8 flex min-h-11 items-center justify-center rounded-lg px-4 text-sm font-semibold"
+                  >
+                    Vérifier la clé API
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={generation.stopTracking}
+                  className="text-muted-foreground hover:bg-muted min-h-11 rounded-lg px-4 text-sm font-semibold"
+                >
+                  Arrêter le suivi
+                </button>
+                <p className="text-muted-foreground text-xs leading-5">
+                  Cette action arrête seulement le suivi dans ce navigateur. Le
+                  traitement continue côté serveur.
+                </p>
+              </div>
+            ) : null}
+          </div>
+        )}
       </div>
 
       <div className="border-border space-y-4 border-t px-5 py-5 sm:px-6">
         <p className="text-muted-foreground text-sm">
           {state.phase === "completed"
-            ? "Les actions de téléchargement seront disponibles prochainement."
+            ? "Le PDF et le DOCX sont générés à la demande."
             : isRunning
               ? "Le suivi se met à jour automatiquement, sans estimation artificielle."
-              : "Les téléchargements restent indisponibles pour le moment."}
+              : "Les téléchargements sont disponibles lorsque la génération est terminée."}
         </p>
-        <div
-          className="grid grid-cols-2 gap-3"
-          aria-label="Futurs téléchargements"
-        >
-          {(["DOCX", "PDF"] as const).map((format) => (
-            <button
-              key={format}
-              type="button"
-              disabled
-              className="border-border text-muted-foreground flex min-h-11 cursor-not-allowed items-center justify-center gap-2 rounded-lg border text-sm font-semibold opacity-60"
-            >
-              <Download className="size-4" aria-hidden="true" />
-              {format}
-            </button>
-          ))}
-        </div>
+        {state.phase === "completed" ? (
+          <DocumentDownloadActions
+            document={{
+              id: state.job.id,
+              documentType: state.job.documentType,
+              status: state.job.status,
+              avpNumber: state.job.avpNumber,
+              candidateName: state.job.candidateName,
+              createdAt: state.job.createdAt,
+            }}
+          />
+        ) : null}
       </div>
     </Card>
   );

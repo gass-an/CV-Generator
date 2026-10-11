@@ -22,6 +22,40 @@ export type DocumentJobStatusResponse = {
   completed_at: string | null;
 };
 
+export type DocumentHistoryItem = {
+  id: string;
+  type: DocumentType;
+  status: DocumentJobStatus;
+  avp_number: string;
+  candidate_name: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+export type DocumentHistoryResponse = {
+  items: DocumentHistoryItem[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type DocumentHistoryQuery = {
+  limit: number;
+  offset: number;
+  documentType?: DocumentType;
+  status?: DocumentJobStatus;
+};
+
+export type DocumentMetadata = {
+  id: string;
+  documentType: DocumentType;
+  status: DocumentJobStatus;
+  avpNumber: string;
+  candidateName: string | null;
+  createdAt: string;
+};
+
 export type GenerationRequestSnapshot = {
   documentType: DocumentType;
   avpNumber: string;
@@ -60,4 +94,11 @@ export const documentTypeLabels: Record<DocumentType, string> = {
   cv: "Curriculum vitæ",
   cover_letter: "Lettre de motivation",
   interview_prep: "Préparation à l'entretien",
+};
+
+export const documentStatusLabels: Record<DocumentJobStatus, string> = {
+  pending: "En attente",
+  processing: "En cours",
+  completed: "Terminé",
+  failed: "Échec",
 };

@@ -1,4 +1,4 @@
-import { apiRequest } from "@/services/apiClient";
+import { apiRequest, apiRequestBody } from "@/services/apiClient";
 
 describe("apiRequest", () => {
   afterEach(() => {
@@ -50,5 +50,67 @@ describe("apiRequest", () => {
       code: "invalid_api_key",
       message: "Clé invalide",
     });
+  });
+
+  it("maintient le timeout pendant la lecture complète du corps", async () => {
+    vi.useFakeTimers();
+    let requestSignal: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, options?: RequestInit) => {
+        requestSignal = options?.signal ?? undefined;
+        return Promise.resolve(new Response("ok"));
+      }),
+    );
+
+    const request = apiRequestBody(
+      "/documents/fichier",
+      { timeoutMs: 50 },
+      () =>
+        new Promise<Blob>((_resolve, reject) => {
+          requestSignal?.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          );
+        }),
+    );
+    const rejection = request.catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(51);
+    expect(await rejection).toMatchObject({ kind: "timeout" });
+  });
+
+  it("distingue une annulation volontaire pendant la lecture", async () => {
+    const controller = new AbortController();
+    let requestSignal: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, options?: RequestInit) => {
+        requestSignal = options?.signal ?? undefined;
+        return Promise.resolve(new Response("ok"));
+      }),
+    );
+    const request = apiRequestBody(
+      "/documents/fichier",
+      { timeoutMs: 1000, signal: controller.signal },
+      () =>
+        new Promise<Blob>((_resolve, reject) => {
+          requestSignal?.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          );
+        }),
+    );
+    await Promise.resolve();
+    controller.abort();
+    await expect(request).rejects.toMatchObject({ kind: "aborted" });
+  });
+
+  it("termine une lecture binaire avant expiration", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("ok")));
+    await expect(
+      apiRequestBody(
+        "/documents/fichier",
+        { timeoutMs: 1000 },
+        async () => new Blob(["fichier"]),
+      ),
+    ).resolves.toBeInstanceOf(Blob);
   });
 });
