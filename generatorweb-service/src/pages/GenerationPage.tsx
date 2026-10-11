@@ -115,7 +115,7 @@ export function GenerationPage() {
                     setAvpTouched(true);
                   }}
                   onChange={(event) => draft.setAvpNumber(event.target.value)}
-                  className="border-field-border bg-field focus:border-primary focus:ring-primary/30 min-h-11 w-full rounded-lg border pr-4 pl-10 text-sm transition-shadow focus:ring-4 focus:outline-none"
+                  className="border-field-border bg-field focus-visible:border-primary focus-visible:ring-primary/30 min-h-11 w-full rounded-lg border pr-4 pl-10 text-sm transition-shadow focus-visible:ring-4 focus-visible:outline-none"
                 />
               </div>
               <div className="mt-2 flex items-start justify-between gap-4 text-xs">

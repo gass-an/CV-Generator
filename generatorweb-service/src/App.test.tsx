@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
@@ -59,6 +59,20 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: /Paramètres/ })).toBeVisible();
   });
 
+  it("transfère le focus du lien d'évitement vers le contenu principal", async () => {
+    const user = userEvent.setup();
+    renderApplication();
+
+    await user.tab();
+    const skipLink = screen.getByRole("link", { name: "Aller au contenu" });
+    expect(skipLink).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(document.getElementById("contenu-principal")).toHaveFocus(),
+    );
+  });
+
   it("présente les trois types de documents sans action factice", () => {
     renderApplication();
 
@@ -85,12 +99,14 @@ describe("App", () => {
     const user = userEvent.setup();
     renderApplication();
 
-    await user.click(screen.getByRole("link", { name: /Historique/ }));
+    screen.getByRole("link", { name: /Historique/ }).focus();
+    await user.keyboard("{Enter}");
     expect(
       screen.getByRole("heading", { name: "Historique des documents" }),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("link", { name: /Paramètres/ }));
+    screen.getByRole("link", { name: /Paramètres/ }).focus();
+    await user.keyboard("{Enter}");
     expect(
       screen.getByRole("heading", { name: "Paramètres" }),
     ).toBeInTheDocument();

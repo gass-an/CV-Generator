@@ -299,4 +299,18 @@ describe("apparence", () => {
     expect(document.documentElement.style.colorScheme).toBe("light");
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
   });
+
+  it("bascule le thème avec Espace", async () => {
+    const user = userEvent.setup();
+    renderSettings();
+    const themeSwitch = screen.getByRole("switch", {
+      name: "Activer le mode sombre",
+    });
+
+    themeSwitch.focus();
+    await user.keyboard(" ");
+
+    expect(themeSwitch).toBeChecked();
+    expect(document.documentElement).toHaveClass("dark");
+  });
 });

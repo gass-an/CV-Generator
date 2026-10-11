@@ -259,7 +259,7 @@ export function HistoryPage() {
                   onChange={(event) =>
                     changeType(event.target.value as DocumentType | "")
                   }
-                  className="border-field-border bg-field focus:border-primary focus:ring-primary/30 mt-2 min-h-11 w-full rounded-lg border px-3 font-normal transition-shadow focus:ring-4 focus:outline-none"
+                  className="border-field-border bg-field focus-visible:border-primary focus-visible:ring-primary/30 mt-2 min-h-11 w-full rounded-lg border px-3 font-normal transition-shadow focus-visible:ring-4 focus-visible:outline-none"
                 >
                   <option value="">Tous</option>
                   <option value="cv">CV</option>
@@ -277,7 +277,7 @@ export function HistoryPage() {
                   onChange={(event) =>
                     changeStatus(event.target.value as DocumentJobStatus | "")
                   }
-                  className="border-field-border bg-field focus:border-primary focus:ring-primary/30 mt-2 min-h-11 w-full rounded-lg border px-3 font-normal transition-shadow focus:ring-4 focus:outline-none"
+                  className="border-field-border bg-field focus-visible:border-primary focus-visible:ring-primary/30 mt-2 min-h-11 w-full rounded-lg border px-3 font-normal transition-shadow focus-visible:ring-4 focus-visible:outline-none"
                 >
                   <option value="">Tous</option>
                   <option value="pending">En attente</option>
@@ -331,7 +331,11 @@ export function HistoryPage() {
           ) : null}
 
           {visibleLoadState === "loading" ? (
-            <Card className="flex min-h-64 flex-col items-center justify-center">
+            <Card
+              className="flex min-h-64 flex-col items-center justify-center"
+              role="status"
+              aria-live="polite"
+            >
               <LoaderCircle
                 className="text-primary size-8 animate-spin"
                 aria-hidden="true"

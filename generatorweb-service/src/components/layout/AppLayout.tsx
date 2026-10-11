@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { navigationItems } from "@/app/navigation";
@@ -6,10 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export function AppLayout() {
+  const mainContent = useRef<HTMLElement>(null);
+
   return (
     <div className="flex min-h-svh flex-col">
       <a
         href="#contenu-principal"
+        onClick={() =>
+          requestAnimationFrame(() => mainContent.current?.focus())
+        }
         className="bg-primary text-primary-foreground fixed top-3 left-3 z-50 -translate-y-20 rounded-md px-4 py-2 text-sm font-semibold transition-transform focus:translate-y-0"
       >
         Aller au contenu
@@ -67,7 +73,9 @@ export function AppLayout() {
       </header>
 
       <main
+        ref={mainContent}
         id="contenu-principal"
+        tabIndex={-1}
         className="mx-auto flex w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12"
       >
         <Outlet />

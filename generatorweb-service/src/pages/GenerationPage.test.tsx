@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
@@ -55,6 +55,19 @@ describe("préparation de la génération", () => {
     expect(
       screen.getByText("Compétences").nextElementSibling,
     ).toHaveTextContent("2");
+  });
+
+  it("rend visible le focus clavier de l'import de fichier", async () => {
+    const user = userEvent.setup();
+    renderGeneration();
+    const input = screen.getByLabelText("Choisir un fichier");
+
+    for (let index = 0; index < 6; index += 1) {
+      await user.tab();
+    }
+
+    expect(input).toHaveFocus();
+    expect(screen.getByText("Choisir un fichier")).toHaveClass("ring-2");
   });
 
   it("extrait le numéro AVP d'une enveloppe", async () => {
@@ -114,10 +127,15 @@ describe("préparation de la génération", () => {
     );
     await screen.findByText("Camille Exemple");
 
-    await user.click(screen.getByRole("button", { name: "Retirer" }));
+    const remove = screen.getByRole("button", { name: "Retirer" });
+    remove.focus();
+    await user.keyboard("{Enter}");
 
     expect(screen.queryByText("Camille Exemple")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Choisir un fichier")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Choisir un fichier")).toHaveFocus(),
+    );
+    expect(screen.getByText("Choisir un fichier")).toHaveClass("ring-2");
   });
 
   it("valide un numéro AVP vide et limite sa longueur", async () => {
@@ -179,5 +197,19 @@ describe("préparation de la génération", () => {
     await user.click(letter);
     expect(letter).toBeChecked();
     expect(cv).not.toBeChecked();
+  });
+
+  it("sélectionne les types de document avec le clavier", async () => {
+    const user = userEvent.setup();
+    renderGeneration();
+    const cv = screen.getByRole("radio", { name: /Curriculum vitæ/ });
+    const letter = screen.getByRole("radio", { name: /Lettre de motivation/ });
+
+    cv.focus();
+    await user.keyboard(" ");
+    expect(cv).toBeChecked();
+    await user.keyboard("{ArrowRight}");
+    expect(letter).toBeChecked();
+    expect(letter.closest("label")).toHaveClass("has-[:focus-visible]:ring-2");
   });
 });

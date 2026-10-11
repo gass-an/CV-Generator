@@ -1,4 +1,4 @@
-import { useId, useState, type DragEvent } from "react";
+import { useId, useRef, useState, type DragEvent } from "react";
 import {
   BriefcaseBusiness,
   FileCheck2,
@@ -19,10 +19,12 @@ function formatFileSize(size: number) {
 
 export function ResumeImporter() {
   const inputId = useId();
+  const input = useRef<HTMLInputElement>(null);
   const { draft } = useAppState();
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isReading, setIsReading] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
 
   async function importFile(file: File | undefined) {
     if (!file) {
@@ -51,11 +53,14 @@ export function ResumeImporter() {
 
   const fileInput = (
     <input
+      ref={input}
       id={inputId}
       type="file"
       accept=".json,application/json,text/json"
       className="sr-only"
       disabled={isReading}
+      onFocus={() => setInputFocused(true)}
+      onBlur={() => setInputFocused(false)}
       onChange={(event) => {
         void importFile(event.target.files?.[0]);
         event.target.value = "";
@@ -97,7 +102,11 @@ export function ResumeImporter() {
           </p>
           <label
             htmlFor={inputId}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 mt-5 inline-flex min-h-11 cursor-pointer items-center rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
+            className={`bg-primary text-primary-foreground hover:bg-primary/90 mt-5 inline-flex min-h-11 cursor-pointer items-center rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+              inputFocused
+                ? "ring-ring ring-offset-background ring-2 ring-offset-2"
+                : ""
+            }`}
           >
             Choisir un fichier
           </label>
@@ -139,7 +148,10 @@ export function ResumeImporter() {
           </div>
           <button
             type="button"
-            onClick={draft.removeResume}
+            onClick={() => {
+              draft.removeResume();
+              requestAnimationFrame(() => input.current?.focus());
+            }}
             className="text-muted-foreground hover:bg-accent/8 hover:text-accent flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors"
           >
             <Trash2 className="size-4" aria-hidden="true" />
@@ -180,7 +192,11 @@ export function ResumeImporter() {
           </p>
           <label
             htmlFor={inputId}
-            className="text-primary hover:bg-primary/8 flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors"
+            className={`text-primary hover:bg-primary/8 flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors ${
+              inputFocused
+                ? "ring-ring ring-offset-background ring-2 ring-offset-2"
+                : ""
+            }`}
           >
             <RefreshCw className="size-4" aria-hidden="true" />
             Remplacer

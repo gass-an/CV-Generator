@@ -185,7 +185,8 @@ describe("historique documentaire", () => {
     const user = userEvent.setup();
     renderHistory();
     await screen.findByText("Page 1 sur 2 · 25 documents");
-    await user.click(screen.getByRole("button", { name: "Suivante" }));
+    screen.getByRole("button", { name: "Suivante" }).focus();
+    await user.keyboard("{Enter}");
     await waitFor(() =>
       expect(getDocumentHistory).toHaveBeenLastCalledWith(
         expect.objectContaining({ limit: 20, offset: 20 }),
@@ -323,7 +324,8 @@ describe("historique documentaire", () => {
     const user = userEvent.setup();
     renderHistory();
     const opener = await screen.findByRole("button", { name: "Prévisualiser" });
-    await user.click(opener);
+    opener.focus();
+    await user.keyboard("{Enter}");
     const close = await screen.findByRole("button", {
       name: "Fermer la prévisualisation",
     });
@@ -370,7 +372,8 @@ describe("historique documentaire", () => {
     const user = userEvent.setup();
     renderHistory();
     await screen.findByText("Léa Martin");
-    await user.click(screen.getByRole("button", { name: "DOCX" }));
+    screen.getByRole("button", { name: "DOCX" }).focus();
+    await user.keyboard("{Enter}");
 
     expect(getDocumentDocx).toHaveBeenCalledWith(
       "job-completed",

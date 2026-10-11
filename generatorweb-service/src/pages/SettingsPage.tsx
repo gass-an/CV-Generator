@@ -171,7 +171,7 @@ export function SettingsPage() {
                       setKeyInput(event.target.value);
                       setFeedback(null);
                     }}
-                    className="border-field-border bg-field focus:border-primary focus:ring-primary/30 min-h-11 w-full rounded-lg border pr-12 pl-10 text-sm transition-shadow focus:ring-4 focus:outline-none disabled:cursor-wait"
+                    className="border-field-border bg-field focus-visible:border-primary focus-visible:ring-primary/30 min-h-11 w-full rounded-lg border pr-12 pl-10 text-sm transition-shadow focus-visible:ring-4 focus-visible:outline-none disabled:cursor-wait"
                   />
                   <button
                     type="button"

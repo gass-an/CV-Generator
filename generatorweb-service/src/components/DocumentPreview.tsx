@@ -139,6 +139,9 @@ export function DocumentPreview() {
         </div>
         <Badge
           className="shrink-0"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
           variant={
             state.phase === "failed" ||
             state.phase === "interrupted" ||

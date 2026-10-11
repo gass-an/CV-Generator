@@ -34,7 +34,7 @@ export function DocumentTypeCard({
   return (
     <label
       className={cn(
-        "border-border bg-card focus-within:ring-primary relative flex min-h-44 cursor-pointer flex-col rounded-xl border p-4 shadow-sm transition-[border-color,box-shadow,transform] focus-within:ring-2 focus-within:ring-offset-2 sm:p-5",
+        "border-border bg-card has-[:focus-visible]:ring-primary relative flex min-h-44 cursor-pointer flex-col rounded-xl border p-4 shadow-sm transition-[border-color,box-shadow,transform] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-offset-2 sm:p-5",
         selected && "border-primary bg-primary/[0.025] ring-primary/15 ring-2",
         disabled
           ? "cursor-not-allowed opacity-60"
