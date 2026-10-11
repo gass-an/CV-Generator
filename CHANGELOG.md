@@ -5,6 +5,9 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+
+## [0.5.0] - 2026-10-11
+
 ### Ajouts
 
 - Ajout de la CI sélective et de l'image frontend Nginx intégrée au déploiement.
