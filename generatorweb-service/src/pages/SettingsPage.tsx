@@ -7,7 +7,9 @@ import {
   KeyRound,
   LoaderCircle,
   LockKeyhole,
+  Moon,
   ShieldCheck,
+  Sun,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
@@ -15,6 +17,7 @@ import {
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useTheme } from "@/app/ThemeProvider";
 import { useAppState } from "@/hooks/useAppState";
 
 const statusPresentation = {
@@ -27,6 +30,7 @@ const statusPresentation = {
 
 export function SettingsPage() {
   const { auth } = useAppState();
+  const { theme, setTheme } = useTheme();
   const [keyInput, setKeyInput] = useState(auth.credentialKey ?? "");
   const [showKey, setShowKey] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,8 +72,54 @@ export function SettingsPage() {
       <PageHeader
         eyebrow="Configuration"
         title="Paramètres"
-        description="Vérifiez votre clé API pour connecter l'interface à votre espace CV-Generator et accéder ensuite à vos documents."
+        description="Personnalisez l'interface et connectez-la à votre espace CV-Generator pour accéder à vos documents."
       />
+
+      <Card>
+        <CardHeader className="sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-x-4">
+          <span className="bg-primary/10 text-primary flex size-11 items-center justify-center rounded-xl">
+            {theme === "dark" ? (
+              <Moon className="size-5" aria-hidden="true" />
+            ) : (
+              <Sun className="size-5" aria-hidden="true" />
+            )}
+          </span>
+          <div>
+            <h2 className="font-semibold">Apparence</h2>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Utilisez une palette sombre adaptée aux environnements peu
+              éclairés.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={theme === "dark"}
+            aria-label="Activer le mode sombre"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className={`relative mt-3 h-7 w-12 shrink-0 rounded-full border transition-colors sm:mt-0 ${
+              theme === "dark"
+                ? "border-primary bg-primary"
+                : "border-field-border bg-field"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 flex size-5 items-center justify-center rounded-full shadow-sm transition-[transform,background-color] ${
+                theme === "dark"
+                  ? "bg-primary-foreground translate-x-5"
+                  : "bg-field-border translate-x-0"
+              }`}
+              aria-hidden="true"
+            >
+              {theme === "dark" ? (
+                <Moon className="text-primary size-3" />
+              ) : (
+                <Sun className="text-field size-3" />
+              )}
+            </span>
+          </button>
+        </CardHeader>
+      </Card>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
         <Card>
@@ -117,13 +167,13 @@ export function SettingsPage() {
                       setKeyInput(event.target.value);
                       setFeedback(null);
                     }}
-                    className="border-border bg-card focus:border-primary focus:ring-primary/15 min-h-11 w-full rounded-lg border pr-12 pl-10 text-sm transition-shadow focus:ring-4 focus:outline-none disabled:cursor-wait disabled:opacity-70"
+                    className="border-field-border bg-field focus:border-primary focus:ring-primary/30 min-h-11 w-full rounded-lg border pr-12 pl-10 text-sm transition-shadow focus:ring-4 focus:outline-none disabled:cursor-wait"
                   />
                   <button
                     type="button"
                     onClick={() => setShowKey((visible) => !visible)}
                     disabled={!keyInput || isSubmitting}
-                    className="text-muted-foreground hover:text-primary absolute top-1/2 right-1.5 flex size-9 -translate-y-1/2 items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-40"
+                    className="text-muted-foreground hover:text-primary disabled:bg-muted absolute top-1/2 right-1.5 flex size-9 -translate-y-1/2 items-center justify-center rounded-md disabled:cursor-not-allowed"
                     aria-label={
                       showKey ? "Masquer la clé API" : "Afficher la clé API"
                     }
@@ -147,7 +197,7 @@ export function SettingsPage() {
                   checked={auth.remember}
                   disabled={isSubmitting}
                   onChange={(event) => auth.setRemember(event.target.checked)}
-                  className="border-border accent-primary mt-0.5 size-4 rounded"
+                  className="border-field-border accent-primary mt-0.5 size-4 rounded"
                 />
                 <span>
                   <span className="font-semibold">
@@ -196,7 +246,7 @@ export function SettingsPage() {
                     type="button"
                     onClick={handleClear}
                     disabled={isSubmitting}
-                    className="text-accent hover:bg-accent/8 flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors disabled:opacity-50"
+                    className="text-accent hover:bg-accent/8 disabled:bg-muted disabled:text-muted-foreground flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed"
                   >
                     <Trash2 className="size-4" aria-hidden="true" />
                     Supprimer la clé
@@ -211,7 +261,7 @@ export function SettingsPage() {
                     isSubmitting ||
                     auth.status === "verifying"
                   }
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <LoaderCircle

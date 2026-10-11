@@ -108,7 +108,7 @@ export function DocumentDownloadActions({
             type="button"
             disabled={!available || activeFormat !== null}
             onClick={() => void download(format)}
-            className="border-border text-primary hover:bg-primary/5 flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            className="border-border text-primary hover:bg-primary/5 disabled:bg-muted disabled:text-muted-foreground flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 font-semibold transition-colors disabled:cursor-not-allowed"
           >
             {activeFormat === format ? (
               <LoaderCircle

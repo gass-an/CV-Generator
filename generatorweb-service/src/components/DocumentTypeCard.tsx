@@ -16,9 +16,9 @@ type DocumentTypeCardProps = {
 };
 
 const accents = {
-  blue: "bg-blue-50 text-blue-700 ring-blue-100",
-  cyan: "bg-cyan-50 text-cyan-700 ring-cyan-100",
-  red: "bg-red-50 text-red-700 ring-red-100",
+  blue: "bg-blue-50 text-blue-700 ring-blue-100 dark:bg-blue-400/15 dark:text-blue-300 dark:ring-blue-400/25",
+  cyan: "bg-cyan-50 text-cyan-700 ring-cyan-100 dark:bg-cyan-400/15 dark:text-cyan-300 dark:ring-cyan-400/25",
+  red: "bg-red-50 text-red-700 ring-red-100 dark:bg-red-400/15 dark:text-red-300 dark:ring-red-400/25",
 } as const;
 
 export function DocumentTypeCard({

@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -13,6 +15,9 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-ring: var(--ring);
+  --color-field: var(--field);
+  --color-field-border: var(--field-border);
+  --color-overlay: var(--overlay);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -32,7 +37,31 @@
   --muted-foreground: oklch(0.505 0.044 257);
   --border: oklch(0.902 0.024 250);
   --ring: oklch(0.57 0.15 252);
+  --field: oklch(0.995 0.003 248);
+  --field-border: oklch(0.64 0.045 255);
+  --overlay: rgb(15 23 42 / 0.35);
+  --card-shadow:
+    0 1px 2px rgb(15 23 42 / 0.03), 0 8px 28px rgb(37 99 235 / 0.05);
   --radius: 0.875rem;
+}
+
+:root.dark {
+  --background: oklch(0.18 0.024 258);
+  --foreground: oklch(0.93 0.012 250);
+  --card: oklch(0.225 0.028 257);
+  --card-foreground: oklch(0.93 0.012 250);
+  --primary: oklch(0.72 0.14 251);
+  --primary-foreground: oklch(0.16 0.032 258);
+  --accent: oklch(0.73 0.17 29);
+  --accent-foreground: oklch(0.16 0.025 258);
+  --muted: oklch(0.285 0.027 257);
+  --muted-foreground: oklch(0.74 0.026 252);
+  --border: oklch(0.36 0.033 255);
+  --ring: oklch(0.72 0.14 251);
+  --field: oklch(0.195 0.026 258);
+  --field-border: oklch(0.52 0.04 255);
+  --overlay: rgb(2 6 23 / 0.68);
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 0.18), 0 12px 32px rgb(0 0 0 / 0.16);
 }
 
 @layer base {
@@ -58,7 +87,13 @@
 
   button,
   a {
-    @apply focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none;
+    @apply focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply text-foreground placeholder:text-muted-foreground disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed;
   }
 
   ::selection {

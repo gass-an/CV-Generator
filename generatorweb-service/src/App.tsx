@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 
 import { AppProvider } from "@/app/AppProvider";
+import { ThemeProvider } from "@/app/ThemeProvider";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { GenerationPage } from "@/pages/GenerationPage";
 import { HistoryPage } from "@/pages/HistoryPage";
@@ -9,15 +10,17 @@ import { SettingsPage } from "@/pages/SettingsPage";
 
 export function App() {
   return (
-    <AppProvider>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route index element={<GenerationPage />} />
-          <Route path="historique" element={<HistoryPage />} />
-          <Route path="parametres" element={<SettingsPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-      </Routes>
-    </AppProvider>
+    <ThemeProvider>
+      <AppProvider>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route index element={<GenerationPage />} />
+            <Route path="historique" element={<HistoryPage />} />
+            <Route path="parametres" element={<SettingsPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+        </Routes>
+      </AppProvider>
+    </ThemeProvider>
   );
 }

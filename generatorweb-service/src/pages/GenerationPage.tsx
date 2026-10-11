@@ -115,7 +115,7 @@ export function GenerationPage() {
                     setAvpTouched(true);
                   }}
                   onChange={(event) => draft.setAvpNumber(event.target.value)}
-                  className="border-border bg-card focus:border-primary focus:ring-primary/15 min-h-11 w-full rounded-lg border pr-4 pl-10 text-sm transition-shadow focus:ring-4 focus:outline-none"
+                  className="border-field-border bg-field focus:border-primary focus:ring-primary/30 min-h-11 w-full rounded-lg border pr-4 pl-10 text-sm transition-shadow focus:ring-4 focus:outline-none"
                 />
               </div>
               <div className="mt-2 flex items-start justify-between gap-4 text-xs">
@@ -267,7 +267,7 @@ export function GenerationPage() {
                 type="button"
                 disabled={!canStart}
                 onClick={() => void generation.start()}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground flex min-h-12 w-full items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed sm:w-auto"
               >
                 {generation.state.phase === "creating" ? (
                   <LoaderCircle

@@ -59,7 +59,7 @@ export function PdfPreviewDialog({
   return (
     <div
       ref={dialog}
-      className="bg-foreground/30 fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-6"
+      className="bg-overlay fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}

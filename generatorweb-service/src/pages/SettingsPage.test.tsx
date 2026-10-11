@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
 import { App } from "@/App";
+import { THEME_STORAGE_KEY } from "@/app/ThemeProvider";
 
 const SESSION_KEY = "cv-generator.api-key.session";
 const LOCAL_KEY = "cv-generator.api-key.local";
@@ -224,5 +225,76 @@ describe("configuration de la clé API", () => {
       expect(screen.getByText("Non configurée")).toBeInTheDocument(),
     );
     expect(screen.queryByText("Connecté")).not.toBeInTheDocument();
+  });
+});
+
+describe("apparence", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    document.documentElement.classList.remove("dark");
+    document.documentElement.style.colorScheme = "";
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([null, "invalide"])(
+    "utilise le thème clair sans préférence valide (%s)",
+    (storedTheme) => {
+      if (storedTheme) {
+        window.localStorage.setItem(THEME_STORAGE_KEY, storedTheme);
+      }
+      renderSettings();
+
+      expect(
+        screen.getByRole("switch", { name: "Activer le mode sombre" }),
+      ).not.toBeChecked();
+      expect(document.documentElement).not.toHaveClass("dark");
+      expect(document.documentElement.style.colorScheme).toBe("light");
+    },
+  );
+
+  it("active immédiatement le mode sombre et conserve le choix", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderSettings();
+    const themeSwitch = screen.getByRole("switch", {
+      name: "Activer le mode sombre",
+    });
+
+    await user.click(themeSwitch);
+
+    expect(themeSwitch).toBeChecked();
+    expect(document.documentElement).toHaveClass("dark");
+    expect(document.documentElement.style.colorScheme).toBe("dark");
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+
+    unmount();
+    renderSettings();
+    expect(
+      screen.getByRole("switch", { name: "Activer le mode sombre" }),
+    ).toBeChecked();
+    expect(document.documentElement).toHaveClass("dark");
+  });
+
+  it("reste actif pendant la navigation puis permet le retour au clair", async () => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(screen.getByRole("link", { name: /Générer/ }));
+    expect(document.documentElement).toHaveClass("dark");
+    await user.click(screen.getByRole("link", { name: /Paramètres/ }));
+    const themeSwitch = screen.getByRole("switch", {
+      name: "Activer le mode sombre",
+    });
+    await user.keyboard("{Tab}");
+    themeSwitch.focus();
+    await user.keyboard("{Enter}");
+
+    expect(themeSwitch).not.toBeChecked();
+    expect(document.documentElement).not.toHaveClass("dark");
+    expect(document.documentElement.style.colorScheme).toBe("light");
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
   });
 });

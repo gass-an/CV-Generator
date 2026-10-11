@@ -7,6 +7,18 @@
       name="description"
       content="CV-Generator, assistant de création de documents de candidature."
     />
+    <script>
+      try {
+        const theme =
+          localStorage.getItem("cv-generator.theme") === "dark"
+            ? "dark"
+            : "light";
+        document.documentElement.classList.toggle("dark", theme === "dark");
+        document.documentElement.style.colorScheme = theme;
+      } catch {
+        document.documentElement.style.colorScheme = "light";
+      }
+    </script>
     <title>CV-Generator</title>
   </head>
   <body>

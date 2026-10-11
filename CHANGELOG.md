@@ -5,6 +5,10 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+### Ajouts
+
+- Ajout du mode sombre
+- Ajout de l'agrandissement de l'aperçu PDF après génération
 
 ## [0.5.0] - 2026-10-11
 

@@ -259,7 +259,7 @@ export function HistoryPage() {
                   onChange={(event) =>
                     changeType(event.target.value as DocumentType | "")
                   }
-                  className="border-border bg-card mt-2 min-h-11 w-full rounded-lg border px-3 font-normal"
+                  className="border-field-border bg-field focus:border-primary focus:ring-primary/30 mt-2 min-h-11 w-full rounded-lg border px-3 font-normal transition-shadow focus:ring-4 focus:outline-none"
                 >
                   <option value="">Tous</option>
                   <option value="cv">CV</option>
@@ -277,7 +277,7 @@ export function HistoryPage() {
                   onChange={(event) =>
                     changeStatus(event.target.value as DocumentJobStatus | "")
                   }
-                  className="border-border bg-card mt-2 min-h-11 w-full rounded-lg border px-3 font-normal"
+                  className="border-field-border bg-field focus:border-primary focus:ring-primary/30 mt-2 min-h-11 w-full rounded-lg border px-3 font-normal transition-shadow focus:ring-4 focus:outline-none"
                 >
                   <option value="">Tous</option>
                   <option value="pending">En attente</option>
@@ -290,7 +290,7 @@ export function HistoryPage() {
                 type="button"
                 disabled={visibleLoadState === "loading"}
                 onClick={() => setRefreshToken((value) => value + 1)}
-                className="border-border text-primary hover:bg-primary/5 flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold disabled:opacity-50"
+                className="border-border text-primary hover:bg-primary/5 disabled:bg-muted disabled:text-muted-foreground flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold disabled:cursor-not-allowed"
               >
                 <RefreshCw
                   className={`size-4 ${visibleLoadState === "loading" ? "animate-spin" : ""}`}
@@ -469,7 +469,7 @@ export function HistoryPage() {
                     onClick={() =>
                       setOffset((value) => Math.max(0, value - PAGE_SIZE))
                     }
-                    className="border-border min-h-10 rounded-lg border px-4 font-semibold disabled:opacity-40"
+                    className="border-border disabled:bg-muted disabled:text-muted-foreground min-h-10 rounded-lg border px-4 font-semibold disabled:cursor-not-allowed"
                   >
                     Précédente
                   </button>
@@ -477,7 +477,7 @@ export function HistoryPage() {
                     type="button"
                     disabled={offset + PAGE_SIZE >= total}
                     onClick={() => setOffset((value) => value + PAGE_SIZE)}
-                    className="border-border min-h-10 rounded-lg border px-4 font-semibold disabled:opacity-40"
+                    className="border-border disabled:bg-muted disabled:text-muted-foreground min-h-10 rounded-lg border px-4 font-semibold disabled:cursor-not-allowed"
                   >
                     Suivante
                   </button>
