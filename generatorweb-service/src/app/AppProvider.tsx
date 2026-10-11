@@ -413,13 +413,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const uncertain =
           apiError?.kind === "network" || apiError?.kind === "timeout";
         if (authenticationError) {
-          setAuthStatus("rejected");
+          const message =
+            "La clé API a été refusée. Vérifiez-la dans les Paramètres.";
+          reportApiKeyRejected(credentialKey);
+          return { ok: false, message };
         }
-        const message = authenticationError
-          ? "La clé API a été refusée. Vérifiez-la dans les Paramètres."
-          : uncertain
-            ? "La réponse n'est pas parvenue. Le job a peut-être été créé : vérifiez l'historique avant de relancer une demande."
-            : "La demande de génération a échoué. Vous pouvez réessayer.";
+        const message = uncertain
+          ? "La réponse n'est pas parvenue. Le job a peut-être été créé : vérifiez l'historique avant de relancer une demande."
+          : "La demande de génération a échoué. Vous pouvez réessayer.";
         setGenerationState({
           phase: "creation_error",
           request,
@@ -439,6 +440,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       avpNumber,
       credentialKey,
       importedResume,
+      reportApiKeyRejected,
       generationState,
       selectedDocumentType,
     ]);
@@ -483,6 +485,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
       const authenticationError = error.status === 401;
+      if (authenticationError) {
+        if (credentialKey) reportApiKeyRejected(credentialKey);
+        return;
+      }
       setGenerationState((current) => {
         if (current.phase !== "pending" && current.phase !== "processing") {
           return current;
@@ -491,16 +497,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
           phase: "interrupted",
           job: current.job,
           authenticationError,
-          message: authenticationError
-            ? "La clé API a été refusée. Vérifiez-la avant de reprendre le suivi."
-            : "Connexion interrompue. Le job continue côté serveur et son suivi peut être repris.",
+          message:
+            "Connexion interrompue. Le job continue côté serveur et son suivi peut être repris.",
         };
       });
-      if (authenticationError) {
-        setAuthStatus("rejected");
-      }
     },
-    [pollingGenerationOperation, pollingIdentityRevision],
+    [
+      credentialKey,
+      pollingGenerationOperation,
+      pollingIdentityRevision,
+      reportApiKeyRejected,
+    ],
   );
 
   const polledJob =

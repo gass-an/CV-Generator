@@ -233,11 +233,6 @@ describe("génération et suivi d'un document", () => {
 
   it.each([
     [
-      "refus d'authentification",
-      new ApiError({ kind: "http", status: 401, message: "Refusée" }),
-      /La clé API a été refusée/,
-    ],
-    [
       "timeout incertain",
       new ApiError({ kind: "timeout", message: "Trop long" }),
       /Le job a peut-être été créé/,
@@ -257,6 +252,65 @@ describe("génération et suivi d'un document", () => {
 
     expect((await screen.findAllByText(message)).length).toBeGreaterThan(0);
     expect(createDocumentJob).toHaveBeenCalledOnce();
+  });
+
+  it("nettoie le suivi et le brouillon après un 401 pendant la création", async () => {
+    vi.mocked(createDocumentJob).mockRejectedValue(
+      new ApiError({ kind: "http", status: 401, message: "Refusée" }),
+    );
+    const user = userEvent.setup();
+    await prepareGeneration(user);
+    await user.click(
+      screen.getByRole("button", { name: "Générer le document" }),
+    );
+
+    expect(
+      await screen.findByText("Aucun document à prévisualiser"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Camille Exemple")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Numéro AVP")).toHaveValue("");
+    expect(screen.queryByText(/Demande non confirmée/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: /Paramètres/ }));
+    expect(
+      screen.queryByText("Connecté", { exact: true }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("nettoie le suivi après un 401 de polling et ignore une réponse tardive", async () => {
+    vi.mocked(createDocumentJob).mockResolvedValue({
+      id: "job-cle-revoquee",
+      status: "pending",
+    });
+    const user = userEvent.setup();
+    await prepareGeneration(user);
+    await user.click(
+      screen.getByRole("button", { name: "Générer le document" }),
+    );
+    await screen.findByText("Votre document est en attente de traitement.");
+    const oldPolling = latestPollingOptions();
+
+    await act(async () =>
+      oldPolling.onError(
+        new ApiError({ kind: "http", status: 401, message: "Clé révoquée" }),
+      ),
+    );
+    await act(async () =>
+      oldPolling.onStatus({
+        id: "job-cle-revoquee",
+        status: "completed",
+        created_at: "2026-10-11T08:00:00+11:00",
+        started_at: "2026-10-11T08:00:03+11:00",
+        completed_at: "2026-10-11T08:01:00+11:00",
+      }),
+    );
+
+    expect(
+      screen.getByText("Aucun document à prévisualiser"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("job-cle-revoquee")).not.toBeInTheDocument();
+    expect(screen.queryByText("Camille Exemple")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Numéro AVP")).toHaveValue("");
+    expect(screen.queryByText("Connexion interrompue")).not.toBeInTheDocument();
   });
 
   it("exige une confirmation explicite avant une relance incertaine", async () => {
