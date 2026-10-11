@@ -86,6 +86,7 @@ function PreviewDialog({
         enabled
         title={`Aperçu PDF — ${documentTypeLabels[item.type]}`}
         onApiKeyRejected={onApiKeyRejected}
+        displayMode="expanded"
       />
     </PdfPreviewDialog>
   );

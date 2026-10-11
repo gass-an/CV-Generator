@@ -309,6 +309,7 @@ export function DocumentPreview() {
             state={pdfPreview.state}
             title={`Aperçu PDF agrandi — ${documentTypeLabels[completedJob.documentType]}`}
             onRetry={pdfPreview.retry}
+            displayMode="expanded"
           />
         </PdfPreviewDialog>
       ) : null}

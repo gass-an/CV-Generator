@@ -173,19 +173,22 @@ describe("génération et suivi d'un document", () => {
       }),
     );
 
-    expect(await screen.findByLabelText(/^Aperçu PDF —/)).toHaveAttribute(
-      "data",
-      "blob:preview",
-    );
+    const compactPreview = await screen.findByLabelText(/^Aperçu PDF —/);
+    expect(compactPreview).toHaveAttribute("data", "blob:preview");
+    expect(compactPreview).toHaveClass("h-[50svh]", "sm:h-[65vh]");
+    expect(compactPreview).not.toHaveClass("h-full");
     expect(getDocumentPdf).toHaveBeenCalledOnce();
 
     const enlarge = screen.getByRole("button", {
       name: "Agrandir l’aperçu",
     });
     await user.click(enlarge);
-    expect(
-      await screen.findByLabelText(/^Aperçu PDF agrandi —/),
-    ).toHaveAttribute("data", "blob:preview");
+    const expandedPreview = await screen.findByLabelText(
+      /^Aperçu PDF agrandi —/,
+    );
+    expect(expandedPreview).toHaveAttribute("data", "blob:preview");
+    expect(expandedPreview).toHaveClass("h-full", "min-h-0");
+    expect(screen.getByRole("dialog").parentElement).toBe(document.body);
     expect(getDocumentPdf).toHaveBeenCalledOnce();
 
     await user.click(

@@ -3,22 +3,32 @@ import { FileWarning, LoaderCircle, RefreshCw } from "lucide-react";
 import { usePdfPreview } from "@/hooks/usePdfPreview";
 import type { PdfPreviewState } from "@/hooks/usePdfPreview";
 
+type PdfDisplayMode = "compact" | "expanded";
+
 export function PdfPreviewContent({
   state,
   title,
   onRetry,
+  displayMode = "compact",
 }: {
   state: PdfPreviewState;
   title: string;
   onRetry: () => void;
+  displayMode?: PdfDisplayMode;
 }) {
+  const expanded = displayMode === "expanded";
+
   if (state.status === "ready") {
     return (
       <object
         data={state.url}
         type="application/pdf"
         aria-label={title}
-        className="h-[50svh] min-h-64 w-full rounded-lg border sm:h-[65vh] sm:min-h-[480px]"
+        className={
+          expanded
+            ? "h-full min-h-0 w-full flex-1 rounded-lg border"
+            : "h-[50svh] min-h-64 w-full rounded-lg border sm:h-[65vh] sm:min-h-[480px]"
+        }
       >
         <p className="text-muted-foreground p-5 text-sm">
           Votre navigateur ne peut pas afficher ce PDF. Utilisez le bouton de
@@ -30,7 +40,9 @@ export function PdfPreviewContent({
 
   if (state.status === "loading") {
     return (
-      <div className="flex min-h-80 flex-col items-center justify-center text-center">
+      <div
+        className={`flex flex-1 flex-col items-center justify-center text-center ${expanded ? "min-h-0" : "min-h-80"}`}
+      >
         <LoaderCircle
           className="text-primary size-8 animate-spin"
           aria-hidden="true"
@@ -45,7 +57,9 @@ export function PdfPreviewContent({
 
   if (state.status === "error") {
     return (
-      <div className="flex min-h-80 flex-col items-center justify-center px-5 text-center">
+      <div
+        className={`flex flex-1 flex-col items-center justify-center px-5 text-center ${expanded ? "min-h-0" : "min-h-80"}`}
+      >
         <FileWarning className="text-accent size-9" aria-hidden="true" />
         <p className="mt-4 font-semibold">Aperçu PDF indisponible</p>
         <p className="text-muted-foreground mt-2 max-w-sm text-sm">
@@ -72,12 +86,14 @@ export function PdfViewer({
   enabled,
   title,
   onApiKeyRejected,
+  displayMode = "compact",
 }: {
   documentId: string | null;
   apiKey: string | null;
   enabled: boolean;
   title: string;
   onApiKeyRejected?: (apiKey: string) => void;
+  displayMode?: PdfDisplayMode;
 }) {
   const preview = usePdfPreview({
     documentId,
@@ -91,6 +107,7 @@ export function PdfViewer({
       state={preview.state}
       title={title}
       onRetry={preview.retry}
+      displayMode={displayMode}
     />
   );
 }

@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 
 export function PdfPreviewDialog({
   title,
@@ -56,15 +57,15 @@ export function PdfPreviewDialog({
     };
   }, [onClose, opener]);
 
-  return (
+  return createPortal(
     <div
       ref={dialog}
-      className="bg-overlay fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-2 sm:p-6"
+      className="bg-overlay fixed inset-0 z-[100] flex items-center justify-center overflow-hidden p-2 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div className="bg-card border-border my-auto flex max-h-[calc(100svh-1rem)] w-full max-w-5xl min-w-0 flex-col overflow-hidden rounded-xl border shadow-xl sm:max-h-[calc(100svh-3rem)]">
+      <div className="bg-card border-border flex h-[calc(100dvh-1rem)] w-full max-w-7xl min-w-0 flex-col overflow-hidden rounded-xl border shadow-xl sm:h-[calc(100dvh-3rem)]">
         <div className="border-border flex shrink-0 items-start justify-between gap-3 border-b p-3 sm:gap-4 sm:p-5">
           <div className="min-w-0">
             <h2 id={titleId} className="font-semibold break-words">
@@ -86,7 +87,7 @@ export function PdfPreviewDialog({
             <X className="size-5" aria-hidden="true" />
           </button>
         </div>
-        <div className="bg-muted/50 min-h-0 overflow-y-auto p-2 sm:p-5">
+        <div className="bg-muted/50 flex min-h-0 flex-1 overflow-auto p-2 sm:p-5">
           {children}
         </div>
         {footer ? (
@@ -95,6 +96,7 @@ export function PdfPreviewDialog({
           </div>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -305,10 +305,10 @@ describe("historique documentaire", () => {
     await screen.findByText("Léa Martin");
     expect(getDocumentPdf).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Prévisualiser" }));
-    expect(await screen.findByLabelText(/Aperçu PDF/)).toHaveAttribute(
-      "data",
-      "blob:preview",
-    );
+    const pdf = await screen.findByLabelText(/Aperçu PDF/);
+    expect(pdf).toHaveAttribute("data", "blob:preview");
+    expect(pdf).toHaveClass("h-full", "min-h-0");
+    expect(screen.getByRole("dialog").parentElement).toBe(document.body);
     expect(getDocumentPdf).toHaveBeenCalledWith(
       "job-completed",
       "cle-valide",
