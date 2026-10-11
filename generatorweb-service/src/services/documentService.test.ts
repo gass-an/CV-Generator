@@ -108,7 +108,7 @@ describe("documentService", () => {
     "récupère le Blob %s authentifié",
     async (_format, loader, path, mediaType) => {
       const fetchMock = vi.mocked(fetch).mockResolvedValue(
-        new Response(new Blob(["document"], { type: mediaType }), {
+        new Response("document", {
           status: 200,
           headers: { "Content-Type": mediaType },
         }),
