@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
@@ -41,6 +41,22 @@ describe("App", () => {
     expect(
       screen.getByRole("link", { name: "Aller au contenu" }),
     ).toHaveAttribute("href", "#contenu-principal");
+  });
+
+  it("conserve le nom de l'application et toute la navigation sur mobile", () => {
+    renderApplication();
+    const homeLink = screen.getByRole("link", {
+      name: "CV-Generator — accueil",
+    });
+    const applicationName = within(homeLink).getByText("CV-Generator");
+
+    expect(applicationName).not.toHaveClass("hidden");
+    expect(
+      screen.getByRole("navigation", { name: "Navigation principale" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Générer/ })).toBeVisible();
+    expect(screen.getByRole("link", { name: /Historique/ })).toBeVisible();
+    expect(screen.getByRole("link", { name: /Paramètres/ })).toBeVisible();
   });
 
   it("présente les trois types de documents sans action factice", () => {

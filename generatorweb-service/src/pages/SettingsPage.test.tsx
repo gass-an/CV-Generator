@@ -262,6 +262,8 @@ describe("apparence", () => {
       name: "Activer le mode sombre",
     });
 
+    expect(themeSwitch).toHaveClass("h-11", "w-14");
+
     await user.click(themeSwitch);
 
     expect(themeSwitch).toBeChecked();

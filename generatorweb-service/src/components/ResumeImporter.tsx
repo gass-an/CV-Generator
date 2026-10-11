@@ -122,10 +122,10 @@ export function ResumeImporter() {
               <FileCheck2 className="size-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <p className="truncate font-semibold">
+              <p className="font-semibold break-words">
                 {metadata.candidateName || "Nom non renseigné"}
               </p>
-              <p className="text-muted-foreground mt-0.5 truncate text-sm">
+              <p className="text-muted-foreground mt-0.5 text-sm break-words">
                 {metadata.professionalTitle ||
                   "Intitulé professionnel non renseigné"}
               </p>
@@ -147,7 +147,7 @@ export function ResumeImporter() {
           </button>
         </div>
 
-        <dl className="mt-5 grid grid-cols-3 gap-2">
+        <dl className="mt-5 grid grid-cols-1 gap-2 min-[375px]:grid-cols-3">
           <div className="bg-card rounded-lg border p-3 text-center">
             <BriefcaseBusiness
               className="text-primary mx-auto size-4"
@@ -175,7 +175,7 @@ export function ResumeImporter() {
         </dl>
 
         <div className="border-border mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-muted-foreground min-w-0 truncate text-xs">
+          <p className="text-muted-foreground min-w-0 text-xs break-all">
             {fileName} · {formatFileSize(fileSize)}
           </p>
           <label

@@ -97,25 +97,29 @@ export function SettingsPage() {
             aria-checked={theme === "dark"}
             aria-label="Activer le mode sombre"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className={`relative mt-3 h-7 w-12 shrink-0 rounded-full border transition-colors sm:mt-0 ${
-              theme === "dark"
-                ? "border-primary bg-primary"
-                : "border-field-border bg-field"
-            }`}
+            className="relative mt-1 h-11 w-14 shrink-0 rounded-full sm:mt-0"
           >
             <span
-              className={`absolute top-0.5 left-0.5 flex size-5 items-center justify-center rounded-full shadow-sm transition-[transform,background-color] ${
+              className={`absolute top-2 left-1 h-7 w-12 rounded-full border transition-colors ${
                 theme === "dark"
-                  ? "bg-primary-foreground translate-x-5"
-                  : "bg-field-border translate-x-0"
+                  ? "border-primary bg-primary"
+                  : "border-field-border bg-field"
               }`}
               aria-hidden="true"
             >
-              {theme === "dark" ? (
-                <Moon className="text-primary size-3" />
-              ) : (
-                <Sun className="text-field size-3" />
-              )}
+              <span
+                className={`absolute top-0.5 left-0.5 flex size-5 items-center justify-center rounded-full shadow-sm transition-[transform,background-color] ${
+                  theme === "dark"
+                    ? "bg-primary-foreground translate-x-5"
+                    : "bg-field-border translate-x-0"
+                }`}
+              >
+                {theme === "dark" ? (
+                  <Moon className="text-primary size-3" />
+                ) : (
+                  <Sun className="text-field size-3" />
+                )}
+              </span>
             </span>
           </button>
         </CardHeader>

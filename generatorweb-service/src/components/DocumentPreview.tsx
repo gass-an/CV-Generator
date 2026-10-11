@@ -130,14 +130,15 @@ export function DocumentPreview() {
 
   return (
     <Card className="overflow-hidden py-0 lg:sticky lg:top-28">
-      <div className="border-border flex items-center justify-between gap-3 border-b px-5 py-4 sm:px-6">
-        <div>
+      <div className="border-border flex items-start justify-between gap-3 border-b px-4 py-4 sm:items-center sm:px-6">
+        <div className="min-w-0">
           <h2 className="font-semibold">Suivi du document</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             Statut réel communiqué par le backend
           </p>
         </div>
         <Badge
+          className="shrink-0"
           variant={
             state.phase === "failed" ||
             state.phase === "interrupted" ||

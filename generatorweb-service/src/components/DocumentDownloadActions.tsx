@@ -101,7 +101,9 @@ export function DocumentDownloadActions({
 
   return (
     <div className="space-y-2">
-      <div className={`grid grid-cols-2 gap-2 ${compact ? "text-xs" : ""}`}>
+      <div
+        className={`grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 ${compact ? "text-xs" : ""}`}
+      >
         {(["docx", "pdf"] as const).map((format) => (
           <button
             key={format}

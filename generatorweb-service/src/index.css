@@ -74,7 +74,7 @@
   }
 
   body {
-    @apply bg-background text-foreground min-w-80 overflow-x-hidden antialiased;
+    @apply bg-background text-foreground min-w-80 antialiased;
     font-family:
       Inter,
       ui-sans-serif,

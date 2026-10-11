@@ -18,7 +18,7 @@ export function PdfPreviewContent({
         data={state.url}
         type="application/pdf"
         aria-label={title}
-        className="h-[65vh] min-h-[480px] w-full rounded-lg border"
+        className="h-[50svh] min-h-64 w-full rounded-lg border sm:h-[65vh] sm:min-h-[480px]"
       >
         <p className="text-muted-foreground p-5 text-sm">
           Votre navigateur ne peut pas afficher ce PDF. Utilisez le bouton de
