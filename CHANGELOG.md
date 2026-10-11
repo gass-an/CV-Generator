@@ -5,6 +5,8 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+## [0.5.4] - 2026-10-11
+
 ### Ajouts
 
 - Ajout d'une combobox de filtrage par numéro AVP dans l'historique, avec récupération des AVP distincts et filtrage exact côté API.
