@@ -44,6 +44,12 @@ for path in / /historique /parametres; do
   curl --fail --silent "$base_url$path" | grep -q '<div id="root"></div>'
 done
 
+index_html=$(curl --fail --silent "$base_url/")
+grep -q '<title>CV-Generator</title>' <<<"$index_html"
+grep -q '/logos/CV_Generator.png?v=20261013' <<<"$index_html"
+curl --fail --silent \
+  "$base_url/logos/CV_Generator.png?v=20261013" >/dev/null
+
 backend_ready=false
 for _ in {1..30}; do
   if curl --fail --silent \

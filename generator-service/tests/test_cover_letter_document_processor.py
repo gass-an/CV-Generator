@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, datetime
+from io import BytesIO
 from typing import Any
 
 import pytest
@@ -17,8 +18,11 @@ from app.clients.llm_client import (
 from app.models.document_job import DocumentType
 from app.processors.cover_letter_document_processor import (
     CoverLetterDocumentProcessor,
+    include_offer_reference_in_subject,
 )
 from app.processors.document_processor import DocumentJobData, DocumentProcessingError
+from app.renderers import DocxRenderer
+from docx import Document
 
 AVP = AvpData(
     reference="3134-26-1382/SR",
@@ -101,6 +105,69 @@ async def test_process_returns_asciidoc_and_keeps_sources_separate() -> None:
     assert builder.resume_data is RESUME
     assert builder.avp is AVP
     assert "Conduite de projet" not in str(builder.resume_data)
+
+
+@pytest.mark.asyncio
+async def test_process_adds_offer_reference_to_subject() -> None:
+    processor, _, _ = make_processor(
+        llm_result=(
+            "= Lettre de motivation\n\n"
+            "Objet : Candidature au poste d'administrateur\n\nMadame, Monsieur,"
+        )
+    )
+
+    result = await processor.process(make_job())
+
+    assert (
+        "Objet : Candidature à l'offre n° 3134-26-1382/SR – administrateur"
+        in result.content
+    )
+    rendered_docx = Document(BytesIO(DocxRenderer().render(result.content)))
+    assert any(
+        paragraph.text
+        == "Objet : Candidature à l'offre n° 3134-26-1382/SR – administrateur"
+        for paragraph in rendered_docx.paragraphs
+    )
+
+
+def test_subject_is_unchanged_without_offer_reference() -> None:
+    content = "= Lettre de motivation\n\nObjet : Candidature spontanée"
+
+    assert include_offer_reference_in_subject(content, "  ") == content
+
+
+def test_subject_does_not_duplicate_existing_offer_reference() -> None:
+    content = (
+        "= Lettre de motivation\n\n"
+        "*Objet :* Candidature à l'offre n° 3134-26-1382/SR – Administrateur"
+    )
+
+    result = include_offer_reference_in_subject(content, "3134-26-1382/SR")
+
+    assert result == content
+    assert result.count("3134-26-1382/SR") == 1
+
+
+def test_missing_subject_is_inserted_without_inventing_title() -> None:
+    content = (
+        "= Lettre de motivation\n\n"
+        "Camille Exemple\n"
+        "camille@example.nc\n\n"
+        "Madame, Monsieur,\n\n"
+        "Je vous adresse ma candidature."
+    )
+
+    result = include_offer_reference_in_subject(content, "3134-26-1382/SR")
+
+    assert result == (
+        "= Lettre de motivation\n\n"
+        "Camille Exemple\n"
+        "camille@example.nc\n\n"
+        "Objet : Candidature à l'offre n° 3134-26-1382/SR\n\n"
+        "Madame, Monsieur,\n\n"
+        "Je vous adresse ma candidature."
+    )
+    assert "administrateur" not in result.casefold()
 
 
 @pytest.mark.asyncio

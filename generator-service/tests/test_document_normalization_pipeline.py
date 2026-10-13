@@ -67,4 +67,12 @@ async def test_all_document_processors_store_normalized_asciidoc(
     result = await processor.process(job)
 
     assert result.format == "asciidoc"
-    assert result.content == "= Document\n\n* *Élément :* contenu\n** Détail"
+    expected_content = "= Document\n\n* *Élément :* contenu\n** Détail"
+    if document_type is DocumentType.COVER_LETTER:
+        expected_content = (
+            "= Document\n\n"
+            "Objet : Candidature à l'offre n° TEST-001\n\n"
+            "* *Élément :* contenu\n"
+            "** Détail"
+        )
+    assert result.content == expected_content

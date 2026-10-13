@@ -8,6 +8,8 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 ### Modifications
 
 - Remplacement de Swagger UI par Redoc pour la documentation de l'API publique.
+- Ajout de la référence de l'offre dans l'objet des lettres de motivation.
+- Ajout du logo CV-Generator comme favicon du frontend.
 
 ## [0.5.4] - 2026-10-11
 
