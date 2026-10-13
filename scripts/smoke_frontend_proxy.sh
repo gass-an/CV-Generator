@@ -10,11 +10,12 @@ backend="cv-generator-smoke-api-$suffix"
 frontend="cv-generator-smoke-web-$suffix"
 unauthorized_body="/tmp/cv-generator-smoke-401-$suffix.json"
 missing_body="/tmp/cv-generator-smoke-404-$suffix.json"
+redoc_body="/tmp/cv-generator-smoke-redoc-404-$suffix.html"
 
 cleanup() {
   docker rm --force "$frontend" "$backend" >/dev/null 2>&1 || true
   docker network rm "$network" >/dev/null 2>&1 || true
-  rm -f "$unauthorized_body" "$missing_body"
+  rm -f "$unauthorized_body" "$missing_body" "$redoc_body"
 }
 trap cleanup EXIT
 
@@ -74,5 +75,10 @@ missing_status=$(curl --silent --output "$missing_body" \
 test "$missing_status" = 404
 grep -q '"path": "/api/v1/missing"' "$missing_body"
 ! grep -q '<div id="root"></div>' "$missing_body"
+
+redoc_status=$(curl --silent --output "$redoc_body" \
+  --write-out '%{http_code}' "$base_url/redoc")
+test "$redoc_status" = 404
+! grep -q '<div id="root"></div>' "$redoc_body"
 
 docker exec "$frontend" nginx -t

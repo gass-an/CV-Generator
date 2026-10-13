@@ -5,6 +5,10 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+### Modifications
+
+- Remplacement de Swagger UI par Redoc pour la documentation de l'API publique.
+
 ## [0.5.4] - 2026-10-11
 
 ### Ajouts

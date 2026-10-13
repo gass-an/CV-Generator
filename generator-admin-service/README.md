@@ -65,8 +65,8 @@ avant de quitter l'écran. Une ancienne clé ne peut jamais être récupérée, 
 base ne conserve que son préfixe public et son empreinte SHA-256. Il faut alors
 en créer une nouvelle puis révoquer l'ancienne.
 
-Une clé créée est immédiatement active dans l'API publique. Elle peut être
-testée dans Swagger avec « Authorize », ou ainsi :
+Une clé créée est immédiatement active dans l'API publique. Redoc décrit
+l'en-tête attendu sur `/docs` ; la clé peut être testée ainsi :
 
 ```bash
 export API_KEY='valeur-copiée-sur-écran'

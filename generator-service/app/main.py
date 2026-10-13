@@ -36,6 +36,8 @@ def create_app() -> FastAPI:
         ),
         version=app_version.removeprefix("v"),
         openapi_tags=OPENAPI_TAGS,
+        docs_url=None,
+        redoc_url="/docs",
     )
 
     application.include_router(api_router, prefix="/api/v1")

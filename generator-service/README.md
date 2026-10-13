@@ -51,7 +51,7 @@ Docker. Les sources Python sont montées dans les conteneurs de développement.
 L'API est disponible sur `http://127.0.0.1:8000` et son contrôle de santé sur
 `GET /api/v1/health`.
 
-Swagger UI :
+Redoc :
 http://127.0.0.1:8000/docs
 
 OpenAPI JSON :
@@ -68,9 +68,10 @@ Endpoints de génération disponibles :
 - `GET /api/v1/documents/{id}/download`
 - `GET /api/v1/documents/{id}/pdf`
 
-Toutes ces routes documentaires exigent l'en-tête `X-API-Key`. Swagger reste
-public et son bouton **Authorize** permet de renseigner cette clé. Une clé
-absente ou invalide produit `401 Unauthorized`. Un document inexistant,
+Toutes ces routes documentaires exigent l'en-tête `X-API-Key`. Redoc et le
+schéma OpenAPI restent publics ; Redoc décrit ce mécanisme d'authentification,
+mais n'exécute pas les requêtes métier. Une clé absente ou invalide produit
+`401 Unauthorized`. Un document inexistant,
 appartenant à un autre client ou créé avant l'introduction de la propriété
 produit `404 Not Found`, sans révéler son existence ni son contenu.
 
