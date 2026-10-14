@@ -8,7 +8,13 @@ from app.processors.document_processor import (
 )
 
 SUBJECT_LINE = re.compile(
-    r"^(?P<label>[ \t]*(?:\*Objet\s*:\*|Objet\s*:)[ \t]*)(?P<subject>\S.*?)[ \t]*$",
+    r"^(?P<indent>[ \t]*)(?:"
+    r"(?P<label_marker>\*{1,2})Objet[ \t]*:[ \t]*(?P=label_marker)"
+    r"[ \t]*(?P<label_subject>[^\r\n]*?)"
+    r"|(?P<whole_marker>\*{1,2})Objet[ \t]*:[ \t]*"
+    r"(?P<whole_subject>[^\r\n]*?)(?P=whole_marker)"
+    r"|Objet[ \t]*:[ \t]*(?P<plain_subject>[^\r\n]*?)"
+    r")[ \t]*$",
     flags=re.IGNORECASE | re.MULTILINE,
 )
 CANDIDATURE_TO_POSITION = re.compile(
@@ -59,19 +65,33 @@ def include_offer_reference_in_subject(content: str, reference: str) -> str:
         position = title.end() if title is not None else 0
         return _insert_asciidoc_block(content, position, fallback_subject)
 
-    if normalized_reference.casefold() in subject_line.group("subject").casefold():
+    subject = next(
+        subject_line.group(name)
+        for name in ("whole_subject", "label_subject", "plain_subject")
+        if subject_line.group(name) is not None
+    ).rstrip()
+    if normalized_reference.casefold() in subject.casefold():
         return content
 
-    subject = subject_line.group("subject")
     candidature = CANDIDATURE_TO_POSITION.fullmatch(subject)
-    if candidature is not None:
+    if not subject:
+        subject = f"Candidature à l'offre n° {normalized_reference}"
+    elif candidature is not None:
         subject = (
             f"Candidature à l'offre n° {normalized_reference}"
             f" – {candidature.group('title')}"
         )
     else:
         subject = f"{subject} – offre n° {normalized_reference}"
-    enriched_subject = f"{subject_line.group('label')}{subject}"
+    indent = subject_line.group("indent")
+    whole_marker = subject_line.group("whole_marker")
+    label_marker = subject_line.group("label_marker")
+    if whole_marker is not None:
+        enriched_subject = f"{indent}{whole_marker}Objet : {subject}{whole_marker}"
+    elif label_marker is not None:
+        enriched_subject = f"{indent}{label_marker}Objet :{label_marker} {subject}"
+    else:
+        enriched_subject = f"{indent}Objet : {subject}"
     before_subject = content[: subject_line.start()]
     after_subject = content[subject_line.end() :]
     return f"{before_subject}{enriched_subject}{after_subject}"

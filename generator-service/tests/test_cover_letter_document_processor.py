@@ -136,6 +136,120 @@ def test_subject_is_unchanged_without_offer_reference() -> None:
     assert include_offer_reference_in_subject(content, "  ") == content
 
 
+@pytest.mark.parametrize(
+    ("empty_subject", "expected_subject"),
+    [
+        ("Objet :", "Objet : Candidature à l'offre n° 3134-26-1382/SR"),
+        (
+            "*Objet :*",
+            "*Objet :* Candidature à l'offre n° 3134-26-1382/SR",
+        ),
+        (
+            "**Objet :**",
+            "**Objet :** Candidature à l'offre n° 3134-26-1382/SR",
+        ),
+    ],
+)
+def test_empty_subject_is_completed_without_absorbing_salutation(
+    empty_subject: str, expected_subject: str
+) -> None:
+    salutation = "Madame, Monsieur,"
+    content = f"= Lettre de motivation\n\n{empty_subject}\n{salutation}\n\nTexte."
+
+    once = include_offer_reference_in_subject(content, "3134-26-1382/SR")
+    twice = include_offer_reference_in_subject(once, "3134-26-1382/SR")
+
+    assert once == (
+        f"= Lettre de motivation\n\n{expected_subject}\n{salutation}\n\nTexte."
+    )
+    assert twice == once
+    assert once.count("Objet :") == 1
+    assert once.count("3134-26-1382/SR") == 1
+    assert once.count(salutation) == 1
+
+
+@pytest.mark.parametrize(
+    ("subject_line", "expected_line"),
+    [
+        (
+            "Objet : Candidature au poste de développeur",
+            "Objet : Candidature à l'offre n° 3134-26-1382/SR – développeur",
+        ),
+        (
+            "*Objet :* Candidature au poste de développeur",
+            "*Objet :* Candidature à l'offre n° 3134-26-1382/SR – développeur",
+        ),
+        (
+            "*Objet : Candidature au poste de développeur*",
+            "*Objet : Candidature à l'offre n° 3134-26-1382/SR – développeur*",
+        ),
+        (
+            "**Objet : Candidature au poste de développeur**",
+            "**Objet : Candidature à l'offre n° 3134-26-1382/SR – développeur**",
+        ),
+        (
+            "Objet : Demande de mobilité – développeur",
+            "Objet : Demande de mobilité – développeur – offre n° 3134-26-1382/SR",
+        ),
+        (
+            "Objet : Candidature au poste d’administrateur d’application",
+            "Objet : Candidature à l'offre n° 3134-26-1382/SR"
+            " – administrateur d’application",
+        ),
+    ],
+)
+def test_subject_variants_are_enriched_once_and_keep_style_and_title(
+    subject_line: str, expected_line: str
+) -> None:
+    content = f"= Lettre de motivation\n\n{subject_line}\n\nMadame, Monsieur,"
+
+    once = include_offer_reference_in_subject(content, "3134-26-1382/SR")
+    twice = include_offer_reference_in_subject(once, "3134-26-1382/SR")
+
+    assert expected_line in once
+    assert once == twice
+    assert once.count("Objet :") == 1
+    assert once.count("3134-26-1382/SR") == 1
+
+
+def test_real_fully_bold_subject_is_updated_without_duplicate() -> None:
+    content = (
+        "= Lettre de motivation\n\n"
+        "Quoc-Kim BUI\n"
+        "qkimbui@gmail.com\n\n"
+        "*Objet : Candidature au poste d’Administrateur des pratiques métiers*\n\n"
+        "Madame, Monsieur,\n\n"
+        "Actuellement en Master MIAGE, je souhaite postuler..."
+    )
+
+    once = include_offer_reference_in_subject(content, "3134-26-1382/SR")
+    twice = include_offer_reference_in_subject(once, "3134-26-1382/SR")
+
+    assert (
+        "*Objet : Candidature à l'offre n° 3134-26-1382/SR"
+        " – Administrateur des pratiques métiers*"
+    ) in once
+    assert once == twice
+    assert once.count("Objet :") == 1
+    assert once.count("3134-26-1382/SR") == 1
+    assert "Administrateur des pratiques métiers" in once
+    assert once.index("Objet :") < once.index("Madame, Monsieur,")
+
+    rendered_docx = Document(BytesIO(DocxRenderer().render(once)))
+    subject_paragraphs = [
+        paragraph
+        for paragraph in rendered_docx.paragraphs
+        if paragraph.text.startswith("Objet :")
+    ]
+    assert len(subject_paragraphs) == 1
+    assert subject_paragraphs[0].text == (
+        "Objet : Candidature à l'offre n° 3134-26-1382/SR"
+        " – Administrateur des pratiques métiers"
+    )
+    assert subject_paragraphs[0].runs
+    assert all(run.bold for run in subject_paragraphs[0].runs)
+
+
 def test_subject_does_not_duplicate_existing_offer_reference() -> None:
     content = (
         "= Lettre de motivation\n\n"
@@ -168,6 +282,9 @@ def test_missing_subject_is_inserted_without_inventing_title() -> None:
         "Je vous adresse ma candidature."
     )
     assert "administrateur" not in result.casefold()
+    assert include_offer_reference_in_subject(result, "3134-26-1382/SR") == result
+    assert result.count("Objet :") == 1
+    assert result.count("3134-26-1382/SR") == 1
 
 
 @pytest.mark.asyncio
