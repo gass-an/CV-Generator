@@ -5,7 +5,7 @@ import time
 import uuid
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 BACKEND = ROOT / "generator-service"
 ADMIN = ROOT / "generator-admin-service"
 SHARED = ROOT / "shared"

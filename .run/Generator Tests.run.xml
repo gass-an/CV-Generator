@@ -4,14 +4,13 @@
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
-
     <envs>
+      <env name="PYTHONUNBUFFERED" value="1" />
       <env name="DATABASE_URL" value="postgresql+asyncpg://cv_generator:cv_generator@127.0.0.1:5433/cv_generator_test" />
       <env name="TEST_DATABASE_URL" value="postgresql+asyncpg://cv_generator:cv_generator@127.0.0.1:5433/cv_generator_test" />
       <env name="MIGRATION_TEST_DATABASE_URL" value="postgresql+asyncpg://cv_generator:cv_generator@127.0.0.1:5433/cv_generator_migration_test" />
       <env name="ADMIN_TEST_DATABASE_URL" value="postgresql+asyncpg://cv_generator:cv_generator@127.0.0.1:5433/cv_generator_admin_test" />
     </envs>
-
     <option name="SDK_HOME" value="$PROJECT_DIR$/generator-service/.venv/bin/python" />
     <option name="SDK_NAME" value="Python 3.12 (CV-Generator)" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
@@ -19,8 +18,14 @@
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <option name="DEBUG_JUST_MY_CODE" value="true" />
-    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/run_all_tests.py" />
+    <option name="RUN_TOOL" value="" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/scripts/run_all_tests.py" />
     <option name="PARAMETERS" value="" />
+    <option name="SHOW_COMMAND_LINE" value="false" />
+    <option name="EMULATE_TERMINAL" value="false" />
+    <option name="MODULE_MODE" value="false" />
+    <option name="REDIRECT_INPUT" value="false" />
+    <option name="INPUT_FILE" value="" />
     <method v="2" />
   </configuration>
 </component>
