@@ -5,6 +5,20 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+## [0.5.7] - 2026-10-14
+
+### Modifications
+
+- Modernisation de l'administration, avec reconnexion fiable après expiration, navigation protégée et thèmes clair, sombre et automatique.
+
+## [0.5.5] - 2026-10-14
+
+### Modifications
+
+- Fix d'un soucis avec la référence de l'offre dans l'objet des lettres de motivation.
+
+## [0.5.5] - 2026-10-14
+
 ### Modifications
 
 - Remplacement de Swagger UI par Redoc pour la documentation de l'API publique.

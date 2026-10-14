@@ -1,15 +1,33 @@
 {% extends "base.html" %}
 {% block title %}Connexion{% endblock %}
+{% block body_class %}auth-page{% endblock %}
 {% block content %}
-<section class="auth-card">
-  <h1>Administration privée</h1>
-  <p>Connectez-vous pour gérer les propriétaires et leurs clés API.</p>
-  {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
-  <form method="post" action="/login" autocomplete="on">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Identifiant<input name="username" autocomplete="username" required></label>
-    <label>Mot de passe<input type="password" name="password" autocomplete="current-password" required></label>
-    <button class="primary" type="submit">Se connecter</button>
-  </form>
-</section>
+<div class="auth-shell">
+  <div class="auth-tools">
+    <div class="theme-switcher" role="group" aria-label="Thème d’affichage">
+      <button type="button" data-theme-value="light" aria-label="Thème clair">Clair</button>
+      <button type="button" data-theme-value="dark" aria-label="Thème sombre">Sombre</button>
+      <button type="button" data-theme-value="system" aria-label="Thème automatique">Auto</button>
+    </div>
+  </div>
+  <section class="auth-card" aria-labelledby="login-title">
+    <div class="auth-brand">
+      <img src="/static/cv-generator.png" alt="CV-Generator" width="76" height="76">
+      <div><strong>CV-Generator</strong><span>Administration</span></div>
+    </div>
+    <h1 id="login-title">Connexion</h1>
+    <p>Connectez-vous pour gérer les propriétaires et leurs clés API.</p>
+    {% if session_expired %}<div class="notice" role="status">Votre session a expiré. Vous pouvez vous reconnecter immédiatement.</div>{% endif %}
+    {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/login" autocomplete="on">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="next" value="{{ next }}">
+      <label for="username">Identifiant</label>
+      <input id="username" name="username" autocomplete="username" required autofocus>
+      <label for="password">Mot de passe</label>
+      <input id="password" type="password" name="password" autocomplete="current-password" required>
+      <button class="button primary full-width" type="submit">Se connecter</button>
+    </form>
+  </section>
+</div>
 {% endblock %}

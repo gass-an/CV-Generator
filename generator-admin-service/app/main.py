@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import quote, urlsplit
 from zoneinfo import ZoneInfo
 
 from cv_generator_shared.dto import ApiKeyWithClientData
@@ -161,6 +162,56 @@ async def current_admin(
 CurrentAdmin = Annotated[AdminPrincipal, Depends(current_admin)]
 
 
+class AdminLoginRequired(Exception):
+    """Signale qu'une navigation HTML exige une nouvelle connexion."""
+
+
+async def current_admin_page(
+    request: Request,
+    service: SecurityService,
+) -> AdminPrincipal:
+    settings = get_settings()
+    principal = await service.authenticate(
+        request.cookies.get(settings.admin_session_cookie_name),
+        request.cookies.get(settings.admin_csrf_cookie_name),
+    )
+    if principal is None:
+        raise AdminLoginRequired
+    return principal
+
+
+PageAdmin = Annotated[AdminPrincipal, Depends(current_admin_page)]
+
+
+def _safe_next_path(value: str | None) -> str:
+    if not value or not value.startswith("/") or value.startswith("//"):
+        return "/"
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        return "/"
+    parsed = urlsplit(value)
+    if parsed.scheme or parsed.netloc or "\\" in value:
+        return "/"
+    return value
+
+
+@app.exception_handler(AdminLoginRequired)
+async def admin_login_required_handler(
+    request: Request, error: AdminLoginRequired
+) -> RedirectResponse:
+    del error
+    settings = get_settings()
+    had_session = bool(request.cookies.get(settings.admin_session_cookie_name))
+    destination = request.url.path if request.method == "GET" else "/"
+    if request.method == "GET" and request.url.query:
+        destination = f"{destination}?{request.url.query}"
+    location = f"/login?next={quote(_safe_next_path(destination), safe='')}"
+    if had_session:
+        location += "&expired=1"
+    response = RedirectResponse(location, status_code=status.HTTP_303_SEE_OTHER)
+    _clear_session_cookies(response)
+    return response
+
+
 def _verify_csrf(request: Request, principal: AdminPrincipal, csrf_token: str) -> None:
     if not _valid_origin(request) or not secrets_compare(
         principal.csrf_token, csrf_token
@@ -175,12 +226,30 @@ def secrets_compare(first: str, second: str) -> bool:
 
 
 @app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, service: SecurityService) -> HTMLResponse:
+async def login_page(
+    request: Request,
+    service: SecurityService,
+    next: str = "/",
+    expired: bool = False,
+) -> Response:
+    settings = get_settings()
+    destination = _safe_next_path(next)
+    principal = await service.authenticate(
+        request.cookies.get(settings.admin_session_cookie_name),
+        request.cookies.get(settings.admin_csrf_cookie_name),
+    )
+    if principal is not None:
+        return RedirectResponse(destination, status_code=status.HTTP_303_SEE_OTHER)
     issued = await service.issue_anonymous_session()
     response = templates.TemplateResponse(
         request=request,
         name="login.html",
-        context={"csrf_token": issued.csrf_token, "error": None},
+        context={
+            "csrf_token": issued.csrf_token,
+            "error": None,
+            "next": destination,
+            "session_expired": expired,
+        },
     )
     _set_session_cookies(response, issued)
     return response
@@ -193,8 +262,10 @@ async def login(
     username: Annotated[str, Form()],
     password: Annotated[str, Form()],
     csrf_token: Annotated[str, Form()],
+    next: Annotated[str, Form()] = "/",
 ) -> HTMLResponse:
     settings = get_settings()
+    destination = _safe_next_path(next)
     if not _valid_origin(request):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     issued = await service.login(
@@ -205,17 +276,21 @@ async def login(
         ip_address=_client_ip(request),
     )
     if issued is None:
+        replacement = await service.issue_anonymous_session()
         response = templates.TemplateResponse(
             request=request,
             name="login.html",
             context={
-                "csrf_token": csrf_token,
+                "csrf_token": replacement.csrf_token,
                 "error": "Identifiants invalides ou connexion temporairement bloquée.",
+                "next": destination,
+                "session_expired": False,
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
+        _set_session_cookies(response, replacement)
         return response
-    response = RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    response = RedirectResponse(destination, status_code=status.HTTP_303_SEE_OTHER)
     _set_session_cookies(response, issued)
     return response
 
@@ -224,7 +299,7 @@ async def login(
 async def logout(
     request: Request,
     service: SecurityService,
-    principal: CurrentAdmin,
+    principal: PageAdmin,
     csrf_token: Annotated[str, Form()],
 ) -> RedirectResponse:
     _verify_csrf(request, principal, csrf_token)
@@ -250,7 +325,7 @@ def _key_status(item: ApiKeyWithClientData, now: datetime) -> str:
 @app.get("/", response_class=HTMLResponse)
 async def key_table(
     request: Request,
-    principal: CurrentAdmin,
+    principal: PageAdmin,
     session: BusinessSession,
     status_filter: str = "all",
     page: int = 1,
@@ -283,7 +358,7 @@ async def key_table(
 @app.get("/keys/new", response_class=HTMLResponse)
 async def new_key_form(
     request: Request,
-    principal: CurrentAdmin,
+    principal: PageAdmin,
     security: SecurityService,
     session: BusinessSession,
 ) -> HTMLResponse:
@@ -317,7 +392,7 @@ def _parse_expiration(
 @app.post("/keys", response_class=HTMLResponse)
 async def create_key(
     request: Request,
-    principal: CurrentAdmin,
+    principal: PageAdmin,
     security: SecurityService,
     session: BusinessSession,
     csrf_token: Annotated[str, Form()],
@@ -389,7 +464,7 @@ async def create_key(
 async def revoke_key(
     key_id: uuid.UUID,
     request: Request,
-    principal: CurrentAdmin,
+    principal: PageAdmin,
     session: BusinessSession,
     csrf_token: Annotated[str, Form()],
 ) -> RedirectResponse:
@@ -404,7 +479,7 @@ async def revoke_key(
 @app.get("/clients", response_class=HTMLResponse)
 async def client_table(
     request: Request,
-    principal: CurrentAdmin,
+    principal: PageAdmin,
     session: BusinessSession,
 ) -> HTMLResponse:
     clients = await ApiKeyService(session).list_clients()
@@ -423,7 +498,7 @@ async def client_table(
 async def disable_client(
     client_id: uuid.UUID,
     request: Request,
-    principal: CurrentAdmin,
+    principal: PageAdmin,
     session: BusinessSession,
     csrf_token: Annotated[str, Form()],
 ) -> RedirectResponse:

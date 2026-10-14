@@ -6,7 +6,7 @@ import httpx
 import pytest
 from app.admin_security import AdminPrincipal, IssuedAdminSession
 from app.database import async_session_factory
-from app.main import _parse_expiration
+from app.main import _parse_expiration, _safe_next_path
 from cv_generator_shared.admin_models import AdminSession
 from cv_generator_shared.models import ApiClient, ApiKey
 from sqlalchemy import select, update
@@ -42,6 +42,28 @@ def test_parse_expiration_uses_configured_timezone_and_preserves_instants() -> N
     assert _parse_expiration("", timezone=noumea) is None
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("/", "/"),
+        ("/clients", "/clients"),
+        ("/clients?status=active&page=2", "/clients?status=active&page=2"),
+        ("https://example.com/admin", "/"),
+        ("http://example.com/admin", "/"),
+        ("//example.com/admin", "/"),
+        (r"/\example.com/admin", "/"),
+        ("/clients\nadmin", "/"),
+        ("/clients\radmin", "/"),
+        ("/clients\tadmin", "/"),
+        ("/clients\x7fadmin", "/"),
+    ],
+)
+def test_safe_next_path_accepts_only_safe_local_destinations(
+    value: str, expected: str
+) -> None:
+    assert _safe_next_path(value) == expected
+
+
 @pytest.mark.asyncio
 async def test_private_openapi_is_completely_disabled(
     browser: httpx.AsyncClient,
@@ -51,12 +73,50 @@ async def test_private_openapi_is_completely_disabled(
 
 
 @pytest.mark.asyncio
+async def test_admin_interface_exposes_brand_navigation_and_theme_controls(
+    browser: httpx.AsyncClient,
+) -> None:
+    login_page = await browser.get("/login")
+    assert "<title>Connexion — CV-Generator Admin</title>" in login_page.text
+    assert 'href="/static/favicon.png"' in login_page.text
+    assert 'name="theme-color" content="#f7f9fc" data-theme-color' in login_page.text
+    assert 'src="/static/cv-generator.png"' in login_page.text
+    assert 'href="#contenu-principal"' in login_page.text
+    for theme in ("light", "dark", "system"):
+        assert f'data-theme-value="{theme}"' in login_page.text
+
+    script = await browser.get("/static/admin.js")
+    stylesheet = await browser.get("/static/admin.css")
+    favicon = await browser.get("/static/favicon.png")
+    assert script.status_code == stylesheet.status_code == favicon.status_code == 200
+    assert '"cv-generator.theme"' in script.text
+    assert "window.localStorage.setItem(THEME_STORAGE_KEY, theme)" in script.text
+    assert "document.documentElement.dataset.theme = theme" in script.text
+    assert 'window.matchMedia("(prefers-color-scheme: dark)")' in script.text
+    assert "themeColor.setAttribute(" in script.text
+    assert ':root[data-theme="dark"]' in stylesheet.text
+    assert "prefers-color-scheme: dark" in stylesheet.text
+    assert ".topbar-actions .theme-switcher { display: none; }" not in stylesheet.text
+
+    await login(browser)
+    home = await browser.get("/")
+    assert 'aria-current="page">Clés API</a>' in home.text
+    assert 'aria-label="Navigation de l’administration"' in home.text
+    assert 'action="/logout"' in home.text
+    assert home.headers["content-security-policy"].startswith("default-src 'self'")
+    assert "'unsafe-inline'" not in home.headers["content-security-policy"]
+
+
+@pytest.mark.asyncio
 async def test_login_session_rotation_expiration_and_logout(
     browser: httpx.AsyncClient,
 ) -> None:
+    anonymous_root = await browser.get("/")
+    assert anonymous_root.status_code == 303
+    assert anonymous_root.headers["location"] == "/login?next=%2F"
+
     assert (await browser.get("/login")).status_code == 200
     anonymous_token = browser.cookies["cv_generator_admin_session"]
-    assert (await browser.get("/")).status_code == 401
 
     csrf = browser.cookies["cv_generator_admin_csrf"]
     bad = await browser.post(
@@ -71,12 +131,17 @@ async def test_login_session_rotation_expiration_and_logout(
     authenticated_token = browser.cookies["cv_generator_admin_session"]
     assert authenticated_token != anonymous_token
     assert (await browser.get("/")).status_code == 200
+    authenticated_login = await browser.get("/login")
+    assert authenticated_login.status_code == 303
+    assert authenticated_login.headers["location"] == "/"
 
     response = await browser.post("/logout", data={"csrf_token": csrf})
     assert response.status_code == 303
     browser.cookies.set("cv_generator_admin_session", authenticated_token)
     browser.cookies.set("cv_generator_admin_csrf", csrf)
-    assert (await browser.get("/")).status_code == 401
+    logged_out = await browser.get("/")
+    assert logged_out.status_code == 303
+    assert logged_out.headers["location"].startswith("/login?")
 
     browser.cookies.clear()
     await login(browser)
@@ -87,7 +152,91 @@ async def test_login_session_rotation_expiration_and_logout(
                 expires_at=datetime.now(UTC) - timedelta(hours=1),
             )
         )
-    assert (await browser.get("/")).status_code == 401
+    expired = await browser.get("/")
+    assert expired.status_code == 303
+    assert "expired=1" in expired.headers["location"]
+
+    login_page = await browser.get(expired.headers["location"])
+    assert login_page.status_code == 200
+    assert "session a expiré" in login_page.text
+    renewed_csrf = browser.cookies["cv_generator_admin_csrf"]
+    reconnected = await browser.post(
+        "/login",
+        data={
+            "username": "administrateur",
+            "password": "mot-de-passe-test",
+            "csrf_token": renewed_csrf,
+            "next": "/",
+        },
+    )
+    assert reconnected.status_code == 303
+    assert (await browser.get("/")).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_login_honors_only_safe_local_next_paths(
+    browser: httpx.AsyncClient,
+) -> None:
+    page = await browser.get("/login?next=/clients")
+    csrf = browser.cookies["cv_generator_admin_csrf"]
+    redirected = await browser.post(
+        "/login",
+        data={
+            "username": "administrateur",
+            "password": "mot-de-passe-test",
+            "csrf_token": csrf,
+            "next": hidden_value(page.text, "next"),
+        },
+    )
+    assert redirected.headers["location"] == "/clients"
+
+    await browser.post(
+        "/logout", data={"csrf_token": browser.cookies["cv_generator_admin_csrf"]}
+    )
+    external = await browser.get("/login?next=https://example.com/phishing")
+    assert hidden_value(external.text, "next") == "/"
+
+
+@pytest.mark.asyncio
+async def test_invalid_session_and_csrf_can_recover_without_clearing_cookies(
+    browser: httpx.AsyncClient,
+) -> None:
+    browser.cookies.set(
+        "cv_generator_admin_session", "session-invalide", domain="testserver.local"
+    )
+    browser.cookies.set(
+        "cv_generator_admin_csrf", "csrf-invalide", domain="testserver.local"
+    )
+
+    protected = await browser.get("/clients")
+    assert protected.status_code == 303
+    login_page = await browser.get(protected.headers["location"])
+    first_csrf = browser.cookies["cv_generator_admin_csrf"]
+    invalid_csrf = await browser.post(
+        "/login",
+        data={
+            "username": "administrateur",
+            "password": "mot-de-passe-test",
+            "csrf_token": "csrf-obsolete",
+            "next": hidden_value(login_page.text, "next"),
+        },
+    )
+    assert invalid_csrf.status_code == 401
+    replacement_csrf = browser.cookies["cv_generator_admin_csrf"]
+    assert replacement_csrf != first_csrf
+
+    reconnected = await browser.post(
+        "/login",
+        data={
+            "username": "administrateur",
+            "password": "mot-de-passe-test",
+            "csrf_token": replacement_csrf,
+            "next": hidden_value(invalid_csrf.text, "next"),
+        },
+    )
+    assert reconnected.status_code == 303
+    assert reconnected.headers["location"] == "/clients"
+    assert (await browser.get("/clients")).status_code == 200
 
 
 @pytest.mark.asyncio
@@ -109,6 +258,7 @@ async def test_login_csrf_and_persistent_brute_force(
             data={"username": "inconnu", "password": "faux", "csrf_token": csrf},
         )
         assert response.status_code == 401
+        csrf = browser.cookies["cv_generator_admin_csrf"]
     blocked = await browser.post(
         "/login",
         data={

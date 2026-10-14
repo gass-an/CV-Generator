@@ -76,6 +76,18 @@ curl -H "X-API-Key: $API_KEY" http://127.0.0.1:8000/api/v1/documents/ID/status
 La révocation est définitive. La désactivation d'un propriétaire invalide
 immédiatement toutes ses clés sans supprimer ses documents.
 
+La racine `/` est la page d'accueil protégée. Sans session valide, une navigation
+est redirigée vers `/login`, puis revient vers la page locale initialement demandée
+après authentification. Une session expirée est remplacée par une nouvelle session
+de connexion et un nouveau jeton CSRF : aucune suppression manuelle de cookie
+n'est nécessaire.
+
+L'interface propose les thèmes clair, sombre et automatique. Le mode automatique,
+utilisé par défaut, suit le thème du système. Le choix est conservé dans le
+`localStorage` de l'origine de l'administration sous la clé
+`cv-generator.theme` ; il est donc indépendant de celui du frontend principal
+lorsque les deux services utilisent des ports différents.
+
 ## Sécurité
 
 Les sessions sont conservées côté PostgreSQL ; le navigateur ne reçoit qu'un
@@ -88,6 +100,11 @@ configurée. `X-Forwarded-For` n'est lu que pour un proxy explicitement autoris�
 Toutes les pages administratives envoient `Cache-Control: no-store`. La réponse
 de création contenant la clé brute n'est ni redirigée, ni enregistrée en session,
 cookie, URL, stockage navigateur ou message persistant.
+
+Les destinations de retour après connexion sont limitées aux chemins locaux.
+Les pages HTML protégées redirigent vers la connexion lorsque la session est
+absente ou expirée ; la dépendance d'authentification générique conserve une
+réponse HTTP `401` pour les éventuels endpoints programmatiques.
 
 ## Tests
 

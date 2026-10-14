@@ -3,21 +3,41 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Administration{% endblock %} · CV-Generator</title>
+  <meta name="theme-color" content="#f7f9fc" data-theme-color>
+  <title>{% block title %}Administration{% endblock %} — CV-Generator Admin</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <script src="/static/admin.js"></script>
   <link rel="stylesheet" href="/static/admin.css">
-  <script src="/static/admin.js" defer></script>
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
+  <a class="skip-link" href="#contenu-principal">Aller au contenu</a>
   {% if principal %}
   <header class="topbar">
-    <a class="brand" href="/">CV-Generator</a>
-    <nav><a href="/">Clés API</a><a href="/clients">Propriétaires</a></nav>
-    <form method="post" action="/logout">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button class="link-button" type="submit">Se déconnecter</button>
-    </form>
+    <div class="topbar-inner">
+      <a class="brand" href="/" aria-label="CV-Generator Administration — accueil">
+        <img src="/static/cv-generator.png" alt="" width="52" height="52">
+        <span><strong>CV-Generator</strong><small>Administration</small></span>
+      </a>
+      <nav aria-label="Navigation de l’administration">
+        <a href="/" {% if request.url.path == '/' %}aria-current="page"{% endif %}>Clés API</a>
+        <a href="/clients" {% if request.url.path == '/clients' %}aria-current="page"{% endif %}>Propriétaires</a>
+      </nav>
+      <div class="topbar-actions">
+        <div class="theme-switcher" role="group" aria-label="Thème d’affichage">
+          <button type="button" data-theme-value="light" aria-label="Thème clair">Clair</button>
+          <button type="button" data-theme-value="dark" aria-label="Thème sombre">Sombre</button>
+          <button type="button" data-theme-value="system" aria-label="Thème automatique">Auto</button>
+        </div>
+        <form method="post" action="/logout">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="button secondary compact" type="submit">Se déconnecter</button>
+        </form>
+      </div>
+    </div>
   </header>
   {% endif %}
-  <main class="container">{% block content %}{% endblock %}</main>
+  <main id="contenu-principal" class="container" tabindex="-1">
+    {% block content %}{% endblock %}
+  </main>
 </body>
 </html>
