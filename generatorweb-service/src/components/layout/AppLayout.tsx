@@ -90,12 +90,36 @@ export function AppLayout() {
             </p>
           </div>
           <div
-            className="flex items-center gap-6 rounded-xl px-3 py-2"
+            className="flex max-w-full flex-wrap items-center justify-center gap-2 rounded-xl sm:justify-end"
             aria-label="Organisations du projet"
           >
-            <BrandLogo brand="opt" />
-            <span className="bg-border h-9 w-px" aria-hidden="true" />
-            <BrandLogo brand="iae" />
+            <a
+              href="https://www.opt.nc/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Visiter le site de l'OPT"
+              className="hover:bg-muted focus-visible:ring-ring flex min-h-12 items-center rounded-lg px-3 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none"
+            >
+              <BrandLogo brand="opt" />
+            </a>
+            <a
+              href="https://iae.unc.nc/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Visiter le site de l'IAE"
+              className="hover:bg-muted focus-visible:ring-ring flex min-h-12 items-center rounded-lg px-3 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none"
+            >
+              <BrandLogo brand="iae" />
+            </a>
+            <a
+              href="https://www.station-n.nc/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Visiter le site de STATION N"
+              className="hover:bg-muted focus-visible:ring-ring flex min-h-12 items-center rounded-lg px-3 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none"
+            >
+              <BrandLogo brand="station-n" />
+            </a>
           </div>
         </div>
       </footer>

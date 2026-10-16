@@ -31,6 +31,10 @@ describe("App", () => {
     expect(
       screen.getByRole("img", { name: "IAE Nouvelle-Calédonie" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "STATION N" })).toHaveAttribute(
+      "src",
+      "/logos/statioN.png",
+    );
     expect(
       screen.getByRole("navigation", { name: "Navigation principale" }),
     ).toBeInTheDocument();
@@ -41,6 +45,34 @@ describe("App", () => {
     expect(
       screen.getByRole("link", { name: "Aller au contenu" }),
     ).toHaveAttribute("href", "#contenu-principal");
+  });
+
+  it("relie les logos des partenaires à leurs sites officiels", async () => {
+    const user = userEvent.setup();
+    renderApplication();
+    const partners = [
+      ["Visiter le site de l'OPT", "https://www.opt.nc/"],
+      ["Visiter le site de l'IAE", "https://iae.unc.nc/"],
+      ["Visiter le site de STATION N", "https://www.station-n.nc/"],
+    ] as const;
+
+    const links = partners.map(([name, href]) => {
+      const link = screen.getByRole("link", { name });
+      expect(link).toHaveAttribute("href", href);
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+      return link;
+    });
+
+    links[0].focus();
+    expect(links[0]).toHaveFocus();
+    await user.tab();
+    expect(links[1]).toHaveFocus();
+    await user.tab();
+    expect(links[2]).toHaveFocus();
+    expect(
+      screen.getByText("Une application développée dans le cadre de HackAVP."),
+    ).toBeInTheDocument();
   });
 
   it("conserve le nom de l'application et toute la navigation sur mobile", () => {

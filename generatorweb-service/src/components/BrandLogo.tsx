@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 type BrandLogoProps = {
-  brand: "cv-generator" | "opt" | "iae";
+  brand: "cv-generator" | "opt" | "iae" | "station-n";
   className?: string;
 };
 
@@ -19,6 +19,11 @@ const logos = {
   iae: {
     src: "/logos/IAE.png",
     alt: "IAE Nouvelle-Calédonie",
+    size: "h-11 w-auto sm:h-12",
+  },
+  "station-n": {
+    src: "/logos/statioN.png",
+    alt: "STATION N",
     size: "h-11 w-auto sm:h-12",
   },
 } as const;

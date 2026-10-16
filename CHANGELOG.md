@@ -7,6 +7,7 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ### Ajouts
 
+- Ajout du logo STATION N et de liens accessibles vers les sites officiels des trois partenaires dans le footer.
 - Ajout des téléchargements du source AsciiDoc et de sa conversion Markdown pour les CV, lettres de motivation et guides d'entretien.
 - Intégration des quatre formats PDF, DOCX, ADOC et MD dans la génération et l'historique du frontend.
 
