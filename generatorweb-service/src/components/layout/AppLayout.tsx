@@ -86,7 +86,7 @@ export function AppLayout() {
           <div className="text-center sm:text-left">
             <p className="text-sm font-semibold">CV-Generator</p>
             <p className="text-muted-foreground mt-1 text-xs">
-              Une application développée dans le cadre de HackAVP.
+              Une application développée dans le cadre du HackAVP.
             </p>
           </div>
           <div
