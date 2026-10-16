@@ -71,7 +71,7 @@ describe("App", () => {
     await user.tab();
     expect(links[2]).toHaveFocus();
     expect(
-      screen.getByText("Une application développée dans le cadre de HackAVP."),
+      screen.getByText("Une application développée dans le cadre du HackAVP."),
     ).toBeInTheDocument();
   });
 
