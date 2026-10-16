@@ -1,4 +1,8 @@
-import type { DocumentMetadata, DocumentType } from "@/types/document";
+import type {
+  DocumentExportFormat,
+  DocumentMetadata,
+  DocumentType,
+} from "@/types/document";
 
 const filenamePrefixes: Record<DocumentType, string> = {
   cv: "cv",
@@ -18,7 +22,7 @@ function filenamePart(value: string | null, fallback: string): string {
 
 export function documentFilename(
   metadata: DocumentMetadata,
-  extension: "docx" | "pdf",
+  extension: DocumentExportFormat,
 ): string {
   const date =
     /^\d{4}-\d{2}-\d{2}/.exec(metadata.createdAt)?.[0] ?? "date-inconnue";

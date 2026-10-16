@@ -7,7 +7,7 @@ import { ApiError } from "@/services/apiClient";
 import {
   createDocumentJob,
   getDocumentAvpNumbers,
-  getDocumentDocx,
+  getDocumentExport,
   getDocumentHistory,
   getDocumentPdf,
 } from "@/services/documentService";
@@ -22,7 +22,7 @@ vi.mock("@/services/documentService", () => ({
   getDocumentHistory: vi.fn(),
   getDocumentAvpNumbers: vi.fn(),
   getDocumentPdf: vi.fn(),
-  getDocumentDocx: vi.fn(),
+  getDocumentExport: vi.fn(),
 }));
 
 const SESSION_KEY = "cv-generator.api-key.session";
@@ -117,7 +117,7 @@ describe("historique documentaire", () => {
     vi.mocked(getDocumentPdf).mockResolvedValue(
       new Blob(["%PDF"], { type: "application/pdf" }),
     );
-    vi.mocked(getDocumentDocx).mockResolvedValue(
+    vi.mocked(getDocumentExport).mockResolvedValue(
       new Blob(["docx"], {
         type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       }),
@@ -151,7 +151,13 @@ describe("historique documentaire", () => {
     expect(
       screen.getByRole("button", { name: "Prévisualiser" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "DOCX" })).toHaveLength(1);
+    for (const format of ["PDF", "DOCX", "ADOC", "MD"]) {
+      expect(
+        screen.getAllByRole("button", {
+          name: `Télécharger au format ${format}`,
+        }),
+      ).toHaveLength(1);
+    }
     expect(screen.queryByText(/job-failed/)).not.toBeInTheDocument();
   });
 
@@ -480,7 +486,9 @@ describe("historique documentaire", () => {
     });
     await user.tab({ shift: true });
     expect(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "PDF" }),
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Télécharger au format MD",
+      }),
     ).toHaveFocus();
     await user.tab();
     expect(close).toHaveFocus();
@@ -506,20 +514,47 @@ describe("historique documentaire", () => {
     const user = userEvent.setup();
     renderHistory();
     await screen.findByText("Léa Martin");
-    screen.getByRole("button", { name: "DOCX" }).focus();
+    screen.getByRole("button", { name: /Télécharger au format DOCX/ }).focus();
     await user.keyboard("{Enter}");
 
-    expect(getDocumentDocx).toHaveBeenCalledWith(
+    expect(getDocumentExport).toHaveBeenCalledWith(
       "job-completed",
       "cle-valide",
+      "docx",
       expect.any(AbortSignal),
     );
-    expect(click).toHaveBeenCalledOnce();
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
   });
+
+  it.each(["ADOC", "MD"] as const)(
+    "télécharge le format %s depuis l'historique",
+    async (format) => {
+      const click = vi
+        .spyOn(HTMLAnchorElement.prototype, "click")
+        .mockImplementation(() => undefined);
+      const user = userEvent.setup();
+      renderHistory();
+      await screen.findByText("Léa Martin");
+
+      await user.click(
+        screen.getByRole("button", {
+          name: `Télécharger au format ${format}`,
+        }),
+      );
+
+      expect(getDocumentExport).toHaveBeenCalledWith(
+        "job-completed",
+        "cle-valide",
+        format.toLowerCase(),
+        expect.any(AbortSignal),
+      );
+      await waitFor(() => expect(click).toHaveBeenCalledOnce());
+    },
+  );
 
   it("ignore un téléchargement tardif après un changement de document", async () => {
     let resolveDownload: ((blob: Blob) => void) | undefined;
-    vi.mocked(getDocumentDocx).mockReturnValueOnce(
+    vi.mocked(getDocumentExport).mockReturnValueOnce(
       new Promise((resolve) => {
         resolveDownload = resolve;
       }),
@@ -533,7 +568,11 @@ describe("historique documentaire", () => {
     const user = userEvent.setup();
     renderHistory();
     await user.click(
-      (await screen.findAllByRole("button", { name: "DOCX" }))[0],
+      (
+        await screen.findAllByRole("button", {
+          name: /Télécharger au format DOCX/,
+        })
+      )[0],
     );
     await user.selectOptions(
       screen.getByLabelText("Filtrer par statut"),
@@ -544,17 +583,23 @@ describe("historique documentaire", () => {
       resolveDownload?.(new Blob(["ancien"], { type: "application/docx" })),
     );
     expect(click).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "DOCX" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: /Télécharger au format DOCX/ }),
+    ).toBeEnabled();
   });
 
   it("invalide globalement la clé active après un refus 401 de téléchargement", async () => {
-    vi.mocked(getDocumentDocx).mockRejectedValue(
+    vi.mocked(getDocumentExport).mockRejectedValue(
       new ApiError({ kind: "http", status: 401, message: "Clé révoquée" }),
     );
     const user = userEvent.setup();
     renderHistory();
     await user.click(
-      (await screen.findAllByRole("button", { name: "DOCX" }))[0],
+      (
+        await screen.findAllByRole("button", {
+          name: /Télécharger au format DOCX/,
+        })
+      )[0],
     );
     expect(
       await screen.findByText("Une clé API valide est nécessaire."),

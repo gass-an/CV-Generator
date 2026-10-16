@@ -262,7 +262,7 @@ export function DocumentPreview() {
       <div className="border-border space-y-4 border-t px-5 py-5 sm:px-6">
         <p className="text-muted-foreground text-sm">
           {state.phase === "completed"
-            ? "Le PDF et le DOCX sont générés à la demande."
+            ? "Téléchargez le document en PDF, DOCX, AsciiDoc ou Markdown."
             : isRunning
               ? "Le suivi se met à jour automatiquement, sans estimation artificielle."
               : "Les téléchargements sont disponibles lorsque la génération est terminée."}

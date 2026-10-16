@@ -156,7 +156,8 @@ sont appliqués par l'API, et les jobs en attente ou en cours peuvent être repr
 sans nouvel import et sans nouvelle requête de création.
 
 Pour un document terminé, le frontend récupère les fichiers avec `X-API-Key` :
-`/documents/{id}/download` pour le DOCX et `/documents/{id}/pdf` pour le PDF.
+`/documents/{id}/docx`, `/documents/{id}/pdf`, `/documents/{id}/adoc` et
+`/documents/{id}/md` pour les quatre formats proposés.
 Le PDF est généré à la demande par LibreOffice côté backend puis affiché depuis
 une Blob URL locale ; la clé API n'apparaît jamais dans l'URL du visualiseur.
 Les téléchargements utilisent des noms lisibles construits à partir du type,

@@ -10,6 +10,7 @@ import {
   getDocumentAvpNumbers,
   getDocumentHistory,
   getDocumentPdf,
+  getDocumentExport,
 } from "@/services/documentService";
 
 vi.mock("@/hooks/useDocumentPolling", () => ({
@@ -21,7 +22,7 @@ vi.mock("@/services/documentService", () => ({
   getDocumentHistory: vi.fn(),
   getDocumentAvpNumbers: vi.fn(),
   getDocumentPdf: vi.fn(),
-  getDocumentDocx: vi.fn(),
+  getDocumentExport: vi.fn(),
 }));
 
 const SESSION_KEY = "cv-generator.api-key.session";
@@ -92,6 +93,9 @@ describe("génération et suivi d'un document", () => {
     vi.mocked(getDocumentPdf).mockResolvedValue(
       new Blob(["%PDF-1.4"], { type: "application/pdf" }),
     );
+    vi.mocked(getDocumentExport).mockResolvedValue(
+      new Blob(["document"], { type: "application/octet-stream" }),
+    );
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:preview");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
   });
@@ -135,6 +139,9 @@ describe("génération et suivi d'un document", () => {
       screen.getByText("L'IA prépare votre document…"),
     ).toBeInTheDocument();
     expect(
+      screen.queryByRole("button", { name: /Télécharger au format/ }),
+    ).not.toBeInTheDocument();
+    expect(
       screen
         .getByText("L'IA prépare votre document…")
         .parentElement?.querySelector("svg"),
@@ -158,6 +165,31 @@ describe("génération et suivi d'un document", () => {
     expect(screen.getByText("Votre document est prêt !")).toBeInTheDocument();
     expect(document.querySelector(".generation-spinner")).toBeNull();
     expect(latestPollingOptions().enabled).toBe(false);
+    for (const format of ["PDF", "DOCX", "ADOC", "MD"]) {
+      expect(
+        screen.getByRole("button", {
+          name: `Télécharger au format ${format}`,
+        }),
+      ).toBeInTheDocument();
+    }
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+      () => undefined,
+    );
+    for (const format of ["ADOC", "MD"] as const) {
+      await user.click(
+        screen.getByRole("button", {
+          name: `Télécharger au format ${format}`,
+        }),
+      );
+      await waitFor(() =>
+        expect(getDocumentExport).toHaveBeenCalledWith(
+          "job-123",
+          "cle-valide",
+          format.toLowerCase(),
+          expect.any(AbortSignal),
+        ),
+      );
+    }
   });
 
   it("agrandit le PDF déjà chargé sans nouvel appel ni révocation prématurée", async () => {

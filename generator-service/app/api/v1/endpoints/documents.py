@@ -10,8 +10,13 @@ from app.core.exceptions import (
     DocumentJobNotReadyError,
     DocumentResultUnavailableError,
 )
-from app.models.document_job import DocumentJobStatus, DocumentType
-from app.renderers import DocxRenderer, DocxRenderingError
+from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
+from app.renderers import (
+    DocxRenderer,
+    DocxRenderingError,
+    MarkdownRenderer,
+    MarkdownRenderingError,
+)
 from app.schemas.document import (
     CreateDocumentRequest,
     DocumentAvpNumbersResponse,
@@ -38,6 +43,9 @@ DOCX_MEDIA_TYPE = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 )
 PDF_MEDIA_TYPE = "application/pdf"
+ASCIIDOC_MEDIA_TYPE = "text/asciidoc; charset=utf-8"
+MARKDOWN_MEDIA_TYPE = "text/markdown; charset=utf-8"
+CACHE_CONTROL_HEADERS = {"Cache-Control": "private, no-store"}
 
 DocumentService = Annotated[DocumentJobService, Depends(get_document_job_service)]
 DocumentId = Annotated[
@@ -318,8 +326,8 @@ async def get_document_result(
 
 
 @router.get(
-    "/{id}/download",
-    summary="Télécharger le document généré",
+    "/{id}/docx",
+    summary="Télécharger le document en DOCX",
     description=(
         "Télécharge un document terminé au format DOCX. Le résultat source est "
         "stocké en AsciiDoc et le fichier DOCX est généré à la demande."
@@ -339,40 +347,14 @@ async def get_document_result(
         },
     },
 )
-async def download_document(
+async def download_document_docx(
     document_id: DocumentId,
     service: DocumentService,
     identity: AuthenticatedIdentity,
 ) -> Response:
+    job = await _get_export_job(document_id, service, identity)
     try:
-        job = await service.get_asciidoc_job(document_id, client_id=identity.client_id)
         content = DocxRenderer().render(job.result_content or "")
-    except DocumentJobNotFoundError as error:
-        raise not_found_error() from error
-    except DocumentJobNotReadyError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "document_not_ready",
-                "message": "La génération du document n'est pas terminée",
-            },
-        ) from error
-    except DocumentGenerationFailedError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "document_generation_failed",
-                "message": "La génération du document a échoué",
-            },
-        ) from error
-    except DocumentResultUnavailableError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "document_result_unavailable",
-                "message": "Le résultat du document est indisponible",
-            },
-        ) from error
     except DocxRenderingError as error:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -390,6 +372,7 @@ async def download_document(
             "Content-Disposition": (
                 f'attachment; filename="{filename_prefix}-{document_id}.docx"'
             ),
+            **CACHE_CONTROL_HEADERS,
         },
     )
 
@@ -422,36 +405,10 @@ async def preview_document_pdf(
     identity: AuthenticatedIdentity,
     converter: PdfConverter,
 ) -> Response:
+    job = await _get_export_job(document_id, service, identity)
     try:
-        job = await service.get_asciidoc_job(document_id, client_id=identity.client_id)
         docx_content = DocxRenderer().render(job.result_content or "")
         pdf_content = await converter.convert(docx_content)
-    except DocumentJobNotFoundError as error:
-        raise not_found_error() from error
-    except DocumentJobNotReadyError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "document_not_ready",
-                "message": "La génération du document n'est pas terminée",
-            },
-        ) from error
-    except DocumentGenerationFailedError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "document_generation_failed",
-                "message": "La génération du document a échoué",
-            },
-        ) from error
-    except DocumentResultUnavailableError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "document_result_unavailable",
-                "message": "Le résultat du document est indisponible",
-            },
-        ) from error
     except DocxRenderingError as error:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -488,3 +445,116 @@ async def preview_document_pdf(
             "Cache-Control": "private, no-store",
         },
     )
+
+
+@router.get(
+    "/{id}/adoc",
+    summary="Télécharger le document source en AsciiDoc",
+    description=(
+        "Télécharge en UTF-8 le contenu AsciiDoc final stocké pour un document "
+        "terminé, sans nouvelle génération ni conversion."
+    ),
+    response_description="Fichier source AsciiDoc stocké.",
+    responses={
+        200: {"content": {"text/asciidoc": {}}, "description": "Source AsciiDoc."},
+        404: NOT_FOUND_RESPONSE,
+        409: CONFLICT_RESPONSE,
+        422: {"description": "Identifiant invalide."},
+    },
+)
+async def download_document_adoc(
+    document_id: DocumentId,
+    service: DocumentService,
+    identity: AuthenticatedIdentity,
+) -> Response:
+    job = await _get_export_job(document_id, service, identity)
+    filename = f"{document_filename_prefix(job.document_type)}-{document_id}.adoc"
+    return Response(
+        content=job.result_content or "",
+        media_type=ASCIIDOC_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            **CACHE_CONTROL_HEADERS,
+        },
+    )
+
+
+@router.get(
+    "/{id}/md",
+    summary="Télécharger le document en Markdown",
+    description=(
+        "Convertit à la demande en Markdown le contenu AsciiDoc final stocké, "
+        "sans appel au LLM ni création d'un nouveau traitement."
+    ),
+    response_description="Fichier Markdown converti à la demande.",
+    responses={
+        200: {"content": {"text/markdown": {}}, "description": "Document Markdown."},
+        404: NOT_FOUND_RESPONSE,
+        409: CONFLICT_RESPONSE,
+        422: {"description": "Identifiant invalide."},
+        500: {
+            "model": ErrorResponse,
+            "description": "La conversion Markdown a échoué.",
+        },
+    },
+)
+async def download_document_markdown(
+    document_id: DocumentId,
+    service: DocumentService,
+    identity: AuthenticatedIdentity,
+) -> Response:
+    job = await _get_export_job(document_id, service, identity)
+    try:
+        content = MarkdownRenderer().render(job.result_content or "")
+    except MarkdownRenderingError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "markdown_conversion_failed",
+                "message": "La conversion du document en Markdown a échoué",
+            },
+        ) from error
+    filename = f"{document_filename_prefix(job.document_type)}-{document_id}.md"
+    return Response(
+        content=content,
+        media_type=MARKDOWN_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            **CACHE_CONTROL_HEADERS,
+        },
+    )
+
+
+async def _get_export_job(
+    document_id: uuid.UUID,
+    service: DocumentJobService,
+    identity: AuthenticatedIdentity,
+) -> DocumentJob:
+    try:
+        return await service.get_asciidoc_job(document_id, client_id=identity.client_id)
+    except DocumentJobNotFoundError as error:
+        raise not_found_error() from error
+    except DocumentJobNotReadyError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "document_not_ready",
+                "message": "La génération du document n'est pas terminée",
+            },
+        ) from error
+    except DocumentGenerationFailedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "document_generation_failed",
+                "message": "La génération du document a échoué",
+            },
+        ) from error
+    except DocumentResultUnavailableError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "document_result_unavailable",
+                "message": "Le résultat du document est indisponible",
+            },
+        ) from error

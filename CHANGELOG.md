@@ -5,6 +5,17 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+### Ajouts
+
+- Ajout des téléchargements du source AsciiDoc et de sa conversion Markdown pour les CV, lettres de motivation et guides d'entretien.
+- Intégration des quatre formats PDF, DOCX, ADOC et MD dans la génération et l'historique du frontend.
+
+### Modifications
+
+- Harmonisation des routes d'export sous `/documents/{id}/{format}` et remplacement définitif de `/download` par `/docx`.
+- Conversion Markdown cohérente avec la normalisation DOCX, avec listes imbriquées CommonMark et préservation des blocs délimités pris en charge.
+- Sécurisation des blocs de code Markdown par un délimiteur CommonMark adapté aux séquences d'accents graves présentes dans leur contenu.
+
 ## [0.5.7] - 2026-10-14
 
 ### Modifications

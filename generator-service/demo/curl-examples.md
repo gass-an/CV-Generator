@@ -124,7 +124,7 @@ curl -s \
 ```bash
 curl -OJ \
   -H "X-API-Key: ${API_KEY}" \
-  http://127.0.0.1:8000/api/v1/documents/<ID>/download
+  http://127.0.0.1:8000/api/v1/documents/<ID>/docx
 ```
 
 ### Créer une lettre de motivation
@@ -164,7 +164,7 @@ curl -s \
 ```bash
 curl -OJ \
   -H "X-API-Key: ${API_KEY}" \
-  http://127.0.0.1:8000/api/v1/documents/<ID>/download
+  http://127.0.0.1:8000/api/v1/documents/<ID>/docx
 ```
 
 ### Créer un guide de préparation à l'entretien
@@ -205,7 +205,7 @@ curl -s \
 ```bash
 curl -OJ \
   -H "X-API-Key: ${API_KEY}" \
-  http://127.0.0.1:8000/api/v1/documents/<ID>/download
+  http://127.0.0.1:8000/api/v1/documents/<ID>/docx
 ```
 
 ## Historique et PDF

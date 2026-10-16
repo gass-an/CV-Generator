@@ -6,6 +6,7 @@ import type {
   DocumentJobStatusResponse,
   DocumentHistoryQuery,
   DocumentHistoryResponse,
+  DocumentExportFormat,
   DocumentType,
 } from "@/types/document";
 
@@ -14,6 +15,43 @@ export const DOCX_TIMEOUT_MS = 30_000;
 export const PDF_MEDIA_TYPE = "application/pdf";
 export const DOCX_MEDIA_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const ASCIIDOC_MEDIA_TYPE = "text/asciidoc";
+export const MARKDOWN_MEDIA_TYPE = "text/markdown";
+
+export const documentExportFormats: Record<
+  DocumentExportFormat,
+  {
+    endpoint: string;
+    extension: DocumentExportFormat;
+    mediaType: string;
+    timeoutMs: number;
+  }
+> = {
+  pdf: {
+    endpoint: "pdf",
+    extension: "pdf",
+    mediaType: PDF_MEDIA_TYPE,
+    timeoutMs: PDF_TIMEOUT_MS,
+  },
+  docx: {
+    endpoint: "docx",
+    extension: "docx",
+    mediaType: DOCX_MEDIA_TYPE,
+    timeoutMs: DOCX_TIMEOUT_MS,
+  },
+  adoc: {
+    endpoint: "adoc",
+    extension: "adoc",
+    mediaType: ASCIIDOC_MEDIA_TYPE,
+    timeoutMs: DOCX_TIMEOUT_MS,
+  },
+  md: {
+    endpoint: "md",
+    extension: "md",
+    mediaType: MARKDOWN_MEDIA_TYPE,
+    timeoutMs: DOCX_TIMEOUT_MS,
+  },
+};
 
 const creationPaths: Record<DocumentType, string> = {
   cv: "/documents/cv",
@@ -95,17 +133,16 @@ export async function getDocumentAvpNumbers(
 async function getDocumentBlob(
   jobId: string,
   apiKey: string,
-  path: "pdf" | "download",
-  expectedMediaType: string,
-  timeoutMs: number,
+  format: DocumentExportFormat,
   signal?: AbortSignal,
 ): Promise<Blob> {
+  const config = documentExportFormats[format];
   return apiRequestBody(
-    `/documents/${encodeURIComponent(jobId)}/${path}`,
-    { method: "GET", apiKey, signal, timeoutMs },
+    `/documents/${encodeURIComponent(jobId)}/${config.endpoint}`,
+    { method: "GET", apiKey, signal, timeoutMs: config.timeoutMs },
     async (response) => {
       const mediaType = response.headers.get("Content-Type")?.split(";", 1)[0];
-      if (mediaType !== expectedMediaType) {
+      if (mediaType !== config.mediaType) {
         throw new ApiError({
           kind: "http",
           status: response.status,
@@ -123,14 +160,7 @@ export function getDocumentPdf(
   apiKey: string,
   signal?: AbortSignal,
 ): Promise<Blob> {
-  return getDocumentBlob(
-    jobId,
-    apiKey,
-    "pdf",
-    PDF_MEDIA_TYPE,
-    PDF_TIMEOUT_MS,
-    signal,
-  );
+  return getDocumentBlob(jobId, apiKey, "pdf", signal);
 }
 
 export function getDocumentDocx(
@@ -138,12 +168,14 @@ export function getDocumentDocx(
   apiKey: string,
   signal?: AbortSignal,
 ): Promise<Blob> {
-  return getDocumentBlob(
-    jobId,
-    apiKey,
-    "download",
-    DOCX_MEDIA_TYPE,
-    DOCX_TIMEOUT_MS,
-    signal,
-  );
+  return getDocumentBlob(jobId, apiKey, "docx", signal);
+}
+
+export function getDocumentExport(
+  jobId: string,
+  apiKey: string,
+  format: DocumentExportFormat,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  return getDocumentBlob(jobId, apiKey, format, signal);
 }

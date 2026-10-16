@@ -1,11 +1,14 @@
 import {
+  ASCIIDOC_MEDIA_TYPE,
   createDocumentJob,
   DOCX_MEDIA_TYPE,
   getDocumentAvpNumbers,
   getDocumentDocx,
+  getDocumentExport,
   getDocumentHistory,
   getDocumentJobStatus,
   getDocumentPdf,
+  MARKDOWN_MEDIA_TYPE,
   PDF_TIMEOUT_MS,
   PDF_MEDIA_TYPE,
 } from "@/services/documentService";
@@ -118,12 +121,7 @@ describe("documentService", () => {
 
   it.each([
     ["pdf", getDocumentPdf, "/api/v1/documents/job-1/pdf", PDF_MEDIA_TYPE],
-    [
-      "docx",
-      getDocumentDocx,
-      "/api/v1/documents/job-1/download",
-      DOCX_MEDIA_TYPE,
-    ],
+    ["docx", getDocumentDocx, "/api/v1/documents/job-1/docx", DOCX_MEDIA_TYPE],
   ] as const)(
     "récupère le Blob %s authentifié",
     async (_format, loader, path, mediaType) => {
@@ -142,6 +140,28 @@ describe("documentService", () => {
         new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("X-API-Key"),
       ).toBe("cle-secrete");
       expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("cle-secrete");
+    },
+  );
+
+  it.each([
+    ["adoc", "/api/v1/documents/job-1/adoc", ASCIIDOC_MEDIA_TYPE],
+    ["md", "/api/v1/documents/job-1/md", MARKDOWN_MEDIA_TYPE],
+  ] as const)(
+    "récupère le Blob %s via la configuration centralisée",
+    async (format, path, mediaType) => {
+      const fetchMock = vi.mocked(fetch).mockResolvedValue(
+        new Response("document", {
+          status: 200,
+          headers: { "Content-Type": `${mediaType}; charset=utf-8` },
+        }),
+      );
+
+      await getDocumentExport("job-1", "cle-secrete", format);
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(path);
+      expect(
+        new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("X-API-Key"),
+      ).toBe("cle-secrete");
     },
   );
 

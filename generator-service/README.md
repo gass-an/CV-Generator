@@ -65,8 +65,10 @@ Endpoints de génération disponibles :
 - `GET /api/v1/documents`
 - `GET /api/v1/documents/{id}/status`
 - `GET /api/v1/documents/{id}`
-- `GET /api/v1/documents/{id}/download`
+- `GET /api/v1/documents/{id}/docx`
 - `GET /api/v1/documents/{id}/pdf`
+- `GET /api/v1/documents/{id}/adoc`
+- `GET /api/v1/documents/{id}/md`
 
 Toutes ces routes documentaires exigent l'en-tête `X-API-Key`. Redoc et le
 schéma OpenAPI restent publics ; Redoc décrit ce mécanisme d'authentification,
@@ -87,7 +89,7 @@ Une fois la génération terminée, le document peut être téléchargé au form
 ```bash
 curl -OJ \
   -H "X-API-Key: ${API_KEY}" \
-  http://127.0.0.1:8000/api/v1/documents/<ID>/download
+  http://127.0.0.1:8000/api/v1/documents/<ID>/docx
 ```
 
 Le fichier `.docx` est généré à la demande à partir de l'AsciiDoc stocké. Il

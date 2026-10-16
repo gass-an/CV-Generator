@@ -23,6 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "markdown-it-py>=3.0,<5.0",
     "pytest>=8.3,<9.0",
     "pytest-asyncio>=0.24,<1.0",
     "ruff>=0.7,<1.0",

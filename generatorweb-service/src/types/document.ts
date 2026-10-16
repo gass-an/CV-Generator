@@ -3,6 +3,7 @@ import type { JsonObject } from "@/types/resume";
 export type DocumentType = "cv" | "cover_letter" | "interview_prep";
 export type DocumentJobStatus =
   "pending" | "processing" | "completed" | "failed";
+export type DocumentExportFormat = "pdf" | "docx" | "adoc" | "md";
 
 export type CreateDocumentPayload = {
   avp_number: string;

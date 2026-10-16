@@ -4,10 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { useAppState } from "@/hooks/useAppState";
 import { documentFilename, triggerBlobDownload } from "@/lib/documentFiles";
 import { ApiError } from "@/services/apiClient";
-import { getDocumentDocx, getDocumentPdf } from "@/services/documentService";
-import type { DocumentMetadata } from "@/types/document";
+import { getDocumentExport } from "@/services/documentService";
+import type { DocumentExportFormat, DocumentMetadata } from "@/types/document";
 
-type DownloadFormat = "docx" | "pdf";
+const downloadFormats: readonly DocumentExportFormat[] = [
+  "pdf",
+  "docx",
+  "adoc",
+  "md",
+];
 
 export function DocumentDownloadActions({
   document,
@@ -17,7 +22,9 @@ export function DocumentDownloadActions({
   compact?: boolean;
 }) {
   const { auth } = useAppState();
-  const [activeFormat, setActiveFormat] = useState<DownloadFormat | null>(null);
+  const [activeFormat, setActiveFormat] = useState<DocumentExportFormat | null>(
+    null,
+  );
   const [message, setMessage] = useState<{
     kind: "success" | "error";
     text: string;
@@ -42,7 +49,7 @@ export function DocumentDownloadActions({
     };
   }, [auth.activeApiKey, document.id]);
 
-  async function download(format: DownloadFormat) {
+  async function download(format: DocumentExportFormat) {
     if (!available || activeFormat) return;
     const apiKey = auth.activeApiKey!;
     const currentOperation = ++operation.current;
@@ -52,14 +59,12 @@ export function DocumentDownloadActions({
     setActiveFormat(format);
     setMessage(null);
     try {
-      const blob =
-        format === "pdf"
-          ? await getDocumentPdf(document.id, apiKey, requestController.signal)
-          : await getDocumentDocx(
-              document.id,
-              apiKey,
-              requestController.signal,
-            );
+      const blob = await getDocumentExport(
+        document.id,
+        apiKey,
+        format,
+        requestController.signal,
+      );
       if (
         requestController.signal.aborted ||
         controller.current !== requestController ||
@@ -104,13 +109,14 @@ export function DocumentDownloadActions({
       <div
         className={`grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 ${compact ? "text-xs" : ""}`}
       >
-        {(["docx", "pdf"] as const).map((format) => (
+        {downloadFormats.map((format) => (
           <button
             key={format}
             type="button"
             disabled={!available || activeFormat !== null}
             onClick={() => void download(format)}
-            className="border-border text-primary hover:bg-primary/5 disabled:bg-muted disabled:text-muted-foreground flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 font-semibold transition-colors disabled:cursor-not-allowed"
+            aria-label={`Télécharger au format ${format.toUpperCase()}`}
+            className="border-border text-primary hover:bg-primary/5 disabled:bg-muted disabled:text-muted-foreground flex min-h-11 items-center justify-center gap-2 rounded-lg border px-3 font-semibold transition-colors disabled:cursor-not-allowed motion-reduce:transition-none"
           >
             {activeFormat === format ? (
               <LoaderCircle

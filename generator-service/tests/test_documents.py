@@ -497,7 +497,7 @@ async def test_download_completed_job_returns_readable_docx(
         result_format="asciidoc",
     )
 
-    response = await api_client.get(f"/api/v1/documents/{job.id}/download")
+    response = await api_client.get(f"/api/v1/documents/{job.id}/docx")
 
     assert response.status_code == 200
     assert response.headers["content-type"] == (
@@ -527,7 +527,7 @@ async def test_download_cover_letter_uses_type_specific_filename(
         result_format="asciidoc",
     )
 
-    response = await api_client.get(f"/api/v1/documents/{job.id}/download")
+    response = await api_client.get(f"/api/v1/documents/{job.id}/docx")
 
     assert response.status_code == 200
     assert response.headers["content-disposition"] == (
@@ -550,13 +550,127 @@ async def test_download_interview_prep_uses_type_specific_filename(
         ),
         result_format="asciidoc",
     )
-    response = await api_client.get(f"/api/v1/documents/{job.id}/download")
+    response = await api_client.get(f"/api/v1/documents/{job.id}/docx")
     assert response.status_code == 200
     assert response.headers["content-disposition"] == (
         f'attachment; filename="guide-entretien-{job.id}.docx"'
     )
     document = Document(BytesIO(response.content))
     assert "Guide de préparation à l'entretien" in [p.text for p in document.paragraphs]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("document_type", "prefix"),
+    [
+        (DocumentType.CV, "cv"),
+        (DocumentType.COVER_LETTER, "lettre-motivation"),
+        (DocumentType.INTERVIEW_PREP, "guide-entretien"),
+    ],
+)
+async def test_adoc_returns_exact_utf8_stored_source_for_all_document_types(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+    document_type: DocumentType,
+    prefix: str,
+) -> None:
+    source = "= Élodie\r\n\r\n== Compétences\r\n\r\n** Liste imbriquée — &\r\n"
+    job = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        document_type=document_type,
+        result_content=source,
+        result_format="asciidoc",
+    )
+
+    response = await api_client.get(f"/api/v1/documents/{job.id}/adoc")
+
+    assert response.status_code == 200
+    assert response.content == source.encode()
+    assert response.headers["content-type"] == "text/asciidoc; charset=utf-8"
+    assert response.headers["content-disposition"] == (
+        f'attachment; filename="{prefix}-{job.id}.adoc"'
+    )
+    assert response.headers["cache-control"] == "private, no-store"
+
+
+@pytest.mark.asyncio
+async def test_markdown_converts_final_asciidoc_source(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    source = "= CV d'Élodie\n\n== Profil\n\n* *Fiable*\n** Autonome\n. Étape\n.. Détail"
+    job = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        result_content=source,
+        result_format="asciidoc",
+    )
+
+    response = await api_client.get(f"/api/v1/documents/{job.id}/md")
+
+    assert response.status_code == 200
+    assert (
+        response.text
+        == """# CV d'Élodie
+
+## Profil
+
+- **Fiable**
+    - Autonome
+1. Étape
+    1. Détail"""
+    )
+    assert response.headers["content-type"] == "text/markdown; charset=utf-8"
+    assert response.headers["content-disposition"] == (
+        f'attachment; filename="cv-{job.id}.md"'
+    )
+    assert response.headers["cache-control"] == "private, no-store"
+
+
+@pytest.mark.asyncio
+async def test_markdown_conversion_error_is_controlled(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        result_content=ASCIIDOC_CV,
+        result_format="asciidoc",
+    )
+
+    def fail_conversion(_renderer: object, _source: str) -> str:
+        from app.renderers import MarkdownRenderingError
+
+        raise MarkdownRenderingError("détail interne")
+
+    monkeypatch.setattr(
+        "app.api.v1.endpoints.documents.MarkdownRenderer.render", fail_conversion
+    )
+
+    response = await api_client.get(f"/api/v1/documents/{job.id}/md")
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == {
+        "code": "markdown_conversion_failed",
+        "message": "La conversion du document en Markdown a échoué",
+    }
+    assert "détail interne" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_removed_download_route_returns_not_found(
+    api_client: httpx.AsyncClient,
+    document_service: FakeDocumentJobService,
+) -> None:
+    job = document_service.add_job(
+        DocumentJobStatus.COMPLETED,
+        result_content=ASCIIDOC_CV,
+        result_format="asciidoc",
+    )
+
+    response = await api_client.get(f"/api/v1/documents/{job.id}/download")
+
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -684,7 +798,7 @@ async def test_pdf_unusable_result_returns_conflict(
 async def test_download_unknown_job_returns_not_found(
     api_client: httpx.AsyncClient,
 ) -> None:
-    response = await api_client.get(f"/api/v1/documents/{uuid.uuid4()}/download")
+    response = await api_client.get(f"/api/v1/documents/{uuid.uuid4()}/docx")
 
     assert response.status_code == 404
     assert response.json()["detail"]["code"] == "document_job_not_found"
@@ -707,7 +821,7 @@ async def test_download_unavailable_job_returns_conflict(
 ) -> None:
     job = document_service.add_job(job_status)
 
-    response = await api_client.get(f"/api/v1/documents/{job.id}/download")
+    response = await api_client.get(f"/api/v1/documents/{job.id}/docx")
 
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == error_code
@@ -725,7 +839,7 @@ async def test_download_completed_job_without_usable_result_is_controlled(
         result_format="asciidoc",
     )
 
-    response = await api_client.get(f"/api/v1/documents/{job.id}/download")
+    response = await api_client.get(f"/api/v1/documents/{job.id}/docx")
 
     assert response.status_code == 409
     assert response.json()["detail"] == {
@@ -755,7 +869,7 @@ async def test_download_completed_job_with_unavailable_result_returns_conflict(
         result_format=result_format,
     )
 
-    response = await api_client.get(f"/api/v1/documents/{job.id}/download")
+    response = await api_client.get(f"/api/v1/documents/{job.id}/docx")
 
     assert response.status_code == 409
     assert response.json()["detail"] == {
@@ -788,8 +902,10 @@ async def test_openapi_documents_generation_routes_in_french(
         "/api/v1/documents/avp-numbers",
         "/api/v1/documents/{id}/status",
         "/api/v1/documents/{id}",
-        "/api/v1/documents/{id}/download",
+        "/api/v1/documents/{id}/docx",
         "/api/v1/documents/{id}/pdf",
+        "/api/v1/documents/{id}/adoc",
+        "/api/v1/documents/{id}/md",
     }
     assert set(schema["paths"]) == expected_paths
     assert not any("{job_id}" in path for path in schema["paths"])
@@ -808,8 +924,10 @@ async def test_openapi_documents_generation_routes_in_french(
     for path in (
         "/api/v1/documents/{id}/status",
         "/api/v1/documents/{id}",
-        "/api/v1/documents/{id}/download",
+        "/api/v1/documents/{id}/docx",
         "/api/v1/documents/{id}/pdf",
+        "/api/v1/documents/{id}/adoc",
+        "/api/v1/documents/{id}/md",
     ):
         operation = schema["paths"][path]["get"]
         path_parameter = next(

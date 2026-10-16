@@ -120,7 +120,7 @@ async def test_generation_assigns_authenticated_client(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("suffix", ["/status", "", "/download", "/pdf"])
+@pytest.mark.parametrize("suffix", ["/status", "", "/docx", "/pdf", "/adoc", "/md"])
 async def test_only_owner_can_access_every_document_route(
     secured_api: tuple[httpx.AsyncClient, FakeDocumentJobService, FakeApiKeyService],
     suffix: str,
