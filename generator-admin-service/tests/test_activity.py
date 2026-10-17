@@ -26,6 +26,7 @@ def make_job(
     candidate_name: str | None = None,
     started_at: datetime | None = None,
     completed_at: datetime | None = None,
+    cancelled_at: datetime | None = None,
 ) -> DocumentJob:
     basics = {"email": "ne-doit-pas-etre-expose@example.test"}
     if candidate_name is not None:
@@ -39,6 +40,7 @@ def make_job(
         created_at=created_at,
         started_at=started_at,
         completed_at=completed_at,
+        cancelled_at=cancelled_at,
         updated_at=completed_at or started_at or created_at,
     )
 
@@ -108,6 +110,13 @@ async def test_activity_attributes_jobs_and_counts_in_admin_timezone(
                     created_at=now - timedelta(days=2),
                     completed_at=now - timedelta(days=1),
                 ),
+                make_job(
+                    client_id=active.id,
+                    status=DocumentJobStatus.CANCELLED,
+                    avp_number="TEST-ADMIN-ACT-CANCELLED",
+                    created_at=now - timedelta(days=3),
+                    cancelled_at=now - timedelta(days=2),
+                ),
             ]
         )
 
@@ -136,6 +145,9 @@ async def test_activity_attributes_jobs_and_counts_in_admin_timezone(
     assert "Donnée sensible" not in page.text
     assert "ne-doit-pas-etre-expose" not in page.text
     assert 'aria-current="page">Activité</a>' in page.text
+    assert "Annulée" in page.text
+    assert "Issue" in page.text
+    assert "Annulée le 15/10/2026 12:30" in page.text
 
     payload = (await browser.get("/activity/data")).json()
     serialized = str(payload)
@@ -143,6 +155,9 @@ async def test_activity_attributes_jobs_and_counts_in_admin_timezone(
     assert "Donnée sensible" not in serialized
     assert "ne-doit-pas-etre-expose" not in serialized
     assert "error_message" not in serialized
+    cancelled = next(job for job in payload["history"] if job["status"] == "cancelled")
+    assert cancelled["completed_at"] == ""
+    assert cancelled["cancelled_at"] == "15/10/2026 12:30"
 
 
 @pytest.mark.asyncio

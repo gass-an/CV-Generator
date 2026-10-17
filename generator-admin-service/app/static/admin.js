@@ -89,7 +89,15 @@ function activityRow(job) {
   row.append(status);
   row.append(activityCell(job.created_at));
   row.append(activityCell(job.started_at));
-  row.append(activityCell(job.completed_at));
+  row.append(
+    activityCell(
+      job.cancelled_at
+        ? `Annulée le ${job.cancelled_at}`
+        : job.completed_at
+          ? `Terminée le ${job.completed_at}`
+          : null,
+    ),
+  );
 
   const identifier = document.createElement("td");
   const details = document.createElement("details");

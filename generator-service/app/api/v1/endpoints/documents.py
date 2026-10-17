@@ -1,6 +1,8 @@
 import uuid
 from typing import Annotated
 
+from cv_generator_shared.dto import ApiIdentity
+from cv_generator_shared.exceptions import ApiKeyNotFoundError
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 
 from app.api.dependencies import AuthenticatedIdentity
@@ -77,6 +79,31 @@ def not_found_error() -> HTTPException:
     )
 
 
+def invalid_api_key_error() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail={"code": "invalid_api_key", "message": "Clé API absente ou invalide"},
+    )
+
+
+async def create_document_job(
+    service: DocumentJobService,
+    identity: ApiIdentity,
+    request: CreateDocumentRequest,
+    document_type: DocumentType,
+) -> DocumentJob:
+    try:
+        return await service.create_job(
+            client_id=identity.client_id,
+            api_key_id=identity.key_id,
+            document_type=document_type,
+            avp_number=request.avp_number,
+            resume_data=request.resume,
+        )
+    except ApiKeyNotFoundError as error:
+        raise invalid_api_key_error() from error
+
+
 def document_filename_prefix(document_type: DocumentType) -> str:
     return {
         DocumentType.CV: "cv",
@@ -106,12 +133,7 @@ async def create_cv_document(
     service: DocumentService,
     identity: AuthenticatedIdentity,
 ) -> DocumentJobCreatedResponse:
-    job = await service.create_job(
-        client_id=identity.client_id,
-        document_type=DocumentType.CV,
-        avp_number=request.avp_number,
-        resume_data=request.resume,
-    )
+    job = await create_document_job(service, identity, request, DocumentType.CV)
     return DocumentJobCreatedResponse(id=job.id, status=job.status)
 
 
@@ -136,11 +158,8 @@ async def create_cover_letter_document(
     service: DocumentService,
     identity: AuthenticatedIdentity,
 ) -> DocumentJobCreatedResponse:
-    job = await service.create_job(
-        client_id=identity.client_id,
-        document_type=DocumentType.COVER_LETTER,
-        avp_number=request.avp_number,
-        resume_data=request.resume,
+    job = await create_document_job(
+        service, identity, request, DocumentType.COVER_LETTER
     )
     return DocumentJobCreatedResponse(id=job.id, status=job.status)
 
@@ -164,11 +183,8 @@ async def create_interview_prep_document(
     service: DocumentService,
     identity: AuthenticatedIdentity,
 ) -> DocumentJobCreatedResponse:
-    job = await service.create_job(
-        client_id=identity.client_id,
-        document_type=DocumentType.INTERVIEW_PREP,
-        avp_number=request.avp_number,
-        resume_data=request.resume,
+    job = await create_document_job(
+        service, identity, request, DocumentType.INTERVIEW_PREP
     )
     return DocumentJobCreatedResponse(id=job.id, status=job.status)
 
@@ -215,6 +231,7 @@ async def list_document_history(
                 created_at=item.created_at,
                 started_at=item.started_at,
                 completed_at=item.completed_at,
+                cancelled_at=item.cancelled_at,
             )
             for item in items
         ],
@@ -272,6 +289,7 @@ async def get_document_status(
         created_at=job.created_at,
         started_at=job.started_at,
         completed_at=job.completed_at,
+        cancelled_at=job.cancelled_at,
     )
 
 

@@ -50,6 +50,7 @@ export function DocumentPreview() {
     state.phase === "processing" ||
     state.phase === "completed" ||
     state.phase === "failed" ||
+    state.phase === "cancelled" ||
     state.phase === "interrupted"
       ? state.job
       : null;
@@ -108,6 +109,14 @@ export function DocumentPreview() {
           description:
             "Aucun détail supplémentaire n'est fourni par le suivi. Vous pouvez lancer une nouvelle génération.",
         };
+      case "cancelled":
+        return {
+          badge: "Annulée",
+          icon: CircleX,
+          title: "La génération du document a été annulée.",
+          description:
+            "La clé API utilisée pour cette demande a été révoquée avant le début du traitement.",
+        };
       case "interrupted":
         return {
           badge: "Suivi interrompu",
@@ -144,6 +153,7 @@ export function DocumentPreview() {
           aria-atomic="true"
           variant={
             state.phase === "failed" ||
+            state.phase === "cancelled" ||
             state.phase === "interrupted" ||
             state.phase === "creation_error"
               ? "accent"

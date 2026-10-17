@@ -67,6 +67,17 @@ const items: DocumentHistoryItem[] = [
     started_at: null,
     completed_at: "2026-10-08T08:01:00+11:00",
   },
+  {
+    id: "job-cancelled",
+    type: "cv",
+    status: "cancelled",
+    avp_number: "AVP-5",
+    candidate_name: "Ana Exemple",
+    created_at: "2026-10-07T08:00:00+11:00",
+    started_at: null,
+    completed_at: null,
+    cancelled_at: "2026-10-07T08:00:05+11:00",
+  },
 ];
 
 function page(
@@ -144,6 +155,9 @@ describe("historique documentaire", () => {
     renderHistory();
     expect(await screen.findByText("Camille Exemple")).toBeInTheDocument();
     expect(screen.getByText("Léa Martin")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Annulée").some((element) => element.tagName === "SPAN"),
+    ).toBe(true);
     expect(screen.getByText("Candidat non renseigné")).toBeInTheDocument();
     expect(
       screen.getAllByRole("button", { name: "Reprendre le suivi" }),
@@ -193,6 +207,25 @@ describe("historique documentaire", () => {
     await waitFor(() =>
       expect(getDocumentHistory).toHaveBeenLastCalledWith(
         expect.objectContaining({ offset: 0, status: "completed" }),
+        "cle-valide",
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+
+  it("filtre l'historique sur les générations annulées", async () => {
+    const user = userEvent.setup();
+    renderHistory();
+    await screen.findByText("Ana Exemple");
+
+    await user.selectOptions(
+      screen.getByLabelText("Filtrer par statut"),
+      "cancelled",
+    );
+
+    await waitFor(() =>
+      expect(getDocumentHistory).toHaveBeenLastCalledWith(
+        expect.objectContaining({ offset: 0, status: "cancelled" }),
         "cle-valide",
         expect.any(AbortSignal),
       ),

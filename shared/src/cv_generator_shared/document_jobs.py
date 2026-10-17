@@ -30,6 +30,7 @@ class DocumentJobStatus(StrEnum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class DocumentJob(Base):
@@ -42,7 +43,7 @@ class DocumentJob(Base):
             name="ck_document_job_document_type",
         ),
         CheckConstraint(
-            "status IN ('pending', 'processing', 'completed', 'failed')",
+            "status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')",
             name="ck_document_job_status",
         ),
     )
@@ -52,6 +53,9 @@ class DocumentJob(Base):
     )
     client_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("api_client.id"), nullable=True, index=True
+    )
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("api_key.id"), nullable=True, index=True
     )
     document_type: Mapped[DocumentType] = mapped_column(
         Enum(
@@ -86,6 +90,10 @@ class DocumentJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    cancelled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    cancellation_reason: Mapped[str | None] = mapped_column(String(128), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

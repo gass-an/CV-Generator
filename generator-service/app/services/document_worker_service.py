@@ -107,13 +107,21 @@ class DocumentWorkerService:
         now = datetime.now(UTC)
         cutoff = now - timedelta(seconds=self._stale_job_timeout_seconds)
         async with self._session_factory() as session, session.begin():
-            job_ids = await self._repository_factory(session).requeue_stale_jobs(
+            recovery = await self._repository_factory(session).requeue_stale_jobs(
                 cutoff=cutoff,
                 now=now,
             )
-        if job_ids:
-            logger.warning("Jobs expirés remis en attente nombre=%d", len(job_ids))
-        return len(job_ids)
+        if recovery.requeued_ids:
+            logger.warning(
+                "Jobs expirés remis en attente nombre=%d",
+                len(recovery.requeued_ids),
+            )
+        if recovery.cancelled_ids:
+            logger.warning(
+                "Jobs expirés annulés après révocation nombre=%d",
+                len(recovery.cancelled_ids),
+            )
+        return recovery.total
 
     async def run(self, stop_event: asyncio.Event) -> None:
         """Exécute la boucle de polling jusqu'au signal d'arrêt."""

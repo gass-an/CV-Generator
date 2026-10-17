@@ -124,12 +124,14 @@ class FakeDocumentJobService:
         self,
         *,
         client_id: uuid.UUID,
+        api_key_id: uuid.UUID,
         document_type: DocumentType,
         avp_number: str,
         resume_data: dict[str, Any],
     ) -> DocumentJob:
         job = self.add_job(DocumentJobStatus.PENDING, document_type=document_type)
         job.client_id = client_id
+        job.api_key_id = api_key_id
         job.avp_number = avp_number
         job.resume_data = resume_data
         return job

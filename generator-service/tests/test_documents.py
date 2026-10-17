@@ -949,6 +949,7 @@ async def test_openapi_documents_generation_routes_in_french(
         "processing",
         "completed",
         "failed",
+        "cancelled",
     ]
     request_schema = components["CreateDocumentRequest"]["properties"]
     assert request_schema["avp_number"]["examples"] == ["3134-26-1382/SR"]

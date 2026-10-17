@@ -57,6 +57,7 @@ class DocumentJobStatusResponse(BaseModel):
     completed_at: datetime | None = Field(
         description="Date de fin du traitement, en succès ou en échec."
     )
+    cancelled_at: datetime | None = Field(description="Date d'annulation éventuelle.")
 
 
 class DocumentHistoryItemResponse(BaseModel):
@@ -72,6 +73,7 @@ class DocumentHistoryItemResponse(BaseModel):
     created_at: datetime = Field(description="Date de création de la demande.")
     started_at: datetime | None = Field(description="Date de début du traitement.")
     completed_at: datetime | None = Field(description="Date de fin du traitement.")
+    cancelled_at: datetime | None = Field(description="Date d'annulation éventuelle.")
 
 
 class DocumentHistoryResponse(BaseModel):

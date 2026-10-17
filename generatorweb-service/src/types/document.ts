@@ -2,7 +2,7 @@ import type { JsonObject } from "@/types/resume";
 
 export type DocumentType = "cv" | "cover_letter" | "interview_prep";
 export type DocumentJobStatus =
-  "pending" | "processing" | "completed" | "failed";
+  "pending" | "processing" | "completed" | "failed" | "cancelled";
 export type DocumentExportFormat = "pdf" | "docx" | "adoc" | "md";
 
 export type CreateDocumentPayload = {
@@ -21,6 +21,7 @@ export type DocumentJobStatusResponse = {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  cancelled_at?: string | null;
 };
 
 export type DocumentHistoryItem = {
@@ -32,6 +33,7 @@ export type DocumentHistoryItem = {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  cancelled_at?: string | null;
 };
 
 export type DocumentHistoryResponse = {
@@ -94,7 +96,7 @@ export type GenerationState =
       message: string;
       authenticationError: boolean;
     }
-  | { phase: "completed" | "failed"; job: TrackedDocumentJob };
+  | { phase: "completed" | "failed" | "cancelled"; job: TrackedDocumentJob };
 
 export const documentTypeLabels: Record<DocumentType, string> = {
   cv: "Curriculum vitæ",
@@ -107,4 +109,5 @@ export const documentStatusLabels: Record<DocumentJobStatus, string> = {
   processing: "En cours",
   completed: "Terminé",
   failed: "Échec",
+  cancelled: "Annulée",
 };

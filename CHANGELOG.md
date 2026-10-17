@@ -5,6 +5,10 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+### Ajouts
+
+- Annulation automatique des générations en attente lors de la révocation de la clé API qui les a demandées, avec un statut « Annulée » visible dans l’administration et l’historique.
+
 ## [0.7.0] - 2026-10-17
 
 ### Ajouts

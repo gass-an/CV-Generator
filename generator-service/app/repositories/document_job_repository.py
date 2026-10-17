@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import case, func, select, update
+from cv_generator_shared.models import ApiKey
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
@@ -21,6 +22,19 @@ class DocumentHistoryRecord:
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
+    cancelled_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class StaleJobRecovery:
+    """Résultat explicite d'une récupération de traitements interrompus."""
+
+    requeued_ids: list[uuid.UUID]
+    cancelled_ids: list[uuid.UUID]
+
+    @property
+    def total(self) -> int:
+        return len(self.requeued_ids) + len(self.cancelled_ids)
 
 
 class DocumentJobRepository:
@@ -33,12 +47,14 @@ class DocumentJobRepository:
         self,
         *,
         client_id: uuid.UUID,
+        api_key_id: uuid.UUID,
         document_type: DocumentType,
         avp_number: str,
         resume_data: dict[str, Any],
     ) -> DocumentJob:
         job = DocumentJob(
             client_id=client_id,
+            api_key_id=api_key_id,
             document_type=document_type,
             status=DocumentJobStatus.PENDING,
             avp_number=avp_number,
@@ -101,6 +117,7 @@ class DocumentJobRepository:
                 DocumentJob.created_at,
                 DocumentJob.started_at,
                 DocumentJob.completed_at,
+                DocumentJob.cancelled_at,
             )
             .where(*filters)
             .order_by(DocumentJob.created_at.desc(), DocumentJob.id.desc())
@@ -121,6 +138,7 @@ class DocumentJobRepository:
                 created_at=row.created_at,
                 started_at=row.started_at,
                 completed_at=row.completed_at,
+                cancelled_at=row.cancelled_at,
             )
             for row in rows
         ]
@@ -242,14 +260,52 @@ class DocumentJobRepository:
         *,
         cutoff: datetime,
         now: datetime,
-    ) -> list[uuid.UUID]:
-        """Remet en attente les jobs dont le traitement a dépassé le délai."""
+    ) -> StaleJobRecovery:
+        """Réactive ou annule les traitements périmés selon leur clé."""
+        stale_filters = (
+            DocumentJob.status == DocumentJobStatus.PROCESSING,
+            DocumentJob.started_at < cutoff,
+        )
+        stale_key_ids = (
+            select(DocumentJob.api_key_id)
+            .where(*stale_filters, DocumentJob.api_key_id.is_not(None))
+            .group_by(DocumentJob.api_key_id)
+        )
+        locked_keys = list(
+            (
+                await self._session.scalars(
+                    select(ApiKey)
+                    .where(ApiKey.id.in_(stale_key_ids))
+                    .order_by(ApiKey.id)
+                    .with_for_update()
+                )
+            ).all()
+        )
+        revoked_key_ids = [key.id for key in locked_keys if key.revoked_at is not None]
+        cancelled_ids: list[uuid.UUID] = []
+        if revoked_key_ids:
+            cancelled = (
+                update(DocumentJob)
+                .where(*stale_filters, DocumentJob.api_key_id.in_(revoked_key_ids))
+                .values(
+                    status=DocumentJobStatus.CANCELLED,
+                    cancelled_at=now,
+                    cancellation_reason="api_key_revoked",
+                    updated_at=now,
+                )
+                .returning(DocumentJob.id)
+            )
+            cancelled_ids = list(
+                (await self._session.execute(cancelled)).scalars().all()
+            )
+
+        requeue_key_filter = or_(
+            DocumentJob.api_key_id.is_(None),
+            DocumentJob.api_key_id.not_in(revoked_key_ids),
+        )
         statement = (
             update(DocumentJob)
-            .where(
-                DocumentJob.status == DocumentJobStatus.PROCESSING,
-                DocumentJob.started_at < cutoff,
-            )
+            .where(*stale_filters, requeue_key_filter)
             .values(
                 status=DocumentJobStatus.PENDING,
                 started_at=None,
@@ -263,4 +319,7 @@ class DocumentJobRepository:
             .returning(DocumentJob.id)
         )
         result = await self._session.execute(statement)
-        return list(result.scalars().all())
+        return StaleJobRecovery(
+            requeued_ids=list(result.scalars().all()),
+            cancelled_ids=cancelled_ids,
+        )

@@ -77,6 +77,34 @@ describe("useDocumentPolling", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
+  it("s'arrête définitivement lorsque le job est annulé", async () => {
+    const cancelled = {
+      ...processing,
+      status: "cancelled" as const,
+      cancelled_at: "2026-10-11T08:00:05+11:00",
+    };
+    vi.mocked(getDocumentJobStatus).mockResolvedValue(cancelled);
+    const onStatus = vi.fn();
+
+    renderHook(() =>
+      useDocumentPolling({
+        jobId: "job-1",
+        apiKey: "cle-api",
+        enabled: true,
+        retryToken: 0,
+        onStatus,
+        onError: vi.fn(),
+      }),
+    );
+
+    await act(() => vi.advanceTimersByTimeAsync(DOCUMENT_POLLING_INTERVAL_MS));
+    expect(onStatus).toHaveBeenCalledWith(cancelled);
+    await act(() =>
+      vi.advanceTimersByTimeAsync(DOCUMENT_POLLING_INTERVAL_MS * 4),
+    );
+    expect(getDocumentJobStatus).toHaveBeenCalledOnce();
+  });
+
   it("interrompt le suivi sur erreur et permet une reprise explicite", async () => {
     const failure = new ApiError({
       kind: "network",

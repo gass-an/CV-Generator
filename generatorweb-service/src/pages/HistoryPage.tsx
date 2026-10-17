@@ -346,6 +346,7 @@ export function HistoryPage() {
                   <option value="processing">En cours</option>
                   <option value="completed">Terminé</option>
                   <option value="failed">Échec</option>
+                  <option value="cancelled">Annulée</option>
                 </select>
               </label>
               <AvpCombobox

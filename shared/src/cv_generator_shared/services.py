@@ -3,9 +3,11 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cv_generator_shared.document_jobs import DocumentJob, DocumentJobStatus
 from cv_generator_shared.dto import (
     ApiClientData,
     ApiIdentity,
@@ -203,7 +205,21 @@ class ApiKeyService:
             if key is None:
                 raise ApiKeyNotFoundError(key_id)
             if key.revoked_at is None:
-                key.revoked_at = self._now()
+                now = self._now()
+                key.revoked_at = now
+                await self._session.execute(
+                    update(DocumentJob)
+                    .where(
+                        DocumentJob.api_key_id == key.id,
+                        DocumentJob.status == DocumentJobStatus.PENDING,
+                    )
+                    .values(
+                        status=DocumentJobStatus.CANCELLED,
+                        cancelled_at=now,
+                        cancellation_reason="api_key_revoked",
+                        updated_at=now,
+                    )
+                )
                 await self._session.flush()
             return self._key_data(key)
 

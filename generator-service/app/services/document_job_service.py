@@ -1,6 +1,9 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
+from cv_generator_shared.exceptions import ApiKeyNotFoundError
+from cv_generator_shared.repositories import ApiClientRepository, ApiKeyRepository
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,13 +36,29 @@ class DocumentJobService:
         self,
         *,
         client_id: uuid.UUID,
+        api_key_id: uuid.UUID,
         document_type: DocumentType,
         avp_number: str,
         resume_data: dict[str, Any],
     ) -> DocumentJob:
         async with self._session.begin():
+            key = await ApiKeyRepository(self._session).get_by_id(
+                api_key_id, for_update=True
+            )
+            client = await ApiClientRepository(self._session).get_by_id(client_id)
+            now = datetime.now(UTC)
+            if (
+                key is None
+                or key.client_id != client_id
+                or key.revoked_at is not None
+                or (key.expires_at is not None and key.expires_at <= now)
+                or client is None
+                or not client.is_active
+            ):
+                raise ApiKeyNotFoundError(api_key_id)
             return await self._repository.create_job(
                 client_id=client_id,
+                api_key_id=api_key_id,
                 document_type=document_type,
                 avp_number=avp_number,
                 resume_data=resume_data,

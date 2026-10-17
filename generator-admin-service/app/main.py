@@ -194,6 +194,7 @@ JOB_STATUS_LABELS = {
     "processing": "En cours",
     "completed": "Terminée",
     "failed": "Échouée",
+    "cancelled": "Annulée",
 }
 
 
@@ -437,6 +438,7 @@ def _activity_job_json(job: ActivityJob) -> dict[str, object]:
         "created_at": admin_datetime(job.created_at),
         "started_at": admin_datetime(job.started_at),
         "completed_at": admin_datetime(job.completed_at),
+        "cancelled_at": admin_datetime(job.cancelled_at),
     }
 
 

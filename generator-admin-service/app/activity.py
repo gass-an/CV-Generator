@@ -48,6 +48,7 @@ class ActivityJob:
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
+    cancelled_at: datetime | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,6 +193,7 @@ class AdminActivityService:
                 DocumentJob.created_at,
                 DocumentJob.started_at,
                 DocumentJob.completed_at,
+                DocumentJob.cancelled_at,
             )
             .outerjoin(ApiClient, ApiClient.id == DocumentJob.client_id)
             .where(*conditions)

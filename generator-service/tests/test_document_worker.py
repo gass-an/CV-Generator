@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -6,7 +7,10 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
 from app.processors.document_processor import DocumentJobData, GeneratedDocument
-from app.repositories.document_job_repository import DocumentJobRepository
+from app.repositories.document_job_repository import (
+    DocumentJobRepository,
+    StaleJobRecovery,
+)
 from app.services.document_worker_service import DocumentWorkerService
 from app.workers.document_worker import validate_worker_configuration
 from sqlalchemy.dialects import postgresql
@@ -197,22 +201,31 @@ class FakeWorkerRepository:
         *,
         cutoff: datetime,
         now: datetime,
-    ) -> list[uuid.UUID]:
+    ) -> StaleJobRecovery:
         self._assert_transaction()
         stale_ids: list[uuid.UUID] = []
+        cancelled_ids: list[uuid.UUID] = []
         for job in self.state.jobs:
             if (
                 job.status is DocumentJobStatus.PROCESSING
                 and job.started_at is not None
                 and job.started_at < cutoff
             ):
+                if job.cancellation_reason == "api_key_revoked":
+                    job.status = DocumentJobStatus.CANCELLED
+                    job.cancelled_at = now
+                    cancelled_ids.append(job.id)
+                    continue
                 job.status = DocumentJobStatus.PENDING
                 job.started_at = None
                 job.error_code = None
                 job.error_message = None
                 job.updated_at = now
                 stale_ids.append(job.id)
-        return stale_ids
+        return StaleJobRecovery(
+            requeued_ids=stale_ids,
+            cancelled_ids=cancelled_ids,
+        )
 
     def _find(self, job_id: uuid.UUID) -> DocumentJob:
         return next(job for job in self.state.jobs if job.id == job_id)
@@ -389,3 +402,35 @@ async def test_recovery_only_requeues_stale_processing_jobs() -> None:
     assert stale_job.started_at is None
     assert recent_job.status is DocumentJobStatus.PROCESSING
     assert recent_job.started_at is not None
+
+
+@pytest.mark.asyncio
+async def test_recovery_logs_requeued_and_cancelled_jobs_separately(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    now = datetime.now(UTC)
+    requeued_job = make_job(
+        DocumentJobStatus.PROCESSING,
+        started_at=now - timedelta(seconds=601),
+    )
+    cancelled_job = make_job(
+        DocumentJobStatus.PROCESSING,
+        started_at=now - timedelta(seconds=601),
+    )
+    cancelled_job.cancellation_reason = "api_key_revoked"
+    session_factory = FakeSessionFactory()
+    worker = make_worker(
+        [requeued_job, cancelled_job],
+        SuccessProcessor(session_factory),
+        session_factory,
+        stale_timeout=600,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        recovered_count = await worker.recover_stale_jobs()
+
+    assert recovered_count == 2
+    assert requeued_job.status is DocumentJobStatus.PENDING
+    assert cancelled_job.status is DocumentJobStatus.CANCELLED
+    assert "remis en attente nombre=1" in caplog.text
+    assert "annulés après révocation nombre=1" in caplog.text

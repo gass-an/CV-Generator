@@ -28,6 +28,7 @@ async def test_history_uses_filtered_projection_stable_order_and_separate_total(
             created_at=REFERENCE_TIME,
             started_at=None,
             completed_at=None,
+            cancelled_at=None,
         )
     ]
     count_result = Mock()

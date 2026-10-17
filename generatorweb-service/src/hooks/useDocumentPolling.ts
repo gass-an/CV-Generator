@@ -44,7 +44,11 @@ export function useDocumentPolling({
           return;
         }
         onStatus(status);
-        if (status.status === "completed" || status.status === "failed") {
+        if (
+          status.status === "completed" ||
+          status.status === "failed" ||
+          status.status === "cancelled"
+        ) {
           stopped = true;
           return;
         }

@@ -77,6 +77,7 @@ function latestPollingOptions() {
 
 describe("génération et suivi d'un document", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     window.localStorage.clear();
     window.sessionStorage.clear();
     window.sessionStorage.setItem(SESSION_KEY, "cle-valide");
@@ -192,6 +193,37 @@ describe("génération et suivi d'un document", () => {
     }
   });
 
+  it("affiche une annulation sans proposer de résultat", async () => {
+    vi.mocked(createDocumentJob).mockResolvedValue({
+      id: "job-annule",
+      status: "pending",
+    });
+    const user = userEvent.setup();
+    await prepareGeneration(user);
+    await user.click(
+      screen.getByRole("button", { name: "Générer le document" }),
+    );
+
+    await act(async () =>
+      latestPollingOptions().onStatus({
+        id: "job-annule",
+        status: "cancelled",
+        created_at: "2026-10-11T08:00:00+11:00",
+        started_at: null,
+        completed_at: null,
+        cancelled_at: "2026-10-11T08:00:05+11:00",
+      }),
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Annulée");
+    expect(latestPollingOptions().enabled).toBe(false);
+    expect(
+      screen.queryByRole("button", { name: /Télécharger au format/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Aperçu PDF/)).not.toBeInTheDocument();
+    expect(getDocumentPdf).not.toHaveBeenCalled();
+  });
+
   it("agrandit le PDF déjà chargé sans nouvel appel ni révocation prématurée", async () => {
     vi.mocked(createDocumentJob).mockResolvedValue({
       id: "job-apercu",
@@ -199,6 +231,7 @@ describe("génération et suivi d'un document", () => {
     });
     const user = userEvent.setup();
     await prepareGeneration(user);
+    vi.mocked(URL.revokeObjectURL).mockClear();
     await user.click(
       screen.getByRole("button", { name: "Générer le document" }),
     );
@@ -219,6 +252,7 @@ describe("génération et suivi d'un document", () => {
     expect(compactPreview).toHaveClass("h-[50svh]", "sm:h-[65vh]");
     expect(compactPreview).not.toHaveClass("h-full");
     expect(getDocumentPdf).toHaveBeenCalledOnce();
+    vi.mocked(URL.revokeObjectURL).mockClear();
 
     const enlarge = screen.getByRole("button", {
       name: "Agrandir l’aperçu",
