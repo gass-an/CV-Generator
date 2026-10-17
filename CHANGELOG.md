@@ -5,6 +5,8 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+## [0.7.0] - 2026-10-17
+
 ### Ajouts
 
 - Ajout d’un tableau de bord d’activité administrateur, actualisé automatiquement, avec compteurs, attribution aux propriétaires et historique paginé filtrable des générations.
