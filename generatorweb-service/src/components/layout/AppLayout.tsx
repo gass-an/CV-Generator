@@ -88,10 +88,10 @@ export function AppLayout() {
             <p>
               Une application développée dans le cadre du{" "}
               <a
-                  href="https://dev.to/adriens/hackavp-premier-hackathon-dedie-a-lemploi-dans-la-fonction-publique-en-ncl-3oj0"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-4 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2"
+                href="https://dev.to/adriens/hackavp-premier-hackathon-dedie-a-lemploi-dans-la-fonction-publique-en-ncl-3oj0"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
               >
                 HackAVP
               </a>
