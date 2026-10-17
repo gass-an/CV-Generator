@@ -19,9 +19,13 @@ function applyTheme(theme) {
     document.documentElement.dataset.theme = theme;
   }
   document.querySelectorAll("[data-theme-value]").forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.themeValue === theme));
+    button.setAttribute(
+      "aria-pressed",
+      String(button.dataset.themeValue === theme),
+    );
   });
-  const activeTheme = theme === "system" && systemTheme.matches ? "dark" : theme;
+  const activeTheme =
+    theme === "system" && systemTheme.matches ? "dark" : theme;
   const themeColor = document.querySelector("meta[data-theme-color]");
   if (themeColor) {
     themeColor.setAttribute(
@@ -79,4 +83,86 @@ document.addEventListener("submit", (event) => {
     button.disabled = true;
     button.textContent = "Création…";
   }
+});
+
+const CSRF_RENEWAL_MARGIN_MS = 5 * 60 * 1000;
+let loginCsrfRenewal;
+
+async function renewLoginCsrf(form, force = false) {
+  const expiresAt = Date.parse(form.dataset.csrfExpiresAt || "");
+  if (
+    !force &&
+    Number.isFinite(expiresAt) &&
+    expiresAt - Date.now() > CSRF_RENEWAL_MARGIN_MS
+  ) {
+    return true;
+  }
+  if (!loginCsrfRenewal) {
+    loginCsrfRenewal = fetch("/login/csrf", {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    })
+      .then(async (response) => {
+        if (response.status === 409) {
+          window.location.assign(form.elements.next.value || "/");
+          return false;
+        }
+        if (!response.ok) throw new Error("csrf-renewal-failed");
+        const payload = await response.json();
+        form.elements.csrf_token.value = payload.csrf_token;
+        form.dataset.csrfExpiresAt = payload.expires_at;
+        return true;
+      })
+      .finally(() => {
+        loginCsrfRenewal = undefined;
+      });
+  }
+  return loginCsrfRenewal;
+}
+
+function showLoginRenewalError(form) {
+  const alert = document.querySelector("[data-login-error]");
+  if (alert) {
+    alert.textContent =
+      "Impossible de sécuriser la connexion. Vérifiez votre réseau puis réessayez ; vos champs ont été conservés.";
+    alert.hidden = false;
+  }
+  const button = form.querySelector("button[type='submit']");
+  if (button) button.disabled = false;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.querySelector("[data-login-form]");
+  if (!form) return;
+  const submitButton = form.querySelector("button[type='submit']");
+  let loginSubmissionInProgress = false;
+
+  form.addEventListener("submit", async (event) => {
+    if (form.dataset.csrfReady === "true") {
+      delete form.dataset.csrfReady;
+      return;
+    }
+    event.preventDefault();
+    if (loginSubmissionInProgress) return;
+
+    loginSubmissionInProgress = true;
+    if (submitButton) submitButton.disabled = true;
+    try {
+      if (await renewLoginCsrf(form, true)) {
+        form.dataset.csrfReady = "true";
+        form.requestSubmit(event.submitter || undefined);
+      }
+    } catch {
+      loginSubmissionInProgress = false;
+      showLoginRenewalError(form);
+    }
+  });
+
+  const renewIfNeeded = () =>
+    renewLoginCsrf(form).catch(() => showLoginRenewalError(form));
+  window.addEventListener("pageshow", renewIfNeeded);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") renewIfNeeded();
+  });
 });

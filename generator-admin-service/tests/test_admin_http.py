@@ -1,5 +1,7 @@
 import re
+import subprocess
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -7,11 +9,13 @@ import pytest
 from app.admin_security import AdminPrincipal, IssuedAdminSession
 from app.database import async_session_factory
 from app.main import _parse_expiration, _safe_next_path
-from cv_generator_shared.admin_models import AdminSession
+from cv_generator_shared.admin_models import AdminLoginAttempt, AdminSession
 from cv_generator_shared.models import ApiClient, ApiKey
 from sqlalchemy import select, update
 
 from conftest import login
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def hidden_value(html: str, name: str) -> str:
@@ -221,7 +225,10 @@ async def test_invalid_session_and_csrf_can_recover_without_clearing_cookies(
             "next": hidden_value(login_page.text, "next"),
         },
     )
-    assert invalid_csrf.status_code == 401
+    assert invalid_csrf.status_code == 403
+    assert "session du formulaire a expiré" in invalid_csrf.text
+    assert "Identifiants invalides" not in invalid_csrf.text
+    assert 'value="administrateur"' in invalid_csrf.text
     replacement_csrf = browser.cookies["cv_generator_admin_csrf"]
     assert replacement_csrf != first_csrf
 
@@ -237,6 +244,114 @@ async def test_invalid_session_and_csrf_can_recover_without_clearing_cookies(
     assert reconnected.status_code == 303
     assert reconnected.headers["location"] == "/clients"
     assert (await browser.get("/clients")).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_expired_anonymous_session_is_renewed_before_login(
+    browser: httpx.AsyncClient,
+) -> None:
+    page = await browser.get("/login?next=/clients")
+    original_csrf = hidden_value(page.text, "csrf_token")
+
+    async with async_session_factory() as session, session.begin():
+        expired_at = datetime.now(UTC) - timedelta(seconds=1)
+        await session.execute(
+            update(AdminSession).values(
+                created_at=expired_at - timedelta(hours=1), expires_at=expired_at
+            )
+        )
+
+    stale = await browser.post(
+        "/login",
+        data={
+            "username": "administrateur",
+            "password": "mot-de-passe-test",
+            "csrf_token": original_csrf,
+            "next": "/clients",
+        },
+    )
+    assert stale.status_code == 403
+    assert "n’ont pas été vérifiés" in stale.text
+    async with async_session_factory() as session:
+        assert (await session.scalars(select(AdminLoginAttempt))).all() == []
+
+    renewal = await browser.get("/login/csrf")
+    assert renewal.status_code == 200
+    payload = renewal.json()
+    assert payload["csrf_token"] != original_csrf
+    assert browser.cookies["cv_generator_admin_csrf"] == payload["csrf_token"]
+
+    connected = await browser.post(
+        "/login",
+        data={
+            "username": "administrateur",
+            "password": "mot-de-passe-test",
+            "csrf_token": payload["csrf_token"],
+            "next": "/clients",
+        },
+    )
+    assert connected.status_code == 303
+    assert connected.headers["location"] == "/clients"
+
+
+@pytest.mark.asyncio
+async def test_login_csrf_renewal_keeps_origin_and_authentication_protections(
+    browser: httpx.AsyncClient,
+) -> None:
+    await browser.get("/login")
+    rejected = await browser.get(
+        "/login/csrf",
+        headers={"Origin": "https://evil.example", "Sec-Fetch-Site": "cross-site"},
+    )
+    assert rejected.status_code == 403
+
+    await login(browser)
+    authenticated_token = browser.cookies["cv_generator_admin_session"]
+    authenticated_csrf = browser.cookies["cv_generator_admin_csrf"]
+    renewal = await browser.get(
+        "/login/csrf",
+        headers={"Origin": "http://testserver", "Sec-Fetch-Site": "same-origin"},
+    )
+    assert renewal.status_code == 409
+    assert browser.cookies["cv_generator_admin_session"] == authenticated_token
+    assert browser.cookies["cv_generator_admin_csrf"] == authenticated_csrf
+
+
+@pytest.mark.asyncio
+async def test_login_csrf_renewal_handles_sequential_tabs(
+    browser: httpx.AsyncClient,
+) -> None:
+    first_tab = await browser.get("/login?next=/clients")
+    first_tab_csrf = hidden_value(first_tab.text, "csrf_token")
+    second_tab = await browser.get("/login")
+    second_tab_csrf = hidden_value(second_tab.text, "csrf_token")
+    assert second_tab_csrf != first_tab_csrf
+
+    first_renewal = await browser.get("/login/csrf")
+    renewed_csrf = first_renewal.json()["csrf_token"]
+    connected = await browser.post(
+        "/login",
+        data={
+            "username": "administrateur",
+            "password": "mot-de-passe-test",
+            "csrf_token": renewed_csrf,
+            "next": "/clients",
+        },
+    )
+    assert connected.status_code == 303
+    authenticated_token = browser.cookies["cv_generator_admin_session"]
+
+    second_renewal = await browser.get("/login/csrf")
+    assert second_renewal.status_code == 409
+    assert browser.cookies["cv_generator_admin_session"] == authenticated_token
+
+
+def test_admin_javascript_behaviors() -> None:
+    subprocess.run(
+        ["node", "tests/test_admin_js.mjs"],
+        cwd=ROOT,
+        check=True,
+    )
 
 
 @pytest.mark.asyncio

@@ -18,12 +18,12 @@
     <h1 id="login-title">Connexion</h1>
     <p>Connectez-vous pour gérer les propriétaires et leurs clés API.</p>
     {% if session_expired %}<div class="notice" role="status">Votre session a expiré. Vous pouvez vous reconnecter immédiatement.</div>{% endif %}
-    {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
-    <form method="post" action="/login" autocomplete="on">
+    <div class="alert" role="alert" data-login-error {% if not error %}hidden{% endif %}>{{ error or '' }}</div>
+    <form method="post" action="/login" autocomplete="on" data-login-form data-csrf-expires-at="{{ csrf_expires_at }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="next" value="{{ next }}">
       <label for="username">Identifiant</label>
-      <input id="username" name="username" autocomplete="username" required autofocus>
+      <input id="username" name="username" autocomplete="username" value="{{ username|default('') }}" required autofocus>
       <label for="password">Mot de passe</label>
       <input id="password" type="password" name="password" autocomplete="current-password" required>
       <button class="button primary full-width" type="submit">Se connecter</button>

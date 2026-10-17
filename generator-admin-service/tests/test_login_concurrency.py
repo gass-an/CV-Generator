@@ -1,7 +1,7 @@
 import asyncio
 
 import pytest
-from app.admin_security import AdminSecurityService
+from app.admin_security import AdminSecurityService, LoginFailure
 from app.config import get_settings
 from app.database import async_session_factory
 from cv_generator_shared.admin_models import AdminLoginAttempt
@@ -19,7 +19,7 @@ async def failed_login(ip_address: str, username: str) -> None:
             password="mot-de-passe-incorrect",
             ip_address=ip_address,
         )
-        assert result is None
+        assert result is LoginFailure.INVALID_CREDENTIALS
 
 
 async def attempt_count() -> int:

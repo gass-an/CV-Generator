@@ -3,6 +3,7 @@ import hmac
 import secrets
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
@@ -27,6 +28,11 @@ class AdminPrincipal:
     csrf_token: str = field(repr=False)
 
 
+class LoginFailure(StrEnum):
+    INVALID_CSRF = "invalid_csrf"
+    INVALID_CREDENTIALS = "invalid_credentials"
+
+
 class AdminSecurityService:
     """Gère les sessions, le CSRF et la limitation des connexions."""
 
@@ -47,14 +53,14 @@ class AdminSecurityService:
         password: str,
         ip_address: str,
         now: datetime | None = None,
-    ) -> IssuedAdminSession | None:
+    ) -> IssuedAdminSession | LoginFailure:
         moment = now or datetime.now(UTC)
         normalized_username = username.strip()
         username_hash = self._digest(normalized_username.casefold())
         async with self._session.begin():
             current = await self._get_valid_session(current_token, moment=moment)
             if current is None or not self._csrf_matches(current, csrf_token):
-                return None
+                return LoginFailure.INVALID_CSRF
             await self._lock_login_dimensions(ip_address, username_hash)
             cutoff = moment - timedelta(
                 seconds=self._settings.admin_login_window_seconds
@@ -78,7 +84,7 @@ class AdminSecurityService:
                 )
             )
             if (attempt_count or 0) >= self._settings.admin_login_max_attempts:
-                return None
+                return LoginFailure.INVALID_CREDENTIALS
 
             username_valid = hmac.compare_digest(
                 normalized_username.encode(),
@@ -94,7 +100,7 @@ class AdminSecurityService:
                         attempted_at=moment,
                     )
                 )
-                return None
+                return LoginFailure.INVALID_CREDENTIALS
 
             await self._session.delete(current)
             await self._session.execute(

@@ -15,7 +15,7 @@ from cv_generator_shared.exceptions import (
 )
 from cv_generator_shared.services import ApiKeyService
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +24,7 @@ from app.admin_security import (
     AdminPrincipal,
     AdminSecurityService,
     IssuedAdminSession,
+    LoginFailure,
 )
 from app.config import get_settings
 from app.database import get_business_session, get_security_session
@@ -246,10 +247,36 @@ async def login_page(
         name="login.html",
         context={
             "csrf_token": issued.csrf_token,
+            "csrf_expires_at": issued.expires_at.isoformat(),
             "error": None,
             "next": destination,
             "session_expired": expired,
         },
+    )
+    _set_session_cookies(response, issued)
+    return response
+
+
+@app.get("/login/csrf")
+async def renew_login_csrf(request: Request, service: SecurityService) -> Response:
+    """Remplace ponctuellement la session anonyme d'un formulaire de connexion."""
+    if not _valid_origin(request):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    settings = get_settings()
+    principal = await service.authenticate(
+        request.cookies.get(settings.admin_session_cookie_name),
+        request.cookies.get(settings.admin_csrf_cookie_name),
+    )
+    if principal is not None:
+        return JSONResponse(
+            {"authenticated": True}, status_code=status.HTTP_409_CONFLICT
+        )
+    issued = await service.issue_anonymous_session()
+    response = JSONResponse(
+        {
+            "csrf_token": issued.csrf_token,
+            "expires_at": issued.expires_at.isoformat(),
+        }
     )
     _set_session_cookies(response, issued)
     return response
@@ -275,16 +302,38 @@ async def login(
         password=password,
         ip_address=_client_ip(request),
     )
-    if issued is None:
+    if issued is LoginFailure.INVALID_CSRF:
         replacement = await service.issue_anonymous_session()
         response = templates.TemplateResponse(
             request=request,
             name="login.html",
             context={
                 "csrf_token": replacement.csrf_token,
+                "csrf_expires_at": replacement.expires_at.isoformat(),
+                "error": (
+                    "La session du formulaire a expiré. Vos identifiants n’ont pas "
+                    "été vérifiés ; veuillez réessayer."
+                ),
+                "next": destination,
+                "session_expired": False,
+                "username": username,
+            },
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+        _set_session_cookies(response, replacement)
+        return response
+    if issued is LoginFailure.INVALID_CREDENTIALS:
+        replacement = await service.issue_anonymous_session()
+        response = templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={
+                "csrf_token": replacement.csrf_token,
+                "csrf_expires_at": replacement.expires_at.isoformat(),
                 "error": "Identifiants invalides ou connexion temporairement bloquée.",
                 "next": destination,
                 "session_expired": False,
+                "username": username,
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )

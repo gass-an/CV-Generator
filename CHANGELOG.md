@@ -5,6 +5,8 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+## [0.6.2] - 2026-10-17
+
 ### Ajouts
 
 - Ajout du logo STATION N et de liens accessibles vers les sites officiels des trois partenaires dans le footer.
@@ -16,6 +18,10 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 - Harmonisation des routes d'export sous `/documents/{id}/{format}` et remplacement définitif de `/download` par `/docx`.
 - Conversion Markdown cohérente avec la normalisation DOCX, avec listes imbriquées CommonMark et préservation des blocs délimités pris en charge.
 - Sécurisation des blocs de code Markdown par un délimiteur CommonMark adapté aux séquences d'accents graves présentes dans leur contenu.
+
+### Corrections
+
+- Renouvellement transparent du jeton CSRF de connexion après une longue inactivité, avec distinction entre expiration du formulaire et identifiants invalides et protection contre les doubles soumissions.
 
 ## [0.5.7] - 2026-10-14
 
