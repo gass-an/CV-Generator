@@ -1,10 +1,10 @@
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 from zoneinfo import ZoneInfo
 
 from cv_generator_shared.dto import ApiKeyWithClientData
@@ -14,12 +14,13 @@ from cv_generator_shared.exceptions import (
     ApiKeyNotFoundError,
 )
 from cv_generator_shared.services import ApiKeyService
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.activity import ActivityFilters, ActivityJob, AdminActivityService
 from app.admin_security import (
     AdminPrincipal,
     AdminSecurityService,
@@ -182,6 +183,18 @@ async def current_admin_page(
 
 
 PageAdmin = Annotated[AdminPrincipal, Depends(current_admin_page)]
+
+DOCUMENT_TYPE_LABELS = {
+    "cv": "CV",
+    "cover_letter": "Lettre de motivation",
+    "interview_prep": "Guide d’entretien",
+}
+JOB_STATUS_LABELS = {
+    "pending": "En attente",
+    "processing": "En cours",
+    "completed": "Terminée",
+    "failed": "Échouée",
+}
 
 
 def _safe_next_path(value: str | None) -> str:
@@ -369,6 +382,157 @@ def _key_status(item: ApiKeyWithClientData, now: datetime) -> str:
     if item.key.expires_at is not None and item.key.expires_at <= now:
         return "Expirée"
     return "Active"
+
+
+def _activity_filters(
+    *,
+    client_id: uuid.UUID | None,
+    document_type: str | None,
+    job_status: str | None,
+    avp_number: str | None,
+    created_from: date | None,
+    created_to: date | None,
+    page: int,
+) -> ActivityFilters:
+    from cv_generator_shared.document_jobs import DocumentJobStatus, DocumentType
+
+    return ActivityFilters(
+        client_id=client_id,
+        document_type=DocumentType(document_type) if document_type else None,
+        status=DocumentJobStatus(job_status) if job_status else None,
+        avp_number=avp_number.strip() if avp_number and avp_number.strip() else None,
+        created_from=created_from,
+        created_to=created_to,
+        page=max(page, 1),
+    )
+
+
+def _activity_query(filters: ActivityFilters, page: int) -> str:
+    values = {
+        "client_id": str(filters.client_id) if filters.client_id else None,
+        "document_type": filters.document_type.value if filters.document_type else None,
+        "status": filters.status.value if filters.status else None,
+        "avp_number": filters.avp_number,
+        "created_from": filters.created_from.isoformat()
+        if filters.created_from
+        else None,
+        "created_to": filters.created_to.isoformat() if filters.created_to else None,
+        "page": page,
+    }
+    return urlencode({key: value for key, value in values.items() if value is not None})
+
+
+def _activity_job_json(job: ActivityJob) -> dict[str, object]:
+    return {
+        "id": str(job.id),
+        "client_id": str(job.client_id) if job.client_id else None,
+        "owner_name": job.owner_name,
+        "owner_active": job.owner_active,
+        "document_type": job.document_type.value,
+        "document_type_label": DOCUMENT_TYPE_LABELS[job.document_type.value],
+        "status": job.status.value,
+        "status_label": JOB_STATUS_LABELS[job.status.value],
+        "avp_number": job.avp_number,
+        "candidate_name": job.candidate_name,
+        "created_at": admin_datetime(job.created_at),
+        "started_at": admin_datetime(job.started_at),
+        "completed_at": admin_datetime(job.completed_at),
+    }
+
+
+@app.get("/activity", response_class=HTMLResponse)
+async def activity_page(
+    request: Request,
+    principal: PageAdmin,
+    session: BusinessSession,
+    client_id: uuid.UUID | None = None,
+    document_type: str | None = None,
+    job_status: Annotated[str | None, Query(alias="status")] = None,
+    avp_number: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    page: int = 1,
+) -> HTMLResponse:
+    try:
+        filters = _activity_filters(
+            client_id=client_id,
+            document_type=document_type,
+            job_status=job_status,
+            avp_number=avp_number,
+            created_from=created_from,
+            created_to=created_to,
+            page=page,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT
+        ) from error
+    service = AdminActivityService(session, get_settings().timezone)
+    snapshot = await service.snapshot(filters)
+    return templates.TemplateResponse(
+        request=request,
+        name="activity.html",
+        context={
+            "principal": principal,
+            "csrf_token": principal.csrf_token,
+            "snapshot": snapshot,
+            "filters": filters,
+            "clients": await service.list_clients(),
+            "document_type_labels": DOCUMENT_TYPE_LABELS,
+            "job_status_labels": JOB_STATUS_LABELS,
+            "previous_query": _activity_query(filters, snapshot.page - 1),
+            "next_query": _activity_query(filters, snapshot.page + 1),
+        },
+    )
+
+
+@app.get("/activity/data")
+async def activity_data(
+    principal: CurrentAdmin,
+    session: BusinessSession,
+    client_id: uuid.UUID | None = None,
+    document_type: str | None = None,
+    job_status: Annotated[str | None, Query(alias="status")] = None,
+    avp_number: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    page: int = 1,
+) -> dict[str, object]:
+    del principal
+    try:
+        filters = _activity_filters(
+            client_id=client_id,
+            document_type=document_type,
+            job_status=job_status,
+            avp_number=avp_number,
+            created_from=created_from,
+            created_to=created_to,
+            page=page,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT
+        ) from error
+    snapshot = await AdminActivityService(session, get_settings().timezone).snapshot(
+        filters
+    )
+    return {
+        "counters": {
+            "pending": snapshot.counters.pending,
+            "processing": snapshot.counters.processing,
+            "completed_today": snapshot.counters.completed_today,
+            "failed_today": snapshot.counters.failed_today,
+        },
+        "recent": [_activity_job_json(job) for job in snapshot.recent],
+        "history": [_activity_job_json(job) for job in snapshot.history],
+        "pagination": {
+            "page": snapshot.page,
+            "page_count": snapshot.page_count,
+            "page_size": snapshot.page_size,
+            "total": snapshot.total,
+        },
+        "refreshed_at": admin_datetime(snapshot.refreshed_at),
+    }
 
 
 @app.get("/", response_class=HTMLResponse)

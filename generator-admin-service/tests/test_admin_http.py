@@ -101,6 +101,7 @@ async def test_admin_interface_exposes_brand_navigation_and_theme_controls(
     assert ':root[data-theme="dark"]' in stylesheet.text
     assert "prefers-color-scheme: dark" in stylesheet.text
     assert ".topbar-actions .theme-switcher { display: none; }" not in stylesheet.text
+    assert ".button[hidden] { display: none; }" in stylesheet.text
 
     await login(browser)
     home = await browser.get("/")

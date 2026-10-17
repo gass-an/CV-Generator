@@ -21,6 +21,7 @@
       <nav aria-label="Navigation de l’administration">
         <a href="/" {% if request.url.path == '/' %}aria-current="page"{% endif %}>Clés API</a>
         <a href="/clients" {% if request.url.path == '/clients' %}aria-current="page"{% endif %}>Propriétaires</a>
+        <a href="/activity" {% if request.url.path == '/activity' %}aria-current="page"{% endif %}>Activité</a>
       </nav>
       <div class="topbar-actions">
         <div class="theme-switcher" role="group" aria-label="Thème d’affichage">

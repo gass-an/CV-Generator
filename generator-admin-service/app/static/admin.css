@@ -99,6 +99,7 @@ code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size
 .page-heading { display: flex; align-items: end; justify-content: space-between; gap: 1.25rem; margin-bottom: 1.5rem; }
 .eyebrow { margin: 0; color: var(--primary); font-size: .75rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .button, button { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; border: 1px solid transparent; border-radius: .65rem; padding: .65rem 1rem; font: inherit; font-weight: 700; cursor: pointer; text-decoration: none; }
+.button[hidden] { display: none; }
 .button:disabled, button:disabled { cursor: wait; opacity: .65; }
 .primary { background: var(--primary); color: var(--primary-foreground); }
 .secondary { border-color: var(--border); background: var(--card); color: var(--foreground); }
@@ -123,8 +124,32 @@ tbody tr:hover { background: color-mix(in oklch, var(--muted) 55%, transparent);
 .status-active { color: var(--success); background: var(--success-bg); }
 .status-expirée { color: var(--warning); background: var(--warning-bg); }
 .status-révoquée, .status-propriétaire-désactivé { color: var(--danger); background: var(--danger-bg); }
+.status-pending { color: var(--warning); background: var(--warning-bg); }
+.status-processing { color: var(--primary); background: color-mix(in oklch, var(--primary) 11%, var(--card)); }
+.status-completed { color: var(--success); background: var(--success-bg); }
+.status-failed { color: var(--danger); background: var(--danger-bg); }
 .pagination { display: flex; margin-top: 1rem; }
 .pagination .next { margin-left: auto; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+.metrics article { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.15rem; background: var(--card); box-shadow: var(--shadow); }
+.metrics span { display: block; color: var(--muted-foreground); font-size: .82rem; font-weight: 700; }
+.metrics strong { display: block; margin-top: .25rem; font-size: 1.8rem; line-height: 1.1; }
+.refresh-state { display: grid; justify-items: end; gap: .2rem; color: var(--muted-foreground); font-size: .82rem; }
+.refresh-state [data-activity-error] { color: var(--warning); }
+.activity-section[aria-busy="true"] { opacity: .82; }
+.section-heading { display: flex; justify-content: space-between; gap: 1rem; margin: 1.5rem 0 .75rem; }
+.section-heading h2 { margin: 0; }
+.history-heading { margin-top: 2.5rem; }
+.activity-table td { vertical-align: top; }
+.table-note { display: block; color: var(--muted-foreground); }
+.job-id { position: relative; }
+.job-id summary { cursor: pointer; }
+.job-id[open] > code { display: block; margin-top: .5rem; user-select: all; }
+.table-empty { padding: 1.5rem; text-align: center; }
+.filter-panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .25rem 1rem; margin-bottom: 1rem; border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; background: var(--card); }
+.filter-panel label { margin-top: .25rem; }
+.filter-actions { display: flex; align-items: end; gap: .5rem; grid-column: 1 / -1; justify-content: flex-end; padding-top: .75rem; }
+.activity-pagination { align-items: center; gap: 1rem; }
 
 .panel, .secret-card, .auth-card, .empty { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); }
 .panel, .secret-card { max-width: 780px; padding: clamp(1.25rem, 4vw, 2rem); }
@@ -165,6 +190,8 @@ legend { padding: 0 .4rem; }
   .topbar-inner { flex-wrap: wrap; gap: .5rem 1rem; padding: .65rem 0; }
   .topbar nav { order: 3; width: 100%; height: 44px; }
   .topbar nav a { flex: 1; }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filter-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 640px) {
@@ -177,6 +204,10 @@ legend { padding: 0 .4rem; }
   .secret-card dd { margin-bottom: .5rem; }
   .secret-box, .actions { flex-wrap: wrap; }
   .secret-box input, .secret-box .button, .actions .button { width: 100%; }
+  .refresh-state { justify-items: start; }
+  .metrics, .filter-panel { grid-template-columns: 1fr; }
+  .filter-actions { align-items: stretch; flex-direction: column; }
+  .filter-actions .button { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

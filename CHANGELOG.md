@@ -5,6 +5,15 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+### Ajouts
+
+- Ajout d’un tableau de bord d’activité administrateur, actualisé automatiquement, avec compteurs, attribution aux propriétaires et historique paginé filtrable des générations.
+
+### Modifications
+
+- Partage du modèle `DocumentJob` entre le générateur et l’administration, et ajout d’index PostgreSQL adaptés aux consultations chronologiques de l’activité.
+
+
 ## [0.6.2] - 2026-10-17
 
 ### Ajouts

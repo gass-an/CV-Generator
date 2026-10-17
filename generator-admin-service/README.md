@@ -65,6 +65,15 @@ avant de quitter l'écran. Une ancienne clé ne peut jamais être récupérée, 
 base ne conserve que son préfixe public et son empreinte SHA-256. Il faut alors
 en créer une nouvelle puis révoquer l'ancienne.
 
+La page « Activité » présente les générations en attente, en cours, terminées
+ou échouées, puis un historique paginé filtrable. L'attribution correspond au
+propriétaire de la clé API (`client_id`) : le modèle ne permet pas d'identifier
+la clé précise ayant créé un job. Les anciens jobs sans propriétaire restent
+visibles comme tels. Seul le nom du candidat, lorsqu'il existe dans
+`resume_data.basics.name`, est projeté ; le JSON Resume, les résultats générés
+et les erreurs internes ne sont jamais transmis à cette interface. Les données
+sont actualisées toutes les cinq secondes lorsque l'onglet est visible.
+
 Une clé créée est immédiatement active dans l'API publique. Redoc décrit
 l'en-tête attendu sur `/docs` ; la clé peut être testée ainsi :
 
@@ -105,6 +114,10 @@ Les destinations de retour après connexion sont limitées aux chemins locaux.
 Les pages HTML protégées redirigent vers la connexion lorsque la session est
 absente ou expirée ; la dépendance d'authentification générique conserve une
 réponse HTTP `401` pour les éventuels endpoints programmatiques.
+
+`document_job` constitue l'historique de génération. Aucun nettoyage ni délai
+de rétention automatique n'est actuellement configuré dans l'application ; une
+politique de rétention devra donc être décidée séparément si le volume l'exige.
 
 ## Tests
 

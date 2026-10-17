@@ -64,7 +64,10 @@ function createHarness(fetchImplementation) {
     },
     visibilityState: "visible",
     addEventListener(type, listener) {
-      documentListeners.set(type, listener);
+      documentListeners.set(type, [
+        ...(documentListeners.get(type) || []),
+        listener,
+      ]);
     },
     querySelector(selector) {
       if (selector === "[data-login-form]") return form;
@@ -81,7 +84,10 @@ function createHarness(fetchImplementation) {
     localStorage: { getItem: () => null, setItem() {} },
     matchMedia: () => ({ matches: false, addEventListener() {} }),
     addEventListener(type, listener) {
-      windowListeners.set(type, listener);
+      windowListeners.set(type, [
+        ...(windowListeners.get(type) || []),
+        listener,
+      ]);
     },
     location: { assign() {} },
     confirm: () => true,
@@ -97,7 +103,7 @@ function createHarness(fetchImplementation) {
     window,
   });
   vm.runInContext(script, context, { filename: "admin.js" });
-  documentListeners.get("DOMContentLoaded")();
+  documentListeners.get("DOMContentLoaded").forEach((listener) => listener());
 
   function submit() {
     const event = {
@@ -202,4 +208,259 @@ test("la soumission interne ne relance pas un renouvellement en boucle", async (
 
   assert.equal(fetchCount, 1);
   assert.equal(harness.nativeSubmissions(), 1);
+});
+
+function activityPayload(pending = 2) {
+  return {
+    counters: {
+      pending,
+      processing: 1,
+      completed_today: 3,
+      failed_today: 1,
+    },
+    recent: [],
+    history: [],
+    pagination: { page: 1, page_count: 1, page_size: 25, total: 0 },
+    refreshed_at: "17/10/2026 12:00",
+  };
+}
+
+function createActivityHarness(fetchImplementation) {
+  const documentListeners = new Map();
+  const windowListeners = new Map();
+  const timers = new Map();
+  let timerId = 0;
+  const redirects = [];
+  const root = {
+    attributes: {},
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
+  };
+  const error = { hidden: true };
+  const counter = { textContent: "0" };
+  function activityBody() {
+    return {
+      hasOpenDetails: false,
+      replacementCount: 0,
+      contains(element) {
+        return element?.activityBody === this;
+      },
+      querySelector(selector) {
+        return selector === "details[open]" && this.hasOpenDetails ? {} : null;
+      },
+      replaceChildren() {
+        this.replacementCount += 1;
+      },
+    };
+  }
+  const recentBody = activityBody();
+  const historyBody = activityBody();
+  const recentEmpty = { hidden: true };
+  const historyEmpty = { hidden: true };
+  const simpleElement = { hidden: false, textContent: "", href: "" };
+  const selectors = new Map([
+    ["[data-activity-root]", root],
+    ["[data-activity-error]", error],
+    ['[data-counter="pending"]', counter],
+    ["[data-activity-recent]", recentBody],
+    ["[data-activity-history]", historyBody],
+    ["[data-activity-recent-empty]", recentEmpty],
+    ["[data-activity-history-empty]", historyEmpty],
+    ["[data-history-total]", { ...simpleElement }],
+    ["[data-page-current]", { ...simpleElement }],
+    ["[data-page-count]", { ...simpleElement }],
+    ["[data-page-previous]", { ...simpleElement }],
+    ["[data-page-next]", { ...simpleElement }],
+    ["[data-activity-refreshed]", { ...simpleElement }],
+  ]);
+  const document = {
+    activeElement: null,
+    documentElement: { dataset: {}, removeAttribute() {} },
+    visibilityState: "visible",
+    addEventListener(type, listener) {
+      documentListeners.set(type, [
+        ...(documentListeners.get(type) || []),
+        listener,
+      ]);
+    },
+    querySelector: (selector) => selectors.get(selector) || null,
+    querySelectorAll: () => [],
+  };
+  const window = {
+    document,
+    localStorage: { getItem: () => null, setItem() {} },
+    matchMedia: () => ({ matches: false, addEventListener() {} }),
+    addEventListener(type, listener) {
+      windowListeners.set(type, [
+        ...(windowListeners.get(type) || []),
+        listener,
+      ]);
+    },
+    clearTimeout(id) {
+      timers.delete(id);
+    },
+    setTimeout(callback, delay) {
+      timerId += 1;
+      timers.set(timerId, { callback, delay });
+      return timerId;
+    },
+    location: {
+      pathname: "/activity",
+      search: "?status=processing",
+      assign(value) {
+        redirects.push(value);
+      },
+    },
+    confirm: () => true,
+  };
+  const context = vm.createContext({
+    AbortController,
+    console,
+    Date,
+    document,
+    encodeURIComponent,
+    fetch: fetchImplementation,
+    Promise,
+    Set,
+    URLSearchParams,
+    window,
+  });
+  vm.runInContext(script, context, { filename: "admin.js" });
+  documentListeners.get("DOMContentLoaded").forEach((listener) => listener());
+
+  return {
+    counter,
+    document,
+    error,
+    historyBody,
+    next: selectors.get("[data-page-next]"),
+    previous: selectors.get("[data-page-previous]"),
+    recentBody,
+    redirects,
+    root,
+    timers,
+    async runTimer() {
+      const [id, timer] = timers.entries().next().value;
+      timers.delete(id);
+      timer.callback();
+      await settle();
+    },
+    visibility(value) {
+      document.visibilityState = value;
+      documentListeners
+        .get("visibilitychange")
+        .forEach((listener) => listener());
+    },
+  };
+}
+
+test("l’activité est renouvelée et ne lance jamais deux requêtes concurrentes", async () => {
+  const response = deferred();
+  let fetchCount = 0;
+  const harness = createActivityHarness(() => {
+    fetchCount += 1;
+    return response.promise;
+  });
+
+  assert.equal([...harness.timers.values()][0].delay, 5000);
+  await harness.runTimer();
+  harness.visibility("hidden");
+  harness.visibility("visible");
+  assert.equal(fetchCount, 1);
+
+  response.resolve({
+    ok: true,
+    status: 200,
+    json: async () => activityPayload(7),
+  });
+  await settle();
+  assert.equal(harness.counter.textContent, "7");
+  assert.equal(harness.root.attributes["aria-busy"], "false");
+});
+
+test("le polling est suspendu lorsque l’onglet est masqué et reprend immédiatement", async () => {
+  let fetchCount = 0;
+  const harness = createActivityHarness(async () => {
+    fetchCount += 1;
+    return { ok: true, status: 200, json: async () => activityPayload() };
+  });
+
+  harness.visibility("hidden");
+  assert.equal(harness.timers.size, 0);
+  harness.visibility("visible");
+  await settle();
+  assert.equal(fetchCount, 1);
+  assert.equal(harness.timers.size, 1);
+});
+
+test("une erreur réseau est signalée puis retentée", async () => {
+  let fetchCount = 0;
+  const harness = createActivityHarness(async () => {
+    fetchCount += 1;
+    if (fetchCount === 1) throw new Error("network unavailable");
+    return { ok: true, status: 200, json: async () => activityPayload() };
+  });
+
+  await harness.runTimer();
+  assert.equal(harness.error.hidden, false);
+  assert.equal(harness.timers.size, 1);
+  await harness.runTimer();
+  assert.equal(harness.error.hidden, true);
+  assert.equal(fetchCount, 2);
+});
+
+test("une session expirée arrête le polling et redirige vers la connexion", async () => {
+  const harness = createActivityHarness(async () => ({
+    ok: false,
+    status: 401,
+  }));
+
+  await harness.runTimer();
+  assert.deepEqual(harness.redirects, [
+    "/login?next=%2Factivity%3Fstatus%3Dprocessing&expired=1",
+  ]);
+  assert.equal(harness.timers.size, 0);
+});
+
+test("les liens de pagination inutiles sont marqués comme masqués", async () => {
+  const payload = activityPayload();
+  payload.pagination.page_count = 2;
+  const harness = createActivityHarness(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => payload,
+  }));
+
+  await harness.runTimer();
+  assert.equal(harness.previous.hidden, true);
+  assert.equal(harness.next.hidden, false);
+});
+
+test("un identifiant déplié empêche le remplacement de sa table", async () => {
+  const payload = activityPayload();
+  payload.history = [{ id: "job-modifie" }];
+  const harness = createActivityHarness(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => payload,
+  }));
+  harness.historyBody.hasOpenDetails = true;
+
+  await harness.runTimer();
+  assert.equal(harness.historyBody.replacementCount, 0);
+});
+
+test("le polling ne remplace pas une table contenant le focus clavier", async () => {
+  const payload = activityPayload();
+  payload.history = [{ id: "job-modifie" }];
+  const harness = createActivityHarness(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => payload,
+  }));
+  harness.document.activeElement = { activityBody: harness.historyBody };
+
+  await harness.runTimer();
+  assert.equal(harness.historyBody.replacementCount, 0);
 });

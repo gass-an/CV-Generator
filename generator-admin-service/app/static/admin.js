@@ -57,6 +57,178 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+function activityCell(value, className) {
+  const cell = document.createElement("td");
+  if (className) cell.className = className;
+  cell.textContent = value || "—";
+  return cell;
+}
+
+function activityRow(job) {
+  const row = document.createElement("tr");
+  const owner = document.createElement("td");
+  const ownerName = document.createElement("strong");
+  ownerName.textContent = job.owner_name || "Propriétaire inconnu";
+  owner.append(ownerName);
+  if (job.owner_active === false) {
+    const note = document.createElement("small");
+    note.className = "table-note";
+    note.textContent = "Désactivé";
+    owner.append(note);
+  }
+  row.append(owner);
+  row.append(activityCell(job.document_type_label));
+  row.append(activityCell(job.avp_number));
+  row.append(activityCell(job.candidate_name));
+
+  const status = document.createElement("td");
+  const badge = document.createElement("span");
+  badge.className = `badge status-${job.status}`;
+  badge.textContent = job.status_label;
+  status.append(badge);
+  row.append(status);
+  row.append(activityCell(job.created_at));
+  row.append(activityCell(job.started_at));
+  row.append(activityCell(job.completed_at));
+
+  const identifier = document.createElement("td");
+  const details = document.createElement("details");
+  details.className = "job-id";
+  const summary = document.createElement("summary");
+  const shortCode = document.createElement("code");
+  shortCode.textContent = `${job.id.slice(0, 12)}…`;
+  summary.append(shortCode);
+  const fullCode = document.createElement("code");
+  fullCode.textContent = job.id;
+  details.append(summary, fullCode);
+  identifier.append(details);
+  row.append(identifier);
+  return row;
+}
+
+function replaceActivityRows(selector, emptySelector, jobs) {
+  const body = document.querySelector(selector);
+  const empty = document.querySelector(emptySelector);
+  if (!body || !empty) return;
+  const focusedElement = document.activeElement;
+  const isBeingUsed =
+    (focusedElement && body.contains(focusedElement)) ||
+    body.querySelector("details[open]");
+  if (isBeingUsed) return;
+  body.replaceChildren(...jobs.map(activityRow));
+  empty.hidden = jobs.length !== 0;
+}
+
+function activityPageUrl(page) {
+  const parameters = new URLSearchParams(window.location.search);
+  parameters.set("page", String(page));
+  return `/activity?${parameters.toString()}`;
+}
+
+function updateActivity(payload) {
+  Object.entries(payload.counters).forEach(([name, value]) => {
+    const counter = document.querySelector(`[data-counter="${name}"]`);
+    if (counter) counter.textContent = String(value);
+  });
+  replaceActivityRows(
+    "[data-activity-recent]",
+    "[data-activity-recent-empty]",
+    payload.recent,
+  );
+  replaceActivityRows(
+    "[data-activity-history]",
+    "[data-activity-history-empty]",
+    payload.history,
+  );
+  const total = document.querySelector("[data-history-total]");
+  const currentPage = document.querySelector("[data-page-current]");
+  const pageCount = document.querySelector("[data-page-count]");
+  const previous = document.querySelector("[data-page-previous]");
+  const next = document.querySelector("[data-page-next]");
+  const refreshed = document.querySelector("[data-activity-refreshed]");
+  if (total) total.textContent = String(payload.pagination.total);
+  if (currentPage) currentPage.textContent = String(payload.pagination.page);
+  if (pageCount) pageCount.textContent = String(payload.pagination.page_count);
+  if (refreshed) refreshed.textContent = payload.refreshed_at;
+  if (previous) {
+    previous.hidden = payload.pagination.page <= 1;
+    previous.href = activityPageUrl(payload.pagination.page - 1);
+  }
+  if (next) {
+    next.hidden = payload.pagination.page >= payload.pagination.page_count;
+    next.href = activityPageUrl(payload.pagination.page + 1);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const root = document.querySelector("[data-activity-root]");
+  if (!root) return;
+  const errorMessage = document.querySelector("[data-activity-error]");
+  let timer;
+  let controller;
+  let inFlight = false;
+  let stopped = false;
+
+  const clearScheduledRefresh = () => {
+    if (timer) window.clearTimeout(timer);
+    timer = undefined;
+  };
+
+  const scheduleRefresh = () => {
+    clearScheduledRefresh();
+    if (!stopped && document.visibilityState === "visible") {
+      timer = window.setTimeout(refresh, 5000);
+    }
+  };
+
+  async function refresh() {
+    clearScheduledRefresh();
+    if (stopped || document.visibilityState !== "visible" || inFlight) return;
+    inFlight = true;
+    controller = new AbortController();
+    root.setAttribute("aria-busy", "true");
+    try {
+      const response = await fetch(`/activity/data${window.location.search}`, {
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      if (response.status === 401) {
+        const destination = `${window.location.pathname}${window.location.search}`;
+        window.location.assign(
+          `/login?next=${encodeURIComponent(destination)}&expired=1`,
+        );
+        stopped = true;
+        return;
+      }
+      if (!response.ok) throw new Error("activity-refresh-failed");
+      updateActivity(await response.json());
+      if (errorMessage) errorMessage.hidden = true;
+    } catch (error) {
+      if (error.name !== "AbortError" && errorMessage) {
+        errorMessage.hidden = false;
+      }
+    } finally {
+      inFlight = false;
+      controller = undefined;
+      root.setAttribute("aria-busy", "false");
+      scheduleRefresh();
+    }
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    clearScheduledRefresh();
+    if (document.visibilityState === "visible") refresh();
+  });
+  window.addEventListener("pagehide", () => {
+    stopped = true;
+    clearScheduledRefresh();
+    if (controller) controller.abort();
+  });
+  scheduleRefresh();
+});
+
 document.addEventListener("click", async (event) => {
   const toggle = event.target.closest("[data-toggle-secret]");
   if (toggle) {

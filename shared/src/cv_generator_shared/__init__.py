@@ -1,5 +1,10 @@
 from cv_generator_shared.admin_models import AdminLoginAttempt, AdminSession
 from cv_generator_shared.database import Base
+from cv_generator_shared.document_jobs import (
+    DocumentJob,
+    DocumentJobStatus,
+    DocumentType,
+)
 from cv_generator_shared.dto import (
     ApiClientData,
     ApiIdentity,
@@ -24,4 +29,7 @@ __all__ = [
     "Base",
     "CreatedApiKey",
     "CreatedClientApiKey",
+    "DocumentJob",
+    "DocumentJobStatus",
+    "DocumentType",
 ]

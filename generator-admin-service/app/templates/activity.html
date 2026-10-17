@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Activité{% endblock %}
+{% macro job_rows(jobs) %}
+  {% for job in jobs %}
+  <tr>
+    <td><strong>{{ job.owner_name or 'Propriétaire inconnu' }}</strong>{% if job.owner_active is false %}<small class="table-note">Désactivé</small>{% endif %}</td>
+    <td>{{ document_type_labels[job.document_type.value] }}</td>
+    <td>{{ job.avp_number }}</td>
+    <td>{{ job.candidate_name or '—' }}</td>
+    <td><span class="badge status-{{ job.status.value }}">{{ job_status_labels[job.status.value] }}</span></td>
+    <td>{{ job.created_at|admin_datetime }}</td>
+    <td>{{ job.started_at|admin_datetime if job.started_at else '—' }}</td>
+    <td>{{ job.completed_at|admin_datetime if job.completed_at else '—' }}</td>
+    <td><details class="job-id"><summary><code>{{ job.id|string|truncate(13, true, '…') }}</code></summary><code>{{ job.id }}</code></details></td>
+  </tr>
+  {% endfor %}
+{% endmacro %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">Supervision</p><h1>Activité</h1><p>Générations attribuées aux propriétaires des clés API.</p></div>
+  <div class="refresh-state" role="status" aria-live="polite"><span data-activity-error hidden>Actualisation interrompue — nouvelle tentative automatique.</span><span>Actualisé à <time data-activity-refreshed>{{ snapshot.refreshed_at|admin_datetime }}</time></span></div>
+</div>
+
+<section class="metrics" aria-label="Résumé de l’activité">
+  <article><span>En attente</span><strong data-counter="pending">{{ snapshot.counters.pending }}</strong></article>
+  <article><span>En cours</span><strong data-counter="processing">{{ snapshot.counters.processing }}</strong></article>
+  <article><span>Terminées aujourd’hui</span><strong data-counter="completed_today">{{ snapshot.counters.completed_today }}</strong></article>
+  <article><span>Échouées aujourd’hui</span><strong data-counter="failed_today">{{ snapshot.counters.failed_today }}</strong></article>
+</section>
+
+<section class="activity-section" data-activity-root aria-busy="false">
+  <div class="section-heading"><div><h2>Générations récentes</h2><p>Les dix dernières demandes, tous propriétaires confondus.</p></div></div>
+  <div class="table-wrap activity-table"><table>
+    <thead><tr><th>Propriétaire</th><th>Document</th><th>AVP</th><th>Candidat</th><th>Statut</th><th>Demandée</th><th>Démarrée</th><th>Terminée</th><th>Job</th></tr></thead>
+    <tbody data-activity-recent>{{ job_rows(snapshot.recent) }}</tbody>
+  </table><p class="table-empty" data-activity-recent-empty {% if snapshot.recent %}hidden{% endif %}>Aucune génération enregistrée.</p></div>
+
+  <div class="section-heading history-heading"><div><h2>Historique</h2><p><span data-history-total>{{ snapshot.total }}</span> génération{{ 's' if snapshot.total != 1 else '' }} selon les filtres.</p></div></div>
+  <form class="filter-panel" method="get" action="/activity">
+    <div><label for="activity-owner">Propriétaire</label><select id="activity-owner" name="client_id"><option value="">Tous</option>{% for client in clients %}<option value="{{ client.id }}" {% if filters.client_id == client.id %}selected{% endif %}>{{ client.name }}{% if not client.is_active %} — désactivé{% endif %}</option>{% endfor %}</select></div>
+    <div><label for="activity-type">Document</label><select id="activity-type" name="document_type"><option value="">Tous</option>{% for value, label in document_type_labels.items() %}<option value="{{ value }}" {% if filters.document_type and filters.document_type.value == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div><label for="activity-status">Statut</label><select id="activity-status" name="status"><option value="">Tous</option>{% for value, label in job_status_labels.items() %}<option value="{{ value }}" {% if filters.status and filters.status.value == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div><label for="activity-avp">Numéro d’AVP</label><input id="activity-avp" name="avp_number" value="{{ filters.avp_number or '' }}"></div>
+    <div><label for="activity-from">Du</label><input id="activity-from" type="date" name="created_from" value="{{ filters.created_from or '' }}"></div>
+    <div><label for="activity-to">Au</label><input id="activity-to" type="date" name="created_to" value="{{ filters.created_to or '' }}"></div>
+    <div class="filter-actions"><button class="button primary" type="submit">Filtrer</button><a class="button secondary" href="/activity">Réinitialiser</a></div>
+  </form>
+
+  <div class="table-wrap activity-table"><table>
+    <thead><tr><th>Propriétaire</th><th>Document</th><th>AVP</th><th>Candidat</th><th>Statut</th><th>Demandée</th><th>Démarrée</th><th>Terminée</th><th>Job</th></tr></thead>
+    <tbody data-activity-history>{{ job_rows(snapshot.history) }}</tbody>
+  </table><p class="table-empty" data-activity-history-empty {% if snapshot.history %}hidden{% endif %}>Aucune génération ne correspond aux filtres.</p></div>
+  <nav class="pagination activity-pagination" aria-label="Pagination de l’historique">
+    <a class="button secondary" data-page-previous href="/activity?{{ previous_query }}" {% if snapshot.page <= 1 %}hidden{% endif %}>Précédent</a>
+    <span>Page <strong data-page-current>{{ snapshot.page }}</strong> sur <span data-page-count>{{ snapshot.page_count }}</span></span>
+    <a class="button secondary next" data-page-next href="/activity?{{ next_query }}" {% if snapshot.page >= snapshot.page_count %}hidden{% endif %}>Suivant</a>
+  </nav>
+</section>
+{% endblock %}
