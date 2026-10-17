@@ -1,10 +1,10 @@
 import asyncio
 import os
 import uuid
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from app.core.database import async_session_factory, engine
 from app.models.document_job import DocumentJob, DocumentJobStatus, DocumentType
 from app.repositories.document_job_repository import DocumentJobRepository
 from cv_generator_shared.models import ApiClient, ApiKey
@@ -12,9 +12,10 @@ from cv_generator_shared.repositories import ApiKeyRepository
 from cv_generator_shared.services import ApiKeyService
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
-def _require_postgresql_test_database() -> None:
+def _require_postgresql_test_database() -> str:
     database_url = os.getenv("TEST_DATABASE_URL")
     if database_url is None:
         pytest.skip("TEST_DATABASE_URL n'est pas définie")
@@ -25,6 +26,7 @@ def _require_postgresql_test_database() -> None:
         pytest.fail("TEST_DATABASE_URL doit désigner une base PostgreSQL de test")
     if make_url(os.environ["DATABASE_URL"]) != url:
         pytest.fail("DATABASE_URL et TEST_DATABASE_URL doivent désigner la même base")
+    return database_url
 
 
 def _job(
@@ -46,10 +48,23 @@ def _job(
     )
 
 
+@pytest.fixture
+async def isolated_session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    test_engine = create_async_engine(
+        _require_postgresql_test_database(), pool_pre_ping=True
+    )
+    try:
+        yield async_sessionmaker(test_engine, expire_on_commit=False)
+    finally:
+        await test_engine.dispose()
+
+
 @pytest.mark.asyncio
-async def test_recovery_waits_for_concurrent_revocation_before_requeueing() -> None:
-    _require_postgresql_test_database()
-    async with async_session_factory() as setup_session:
+async def test_recovery_waits_for_concurrent_revocation_before_requeueing(
+    isolated_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    session_factory = isolated_session_factory
+    async with session_factory() as setup_session:
         service = ApiKeyService(setup_session)
         client = await service.create_client(name="Concurrence récupération")
         revoked_key = await service.create_key(client.id, name="À révoquer")
@@ -99,7 +114,7 @@ async def test_recovery_waits_for_concurrent_revocation_before_requeueing() -> N
         stale_other,
         stale_legacy,
     ]
-    async with async_session_factory() as setup_session, setup_session.begin():
+    async with session_factory() as setup_session, setup_session.begin():
         setup_session.add_all(jobs)
 
     revocation_ready = asyncio.Event()
@@ -108,7 +123,7 @@ async def test_recovery_waits_for_concurrent_revocation_before_requeueing() -> N
     recovery_pid: int | None = None
 
     async def revoke_without_committing() -> None:
-        async with async_session_factory() as session, session.begin():
+        async with session_factory() as session, session.begin():
             key = await ApiKeyRepository(session).get_by_id(
                 revoked_key.key.id, for_update=True
             )
@@ -129,12 +144,12 @@ async def test_recovery_waits_for_concurrent_revocation_before_requeueing() -> N
             )
             await session.flush()
             revocation_ready.set()
-            await allow_revocation_commit.wait()
+            await asyncio.wait_for(allow_revocation_commit.wait(), timeout=5)
 
     async def recover_concurrently():
         nonlocal recovery_pid
-        await revocation_ready.wait()
-        async with async_session_factory() as session, session.begin():
+        await asyncio.wait_for(revocation_ready.wait(), timeout=5)
+        async with session_factory() as session, session.begin():
             recovery_pid = int(await session.scalar(text("SELECT pg_backend_pid()")))
             recovery_pid_ready.set()
             return await DocumentJobRepository(session).requeue_stale_jobs(
@@ -145,28 +160,27 @@ async def test_recovery_waits_for_concurrent_revocation_before_requeueing() -> N
     revoke_task = asyncio.create_task(revoke_without_committing())
     recovery_task = asyncio.create_task(recover_concurrently())
     try:
-        await recovery_pid_ready.wait()
+        await asyncio.wait_for(recovery_pid_ready.wait(), timeout=5)
         assert recovery_pid is not None
-        async with async_session_factory() as observer:
+        async with session_factory() as observer:
             wait_event_query = text(
                 "SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid"
             )
-            for _ in range(100):
-                wait_event_type = await observer.scalar(
-                    wait_event_query,
-                    {"pid": recovery_pid},
-                )
-                if wait_event_type == "Lock":
-                    break
-                await asyncio.sleep(0.01)
-            else:
-                pytest.fail("La récupération n'a pas attendu le verrou de la clé")
+            async with asyncio.timeout(5):
+                while True:
+                    wait_event_type = await observer.scalar(
+                        wait_event_query,
+                        {"pid": recovery_pid},
+                    )
+                    if wait_event_type == "Lock":
+                        break
+                    await asyncio.sleep(0.01)
 
         allow_revocation_commit.set()
-        await revoke_task
-        recovery = await recovery_task
+        await asyncio.wait_for(revoke_task, timeout=5)
+        recovery = await asyncio.wait_for(recovery_task, timeout=5)
 
-        async with async_session_factory() as verification_session:
+        async with session_factory() as verification_session:
             rows = await verification_session.execute(
                 select(DocumentJob.id, DocumentJob.status).where(
                     DocumentJob.id.in_([job.id for job in jobs])
@@ -188,8 +202,20 @@ async def test_recovery_waits_for_concurrent_revocation_before_requeueing() -> N
         )
     finally:
         allow_revocation_commit.set()
-        await asyncio.gather(revoke_task, recovery_task, return_exceptions=True)
-        async with async_session_factory() as cleanup_session, cleanup_session.begin():
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(
+                    revoke_task,
+                    recovery_task,
+                    return_exceptions=True,
+                ),
+                timeout=5,
+            )
+        except TimeoutError:
+            revoke_task.cancel()
+            recovery_task.cancel()
+            await asyncio.gather(revoke_task, recovery_task, return_exceptions=True)
+        async with session_factory() as cleanup_session, cleanup_session.begin():
             await cleanup_session.execute(
                 delete(DocumentJob).where(DocumentJob.id.in_([job.id for job in jobs]))
             )
@@ -199,4 +225,3 @@ async def test_recovery_waits_for_concurrent_revocation_before_requeueing() -> N
             await cleanup_session.execute(
                 delete(ApiClient).where(ApiClient.id == client.id)
             )
-        await engine.dispose()

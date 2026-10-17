@@ -156,7 +156,9 @@ describe("historique documentaire", () => {
     expect(await screen.findByText("Camille Exemple")).toBeInTheDocument();
     expect(screen.getByText("Léa Martin")).toBeInTheDocument();
     expect(
-      screen.getAllByText("Annulée").some((element) => element.tagName === "SPAN"),
+      screen
+        .getAllByText("Annulée")
+        .some((element) => element.tagName === "SPAN"),
     ).toBe(true);
     expect(screen.getByText("Candidat non renseigné")).toBeInTheDocument();
     expect(

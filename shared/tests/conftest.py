@@ -6,9 +6,10 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from cv_generator_shared.database import Base
+from cv_generator_shared.document_jobs import DocumentJob
 from cv_generator_shared.models import ApiClient, ApiKey
 
-SHARED_TABLES = [ApiClient.__table__, ApiKey.__table__]
+SHARED_TABLES = [ApiClient.__table__, ApiKey.__table__, DocumentJob.__table__]
 
 
 @pytest.fixture
@@ -25,19 +26,23 @@ async def session() -> AsyncIterator[AsyncSession]:
         )
 
     engine = create_async_engine(database_url)
-    async with engine.begin() as connection:
-        await connection.run_sync(
-            lambda sync_connection: Base.metadata.create_all(
-                sync_connection, tables=SHARED_TABLES
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(
+                lambda sync_connection: Base.metadata.create_all(
+                    sync_connection, tables=SHARED_TABLES
+                )
             )
-        )
-    async with engine.connect() as connection, connection.begin() as transaction:
-        async with AsyncSession(
-            bind=connection,
-            expire_on_commit=False,
-            join_transaction_mode="create_savepoint",
-        ) as test_session:
-            yield test_session
-            await test_session.rollback()
-        await transaction.rollback()
-    await engine.dispose()
+        async with engine.connect() as connection, connection.begin() as transaction:
+            async with AsyncSession(
+                bind=connection,
+                expire_on_commit=False,
+                join_transaction_mode="create_savepoint",
+            ) as test_session:
+                try:
+                    yield test_session
+                finally:
+                    await test_session.rollback()
+            await transaction.rollback()
+    finally:
+        await engine.dispose()
