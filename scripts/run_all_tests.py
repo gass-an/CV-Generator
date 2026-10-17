@@ -13,8 +13,6 @@ SHARED = ROOT / "shared"
 DB_USER = "cv_generator"
 DB_PASSWORD = "cv_generator"
 DB_HOST = "127.0.0.1"
-DB_PORT = 5433
-
 DATABASES = (
     "cv_generator_test",
     "cv_generator_migration_test",
@@ -45,7 +43,7 @@ def start_postgres() -> str:
             "--name",
             container_name,
             "--publish",
-            f"{DB_HOST}:{DB_PORT}:5432",
+            f"{DB_HOST}::5432",
             "--env",
             f"POSTGRES_USER={DB_USER}",
             "--env",
@@ -61,7 +59,7 @@ def start_postgres() -> str:
     except subprocess.CalledProcessError as error:
         raise RuntimeError(
             "Impossible de démarrer PostgreSQL.\n"
-            "Vérifie que Docker fonctionne et que le port 5433 est libre.\n"
+            "Vérifie que Docker fonctionne.\n"
             f"{error.stderr}"
         ) from error
 
@@ -113,6 +111,14 @@ def create_databases(container_name: str) -> None:
         )
 
 
+def published_postgres_port(container_name: str) -> int:
+    mapping = docker("port", container_name, "5432/tcp").stdout.strip()
+    try:
+        return int(mapping.rsplit(":", 1)[1])
+    except (IndexError, ValueError) as error:
+        raise RuntimeError(f"Port PostgreSQL Docker illisible : {mapping!r}") from error
+
+
 def run_step(
     label: str,
     module: str,
@@ -138,11 +144,12 @@ def main() -> None:
     try:
         wait_for_postgres(container_name)
         create_databases(container_name)
+        database_port = published_postgres_port(container_name)
 
         def database_url(database_name: str) -> str:
             return (
                 f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}"
-                f"@{DB_HOST}:{DB_PORT}/{database_name}"
+                f"@{DB_HOST}:{database_port}/{database_name}"
             )
 
         env = os.environ.copy()
@@ -188,6 +195,14 @@ def main() -> None:
         )
 
         run_step(
+            "Vérification de la dérive Alembic",
+            "alembic",
+            ["check"],
+            BACKEND,
+            backend_env,
+        )
+
+        run_step(
             "1/3 - Tests shared",
             "pytest",
             ["tests", "-q"],
@@ -218,7 +233,7 @@ def main() -> None:
 
         result = docker(
             "stop",
-            "--time",
+            "--timeout",
             "5",
             container_name,
             check=False,

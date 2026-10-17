@@ -22,6 +22,82 @@ async function settle() {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
+function createThemeHarness(storedTheme = "system") {
+  const documentListeners = new Map();
+  const storage = new Map([["cv-generator.theme", storedTheme]]);
+  const buttons = ["light", "dark", "system"].map((themeValue) => ({
+    attributes: {},
+    dataset: { themeValue },
+    listeners: new Map(),
+    addEventListener(type, listener) {
+      this.listeners.set(type, listener);
+    },
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
+  }));
+  const themeColor = {
+    attributes: {},
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
+  };
+  const documentElement = {
+    dataset: {},
+    removeAttribute(name) {
+      if (name === "data-theme") delete this.dataset.theme;
+    },
+  };
+  const systemTheme = { matches: false, addEventListener() {} };
+  const document = {
+    documentElement,
+    addEventListener(type, listener) {
+      documentListeners.set(type, [
+        ...(documentListeners.get(type) || []),
+        listener,
+      ]);
+    },
+    querySelector(selector) {
+      return selector === "meta[data-theme-color]" ? themeColor : null;
+    },
+    querySelectorAll(selector) {
+      return selector === "[data-theme-value]" ? buttons : [];
+    },
+  };
+  const window = {
+    document,
+    localStorage: {
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, value) => storage.set(key, value),
+    },
+    matchMedia: () => systemTheme,
+    addEventListener() {},
+    location: { assign() {} },
+    confirm: () => true,
+  };
+  vm.runInContext(script, vm.createContext({ console, document, Set, window }), {
+    filename: "admin.js",
+  });
+  documentListeners.get("DOMContentLoaded").forEach((listener) => listener());
+  return { buttons, documentElement, storage, themeColor };
+}
+
+test("le sélecteur de thème applique et mémorise le choix accessible", () => {
+  const harness = createThemeHarness("dark");
+  const [light, dark] = harness.buttons;
+
+  assert.equal(harness.documentElement.dataset.theme, "dark");
+  assert.equal(dark.attributes["aria-pressed"], "true");
+  assert.equal(harness.themeColor.attributes.content, "#111827");
+
+  light.listeners.get("click")();
+  assert.equal(harness.storage.get("cv-generator.theme"), "light");
+  assert.equal(harness.documentElement.dataset.theme, "light");
+  assert.equal(light.attributes["aria-pressed"], "true");
+  assert.equal(dark.attributes["aria-pressed"], "false");
+  assert.equal(harness.themeColor.attributes.content, "#f7f9fc");
+});
+
 function createHarness(fetchImplementation) {
   const documentListeners = new Map();
   const windowListeners = new Map();

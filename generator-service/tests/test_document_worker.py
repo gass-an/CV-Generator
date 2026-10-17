@@ -12,6 +12,8 @@ from app.workers.document_worker import validate_worker_configuration
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 
+REFERENCE_TIME = datetime(2026, 10, 17, 1, 30, tzinfo=UTC)
+
 
 @pytest.mark.parametrize(
     ("llm_base_url", "llm_model", "missing_name"),
@@ -39,7 +41,7 @@ def make_job(
     created_at: datetime | None = None,
     started_at: datetime | None = None,
 ) -> DocumentJob:
-    now = datetime.now(UTC)
+    now = REFERENCE_TIME
     return DocumentJob(
         id=uuid.uuid4(),
         document_type=document_type,
@@ -60,7 +62,7 @@ async def test_repository_reserves_pending_job_with_skip_locked() -> None:
     result.scalar_one_or_none.return_value = job
     session.execute.return_value = result
     repository = DocumentJobRepository(session)
-    now = datetime.now(UTC)
+    now = REFERENCE_TIME
 
     reserved = await repository.reserve_next_pending(now=now)
 
@@ -82,7 +84,7 @@ async def test_repository_returns_none_when_no_job_is_available() -> None:
     session.execute.return_value = result
 
     reserved = await DocumentJobRepository(session).reserve_next_pending(
-        now=datetime.now(UTC)
+        now=REFERENCE_TIME
     )
 
     assert reserved is None
@@ -292,7 +294,7 @@ async def test_success_processing_closes_reservation_transaction() -> None:
 async def test_worker_routes_all_document_types_to_their_processors() -> None:
     cv_job = make_job(
         DocumentJobStatus.PENDING,
-        created_at=datetime.now(UTC) - timedelta(seconds=1),
+        created_at=REFERENCE_TIME - timedelta(seconds=1),
     )
     letter_job = make_job(
         DocumentJobStatus.PENDING,
@@ -301,7 +303,7 @@ async def test_worker_routes_all_document_types_to_their_processors() -> None:
     interview_job = make_job(
         DocumentJobStatus.PENDING,
         document_type=DocumentType.INTERVIEW_PREP,
-        created_at=datetime.now(UTC) + timedelta(seconds=1),
+        created_at=REFERENCE_TIME + timedelta(seconds=1),
     )
     session_factory = FakeSessionFactory()
     cv_processor = RecordingProcessor(session_factory)
@@ -336,7 +338,7 @@ async def test_worker_routes_all_document_types_to_their_processors() -> None:
 async def test_processor_error_fails_job_and_worker_can_process_next_job() -> None:
     first_job = make_job(
         DocumentJobStatus.PENDING,
-        created_at=datetime.now(UTC) - timedelta(seconds=1),
+        created_at=REFERENCE_TIME - timedelta(seconds=1),
     )
     second_job = make_job(DocumentJobStatus.PENDING)
     session_factory = FakeSessionFactory()
@@ -361,6 +363,8 @@ async def test_processor_error_fails_job_and_worker_can_process_next_job() -> No
 
 @pytest.mark.asyncio
 async def test_recovery_only_requeues_stale_processing_jobs() -> None:
+    # Le service calcule lui-même l'instant de récupération : les deux jobs sont
+    # positionnés relativement au même instant capturé pour préserver le contrat.
     now = datetime.now(UTC)
     stale_job = make_job(
         DocumentJobStatus.PROCESSING,

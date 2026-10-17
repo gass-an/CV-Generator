@@ -146,10 +146,51 @@ async def test_activity_attributes_jobs_and_counts_in_admin_timezone(
 
 
 @pytest.mark.asyncio
+async def test_activity_daily_counts_start_at_admin_local_midnight() -> None:
+    local_midnight = datetime(2026, 10, 16, 13, 0, tzinfo=UTC)
+    async with async_session_factory() as session, session.begin():
+        session.add_all(
+            [
+                make_job(
+                    client_id=None,
+                    status=DocumentJobStatus.COMPLETED,
+                    avp_number="TEST-ADMIN-BOUNDARY-COMPLETED",
+                    created_at=local_midnight,
+                    completed_at=local_midnight,
+                ),
+                make_job(
+                    client_id=None,
+                    status=DocumentJobStatus.FAILED,
+                    avp_number="TEST-ADMIN-BOUNDARY-FAILED",
+                    created_at=local_midnight,
+                    completed_at=local_midnight,
+                ),
+                make_job(
+                    client_id=None,
+                    status=DocumentJobStatus.COMPLETED,
+                    avp_number="TEST-ADMIN-BOUNDARY-PREVIOUS-DAY",
+                    created_at=local_midnight - timedelta(seconds=1),
+                    completed_at=local_midnight - timedelta(seconds=1),
+                ),
+            ]
+        )
+
+    async with async_session_factory() as session:
+        counters = (
+            await AdminActivityService(session, get_settings().timezone).snapshot(
+                ActivityFilters(), now=local_midnight + timedelta(hours=1)
+            )
+        ).counters
+
+    assert counters.completed_today == 1
+    assert counters.failed_today == 1
+
+
+@pytest.mark.asyncio
 async def test_activity_filters_sorting_and_server_side_pagination(
     browser: httpx.AsyncClient,
 ) -> None:
-    now = datetime.now(UTC)
+    now = datetime(2026, 10, 17, 1, 30, tzinfo=UTC)
     async with async_session_factory() as session, session.begin():
         first = ApiClient(name="Premier propriétaire")
         second = ApiClient(name="Second propriétaire")

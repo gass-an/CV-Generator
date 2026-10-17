@@ -63,6 +63,7 @@ AVP = AvpData(
     source_url="https://opt.example/index.md",
     is_archived=False,
 )
+REFERENCE_TIME = datetime(2026, 10, 17, 1, 30, tzinfo=UTC)
 
 
 def make_job(document_type: DocumentType = DocumentType.CV) -> DocumentJobData:
@@ -71,7 +72,7 @@ def make_job(document_type: DocumentType = DocumentType.CV) -> DocumentJobData:
         document_type=document_type,
         avp_number=AVP.reference,
         resume_data={"skills": [{"name": "Python"}]},
-        started_at=datetime.now(UTC),
+        started_at=REFERENCE_TIME,
     )
 
 

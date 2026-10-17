@@ -191,6 +191,7 @@ jobs:
         run: createdb --host localhost --username cv_generator cv_generator_migration_test
       - run: alembic upgrade head
       - run: alembic current --check-heads
+      - run: alembic check
       - run: ruff format --check .
       - run: ruff check .
       - run: pytest
@@ -229,6 +230,9 @@ jobs:
             generator-admin-service/pyproject.toml
             generator-service/pyproject.toml
             shared/pyproject.toml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
       - run: python -m pip install -e ./shared -e './generator-service[dev]' -e './generator-admin-service[dev]'
       - name: Appliquer les migrations
         working-directory: generator-service

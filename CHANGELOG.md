@@ -12,6 +12,7 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 ### Modifications
 
 - Partage du modèle `DocumentJob` entre le générateur et l’administration, et ajout d’index PostgreSQL adaptés aux consultations chronologiques de l’activité.
+- Fiabilisation des tests par des horloges déterministes, un nettoyage systématique des timers et mocks, et l’alignement explicite de Node.js et des contrôles Alembic entre les validations locales et la CI.
 
 
 ## [0.6.2] - 2026-10-17

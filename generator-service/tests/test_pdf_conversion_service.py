@@ -51,7 +51,7 @@ async def test_converter_timeout_cleans_temporary_directory() -> None:
     async def slow_runner(command: list[str]) -> None:
         nonlocal temporary_directory
         temporary_directory = Path(command[command.index("--outdir") + 1])
-        await asyncio.sleep(1)
+        await asyncio.Event().wait()
 
     converter = LibreOfficePdfConverter(
         executable="libreoffice",
@@ -96,12 +96,15 @@ async def test_converter_rejects_missing_or_invalid_output(
 async def test_converter_limits_concurrent_processes() -> None:
     active = 0
     maximum_active = 0
+    first_started = asyncio.Event()
+    release = asyncio.Event()
 
     async def recording_runner(command: list[str]) -> None:
         nonlocal active, maximum_active
         active += 1
         maximum_active = max(maximum_active, active)
-        await asyncio.sleep(0.01)
+        first_started.set()
+        await release.wait()
         output_path_from(command).write_bytes(VALID_PDF)  # noqa: ASYNC240
         active -= 1
 
@@ -112,8 +115,12 @@ async def test_converter_limits_concurrent_processes() -> None:
         process_runner=recording_runner,
     )
 
-    await asyncio.gather(*(converter.convert(b"docx") for _ in range(3)))
+    conversions = [asyncio.create_task(converter.convert(b"docx")) for _ in range(3)]
+    await first_started.wait()
+    await asyncio.sleep(0)
     assert maximum_active == 1
+    release.set()
+    await asyncio.gather(*conversions)
 
 
 @pytest.mark.asyncio

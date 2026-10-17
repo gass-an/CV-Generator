@@ -20,6 +20,7 @@ AVP = AvpData(
     source_url="https://opt.example/index.md",
     is_archived=False,
 )
+REFERENCE_TIME = datetime(2026, 10, 17, 1, 30, tzinfo=UTC)
 
 
 class FakeAvpClient:
@@ -61,7 +62,7 @@ async def test_all_document_processors_store_normalized_asciidoc(
         document_type=document_type,
         avp_number=AVP.reference,
         resume_data={"basics": {}},
-        started_at=datetime.now(UTC),
+        started_at=REFERENCE_TIME,
     )
 
     result = await processor.process(job)

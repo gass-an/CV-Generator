@@ -9,6 +9,8 @@ from app.repositories.document_job_repository import DocumentJobRepository
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 
+REFERENCE_TIME = datetime(2026, 10, 17, 1, 30, tzinfo=UTC)
+
 
 @pytest.mark.asyncio
 async def test_history_uses_filtered_projection_stable_order_and_separate_total() -> (
@@ -23,7 +25,7 @@ async def test_history_uses_filtered_projection_stable_order_and_separate_total(
             status=DocumentJobStatus.COMPLETED,
             avp_number="3134-26-1382/SR",
             candidate_name="Camille Exemple",
-            created_at=datetime.now(UTC),
+            created_at=REFERENCE_TIME,
             started_at=None,
             completed_at=None,
         )

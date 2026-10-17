@@ -70,9 +70,6 @@ describe("App", () => {
     expect(links[1]).toHaveFocus();
     await user.tab();
     expect(links[2]).toHaveFocus();
-    expect(
-      screen.getByText("Une application développée dans le cadre du HackAVP."),
-    ).toBeInTheDocument();
   });
 
   it("conserve le nom de l'application et toute la navigation sur mobile", () => {

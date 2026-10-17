@@ -25,7 +25,10 @@ const payload = {
 
 describe("documentService", () => {
   beforeEach(() => vi.stubGlobal("fetch", vi.fn()));
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   it.each<[DocumentType, string]>([
     ["cv", "/api/v1/documents/cv"],
@@ -195,6 +198,5 @@ describe("documentService", () => {
     });
     await vi.advanceTimersByTimeAsync(PDF_TIMEOUT_MS);
     await rejection;
-    vi.useRealTimers();
   });
 });

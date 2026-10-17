@@ -1,6 +1,10 @@
 import { documentFilename, triggerBlobDownload } from "@/lib/documentFiles";
 
 describe("documentFiles", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
   it("construit un nom lisible et nettoie les caractères interdits", () => {
     expect(
       documentFilename(
@@ -53,7 +57,6 @@ describe("documentFiles", () => {
     expect(revoke).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1_000);
     expect(revoke).toHaveBeenCalledWith("blob:fichier");
-    vi.useRealTimers();
   });
 
   it("nettoie le lien et l'URL même si le clic échoue", async () => {
@@ -73,6 +76,5 @@ describe("documentFiles", () => {
     expect(revoke).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1_000);
     expect(revoke).toHaveBeenCalledWith("blob:erreur");
-    vi.useRealTimers();
   });
 });
