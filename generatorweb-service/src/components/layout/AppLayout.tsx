@@ -85,8 +85,17 @@ export function AppLayout() {
         <div className="mx-auto flex w-full max-w-7xl flex-col items-center gap-5 px-4 py-6 sm:flex-row sm:justify-between sm:px-6 lg:px-8">
           <div className="text-center sm:text-left">
             <p className="text-sm font-semibold">CV-Generator</p>
-            <p className="text-muted-foreground mt-1 text-xs">
-              Une application développée dans le cadre du HackAVP.
+            <p>
+              Une application développée dans le cadre du{" "}
+              <a
+                  href="https://dev.to/adriens/hackavp-premier-hackathon-dedie-a-lemploi-dans-la-fonction-publique-en-ncl-3oj0"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-4 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                HackAVP
+              </a>
+              .
             </p>
           </div>
           <div
