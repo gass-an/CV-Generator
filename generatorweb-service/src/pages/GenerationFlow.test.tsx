@@ -50,7 +50,7 @@ function renderGeneration() {
 }
 
 async function prepareGeneration(user: ReturnType<typeof userEvent.setup>) {
-  renderGeneration();
+  const rendered = renderGeneration();
   await waitFor(() =>
     expect(screen.getByText("Clé API vérifiée")).toHaveClass("text-primary"),
   );
@@ -64,6 +64,7 @@ async function prepareGeneration(user: ReturnType<typeof userEvent.setup>) {
   await user.click(
     screen.getByRole("radio", { name: /Préparation à l'entretien/ }),
   );
+  return rendered;
 }
 
 function latestPollingOptions() {
@@ -97,7 +98,12 @@ describe("génération et suivi d'un document", () => {
     vi.mocked(getDocumentExport).mockResolvedValue(
       new Blob(["document"], { type: "application/octet-stream" }),
     );
-    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:preview");
+    let downloadUrl = 0;
+    vi.spyOn(URL, "createObjectURL").mockImplementation((source) =>
+      source instanceof Blob && source.type === "application/pdf"
+        ? "blob:preview"
+        : `blob:download-${++downloadUrl}`,
+    );
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
   });
 
@@ -230,7 +236,7 @@ describe("génération et suivi d'un document", () => {
       status: "pending",
     });
     const user = userEvent.setup();
-    await prepareGeneration(user);
+    const rendered = await prepareGeneration(user);
     vi.mocked(URL.revokeObjectURL).mockClear();
     await user.click(
       screen.getByRole("button", { name: "Générer le document" }),
@@ -270,12 +276,15 @@ describe("génération et suivi d'un document", () => {
       screen.getByRole("button", { name: "Fermer la prévisualisation" }),
     );
     expect(screen.getByLabelText(/^Aperçu PDF —/)).toBeInTheDocument();
-    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    expect(URL.revokeObjectURL).not.toHaveBeenCalledWith("blob:preview");
     expect(enlarge).toHaveFocus();
 
     await user.click(enlarge);
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(getDocumentPdf).toHaveBeenCalledOnce();
+
+    rendered.unmount();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:preview");
   });
 
   it("affiche l'échec terminal et autorise une nouvelle génération", async () => {
