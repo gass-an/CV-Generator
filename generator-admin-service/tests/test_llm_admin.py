@@ -115,6 +115,18 @@ async def test_unavailable_page_keeps_automatic_recovery_root(
 
 
 @pytest.mark.asyncio
+async def test_models_page_keeps_table_cells_around_flexible_content(
+    browser: httpx.AsyncClient, managed_router: FakeRouter
+) -> None:
+    await login(browser)
+    page = await browser.get("/llm-models")
+    assert page.status_code == 200
+    assert '<div class="model-roles">' in page.text
+    assert '<div class="model-actions">' in page.text
+    assert '<td class="model-actions">' not in page.text
+
+
+@pytest.mark.asyncio
 async def test_invalid_reference_and_csrf_are_rejected(
     browser: httpx.AsyncClient, managed_router: FakeRouter
 ) -> None:

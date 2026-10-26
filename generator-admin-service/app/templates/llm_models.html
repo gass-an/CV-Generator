@@ -39,11 +39,13 @@
         <td data-model-size="{{ model.size or '' }}">{{ model.size or '—' }}</td>
         <td><span class="badge status-{{ 'error' if model.failed else model.status }}">{{ 'Erreur' if model.failed else status_labels.get(model.status, model.status) }}</span></td>
         <td>{% if model.progress_total %}{{ model.progress_done }} / {{ model.progress_total }} octets ({{ (model.progress_done * 100 / model.progress_total)|round(1) }} %){% else %}—{% endif %}</td>
-        <td>{% if model.id == snapshot.selected_model %}<span class="badge status-active">Sélectionné</span>{% endif %} {% if model.id == snapshot.loaded_model %}<span class="badge status-processing">En VRAM</span>{% endif %}</td>
-        <td class="model-actions">
-          {% if model.status not in ['downloading', 'incomplete', 'loading'] and model.id != snapshot.loaded_model %}<form method="post" action="/llm-models/activate" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model.id }}"><button class="button primary compact" type="submit">Activer</button></form>{% endif %}
-          {% if model.id == snapshot.loaded_model and model.id != snapshot.selected_model %}<form method="post" action="/llm-models/unload" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model.id }}"><button class="button secondary compact" type="submit">Décharger</button></form>{% endif %}
-          {% if model.status == 'incomplete' %}<form method="post" action="/llm-models/download" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model.id }}"><button class="button secondary compact" type="submit">Reprendre</button></form>{% endif %}
+        <td><div class="model-roles">{% if model.id == snapshot.selected_model %}<span class="badge status-active">Sélectionné</span>{% endif %}{% if model.id == snapshot.loaded_model %}<span class="badge status-processing">En VRAM</span>{% endif %}</div></td>
+        <td>
+          <div class="model-actions">
+            {% if model.status not in ['downloading', 'incomplete', 'loading'] and model.id != snapshot.loaded_model %}<form method="post" action="/llm-models/activate" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model.id }}"><button class="button primary compact" type="submit">Activer</button></form>{% endif %}
+            {% if model.id == snapshot.loaded_model and model.id != snapshot.selected_model %}<form method="post" action="/llm-models/unload" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model.id }}"><button class="button secondary compact" type="submit">Décharger</button></form>{% endif %}
+            {% if model.status == 'incomplete' %}<form method="post" action="/llm-models/download" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model.id }}"><button class="button secondary compact" type="submit">Reprendre</button></form>{% endif %}
+          </div>
         </td>
       </tr>
     {% endfor %}

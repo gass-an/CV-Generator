@@ -140,7 +140,8 @@ tbody tr:hover { background: color-mix(in oklch, var(--muted) 55%, transparent);
 .models-section[aria-busy="true"] { opacity: .82; }
 .model-add-panel { margin-bottom: 2rem; }
 .model-summary { display: flex; flex-wrap: wrap; gap: .5rem 2rem; margin-bottom: 1rem; }
-.model-actions { display: flex; gap: .5rem; }
+.models-table td { vertical-align: middle; }
+.model-roles, .model-actions { display: flex; align-items: center; gap: .5rem; }
 .model-actions form { margin: 0; }
 .status-downloading, .status-loading { color: var(--primary); background: color-mix(in oklch, var(--primary) 11%, var(--card)); }
 .status-incomplete, .status-sleeping { color: var(--warning); background: var(--warning-bg); }
@@ -216,6 +217,7 @@ legend { padding: 0 .4rem; }
   .metrics, .filter-panel { grid-template-columns: 1fr; }
   .filter-actions { align-items: stretch; flex-direction: column; }
   .filter-actions .button { width: 100%; }
+  .model-roles, .model-actions { flex-wrap: wrap; }
 }
 
 @media (prefers-reduced-motion: reduce) {

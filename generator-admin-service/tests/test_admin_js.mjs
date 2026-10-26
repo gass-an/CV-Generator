@@ -760,8 +760,12 @@ test("la progression et les modèles sélectionné et chargé restent distincts"
   assert.equal(harness.selected.textContent, payload.selected_model);
   assert.equal(harness.loaded.textContent, payload.loaded_model);
   assert.equal(harness.body.children[0].children[4].textContent, "1.0 Kio / 4.0 Kio (25 %)");
-  assert.equal(harness.body.children[0].children[5].children[0].textContent, "Sélectionné");
-  assert.equal(harness.body.children[1].children[5].children[0].textContent, "En VRAM");
+  const selectedRoles = harness.body.children[0].children[5].children[0];
+  const loadedRoles = harness.body.children[1].children[5].children[0];
+  assert.equal(selectedRoles.className, "model-roles");
+  assert.equal(loadedRoles.className, "model-roles");
+  assert.equal(selectedRoles.children[0].textContent, "Sélectionné");
+  assert.equal(loadedRoles.children[0].textContent, "En VRAM");
 });
 
 test("les formulaires d’activation et de reprise contiennent modèle et CSRF", async () => {
@@ -772,8 +776,16 @@ test("les formulaires d’activation et de reprise contiennent modèle et CSRF",
   const harness = createModelsHarness(async () => jsonResponse(payload));
   await harness.runTimer();
 
-  const activate = harness.body.children[0].children[6].children[0];
-  const resume = harness.body.children[1].children[6].children[0];
+  const activateCell = harness.body.children[0].children[6];
+  const resumeCell = harness.body.children[1].children[6];
+  const activateLayout = activateCell.children[0];
+  const resumeLayout = resumeCell.children[0];
+  assert.equal(activateCell.tagName, "TD");
+  assert.equal(activateCell.className, "");
+  assert.equal(activateLayout.className, "model-actions");
+  assert.equal(resumeLayout.className, "model-actions");
+  const activate = activateLayout.children[0];
+  const resume = resumeLayout.children[0];
   assert.equal(activate.action, "/llm-models/activate");
   assert.equal(resume.action, "/llm-models/download");
   for (const form of [activate, resume]) {
@@ -791,7 +803,7 @@ test("une double soumission d’action est bloquée", async () => {
     jsonResponse(modelPayload([modelState("org/model-GGUF:Q4_K_M", "unloaded")])),
   );
   await harness.runTimer();
-  const form = harness.body.children[0].children[6].children[0];
+  const form = harness.body.children[0].children[6].children[0].children[0];
   const submit = harness.root.listeners.get("submit");
   const first = { target: form, preventDefault() { this.prevented = true; } };
   const second = { target: form, preventDefault() { this.prevented = true; } };

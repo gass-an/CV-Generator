@@ -350,28 +350,33 @@ document.addEventListener("DOMContentLoaded", () => {
       cells[4].textContent = model.progress_total
         ? `${formatModelBytes(model.progress_done)} / ${formatModelBytes(model.progress_total)} (${model.progress_percentage} %)`
         : "—";
+      const roles = document.createElement("div");
+      roles.className = "model-roles";
       if (model.selected) {
         const selected = document.createElement("span");
         selected.className = "badge status-active";
         selected.textContent = "Sélectionné";
-        cells[5].append(selected, " ");
+        roles.append(selected);
       }
       if (model.loaded) {
         const loaded = document.createElement("span");
         loaded.className = "badge status-processing";
         loaded.textContent = "En VRAM";
-        cells[5].append(loaded);
+        roles.append(loaded);
       }
-      cells[6].className = "model-actions";
+      cells[5].append(roles);
+      const actions = document.createElement("div");
+      actions.className = "model-actions";
       if (!["downloading", "incomplete", "loading"].includes(model.status) && !model.loaded) {
-        cells[6].append(actionForm("activate", model.id, "Activer", "primary"));
+        actions.append(actionForm("activate", model.id, "Activer", "primary"));
       }
       if (model.loaded && !model.selected) {
-        cells[6].append(actionForm("unload", model.id, "Décharger", "secondary"));
+        actions.append(actionForm("unload", model.id, "Décharger", "secondary"));
       }
       if (model.status === "incomplete") {
-        cells[6].append(actionForm("download", model.id, "Reprendre", "secondary"));
+        actions.append(actionForm("download", model.id, "Reprendre", "secondary"));
       }
+      cells[6].append(actions);
       row.append(...cells);
       body.append(row);
     }
