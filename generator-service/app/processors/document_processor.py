@@ -31,6 +31,7 @@ class DocumentJobData:
     avp_number: str
     resume_data: dict[str, Any]
     started_at: datetime
+    llm_model: str = "ggml-org/Qwen3-14B-GGUF:Q4_K_M"
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,7 +111,9 @@ class AvpLlmDocumentProcessor:
 
         messages = self._prompt_builder.build(resume_data=job.resume_data, avp=avp)
         try:
-            generated_content = await self._llm_client.generate(messages)
+            generated_content = await self._llm_client.generate(
+                messages, model=job.llm_model
+            )
         except LlmTimeoutError as error:
             raise DocumentProcessingError(
                 code="llm_timeout",

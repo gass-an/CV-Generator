@@ -9,6 +9,7 @@ from cv_generator_shared.admin_models import (  # noqa: F401
     AdminLoginAttempt,
     AdminSession,
 )
+from cv_generator_shared.llm_models import LlmConfiguration  # noqa: F401
 from cv_generator_shared.models import ApiClient, ApiKey  # noqa: F401
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config

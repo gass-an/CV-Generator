@@ -137,6 +137,14 @@ tbody tr:hover { background: color-mix(in oklch, var(--muted) 55%, transparent);
 .refresh-state { display: grid; justify-items: end; gap: .2rem; color: var(--muted-foreground); font-size: .82rem; }
 .refresh-state [data-activity-error] { color: var(--warning); }
 .activity-section[aria-busy="true"] { opacity: .82; }
+.models-section[aria-busy="true"] { opacity: .82; }
+.model-add-panel { margin-bottom: 2rem; }
+.model-summary { display: flex; flex-wrap: wrap; gap: .5rem 2rem; margin-bottom: 1rem; }
+.model-actions { display: flex; gap: .5rem; }
+.model-actions form { margin: 0; }
+.status-downloading, .status-loading { color: var(--primary); background: color-mix(in oklch, var(--primary) 11%, var(--card)); }
+.status-incomplete, .status-sleeping { color: var(--warning); background: var(--warning-bg); }
+.status-error { color: var(--danger); background: var(--danger-bg); }
 .section-heading { display: flex; justify-content: space-between; gap: 1rem; margin: 1.5rem 0 .75rem; }
 .section-heading h2 { margin: 0; }
 .history-heading { margin-top: 2.5rem; }

@@ -16,7 +16,7 @@ pull requests ne publient jamais d'image.
 Depuis une branche propre et à jour :
 
 ```bash
-python run_all_tests.py
+python scripts/run_all_tests.py
 cd generatorweb-service
 npm ci
 npm run typecheck
@@ -75,11 +75,14 @@ docker compose --env-file .env -f docker-compose.prod.yml pull
 docker compose --env-file .env -f docker-compose.prod.yml up -d
 docker compose --env-file .env -f docker-compose.prod.yml ps
 docker compose --env-file .env -f docker-compose.prod.yml logs --tail=100 generator-migrate
-docker compose --env-file .env -f docker-compose.prod.yml logs --tail=100 generator-api generator-worker generator-admin generator-web
+docker compose --env-file .env -f docker-compose.prod.yml logs --tail=100 llm generator-api generator-worker generator-admin generator-web
 ```
 
 `generator-migrate` doit terminer avec succès. Les volumes nommés
 `cv-generator_postgres-data` et `cv-generator-models` doivent être conservés.
+Le Router démarre volontairement sans `-hf` et peut donc n’avoir aucun modèle
+chargé juste après son redémarrage. Le cache reste sur le second volume ; la
+page privée « Modèles LLM » doit y retrouver les modèles sans les retélécharger.
 
 Tester ensuite le chemin public unique du frontend :
 
@@ -118,6 +121,10 @@ remplace pas :
 - reprendre un job en cours ;
 - vérifier deux clés d'un même client puis l'isolation de deux clients ;
 - vérifier les messages lorsque FastAPI ou llama.cpp est indisponible.
+- ouvrir « Modèles LLM », retrouver Qwen3-14B sélectionné et confirmer son
+  chargement avant une première génération ;
+- redémarrer seulement `llm`, puis confirmer que la première génération attend
+  son rechargement depuis le cache et qu’aucun nouveau téléchargement ne démarre.
 
 ## Retour arrière applicatif
 

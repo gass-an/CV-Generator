@@ -32,12 +32,14 @@ class DocumentWorkerService:
         processors: Mapping[DocumentType, DocumentProcessor],
         poll_interval_seconds: float,
         stale_job_timeout_seconds: float,
+        fallback_model: str = "ggml-org/Qwen3-14B-GGUF:Q4_K_M",
         repository_factory: RepositoryFactory = DocumentJobRepository,
     ) -> None:
         self._session_factory = session_factory
         self._processors = processors
         self._poll_interval_seconds = poll_interval_seconds
         self._stale_job_timeout_seconds = stale_job_timeout_seconds
+        self._fallback_model = fallback_model
         self._repository_factory = repository_factory
 
     async def reserve_next_job(self) -> DocumentJobData | None:
@@ -210,8 +212,7 @@ class DocumentWorkerService:
             error_code,
         )
 
-    @staticmethod
-    def _detach_job(job: DocumentJob) -> DocumentJobData:
+    def _detach_job(self, job: DocumentJob) -> DocumentJobData:
         if job.started_at is None:
             raise RuntimeError("Le job réservé ne possède pas de date de début")
         return DocumentJobData(
@@ -220,4 +221,5 @@ class DocumentWorkerService:
             avp_number=job.avp_number,
             resume_data=dict(job.resume_data),
             started_at=job.started_at,
+            llm_model=job.llm_model or self._fallback_model,
         )

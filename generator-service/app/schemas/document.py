@@ -58,6 +58,9 @@ class DocumentJobStatusResponse(BaseModel):
         description="Date de fin du traitement, en succès ou en échec."
     )
     cancelled_at: datetime | None = Field(description="Date d'annulation éventuelle.")
+    llm_model: str | None = Field(
+        default=None, description="Modèle LLM affecté à cette génération."
+    )
 
 
 class DocumentHistoryItemResponse(BaseModel):
@@ -74,6 +77,9 @@ class DocumentHistoryItemResponse(BaseModel):
     started_at: datetime | None = Field(description="Date de début du traitement.")
     completed_at: datetime | None = Field(description="Date de fin du traitement.")
     cancelled_at: datetime | None = Field(description="Date d'annulation éventuelle.")
+    llm_model: str | None = Field(
+        default=None, description="Modèle LLM utilisé pour cette génération."
+    )
 
 
 class DocumentHistoryResponse(BaseModel):

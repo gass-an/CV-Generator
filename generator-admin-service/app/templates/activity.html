@@ -8,9 +8,11 @@
     <td>{{ job.avp_number }}</td>
     <td>{{ job.candidate_name or '—' }}</td>
     <td><span class="badge status-{{ job.status.value }}">{{ job_status_labels[job.status.value] }}</span></td>
+    <td>{% if job.llm_model %}<code>{{ job.llm_model }}</code>{% else %}<span class="table-note">Modèle historique inconnu</span>{% endif %}</td>
     <td>{{ job.created_at|admin_datetime }}</td>
     <td>{{ job.started_at|admin_datetime if job.started_at else '—' }}</td>
     <td>{% if job.cancelled_at %}Annulée le {{ job.cancelled_at|admin_datetime }}{% elif job.completed_at %}Terminée le {{ job.completed_at|admin_datetime }}{% else %}—{% endif %}</td>
+    <td>{% if job.duration_seconds is not none %}{{ job.duration_seconds|round(1) }} s{% else %}—{% endif %}</td>
     <td><details class="job-id"><summary><code>{{ job.id|string|truncate(13, true, '…') }}</code></summary><code>{{ job.id }}</code></details></td>
   </tr>
   {% endfor %}
@@ -31,7 +33,7 @@
 <section class="activity-section" data-activity-root aria-busy="false">
   <div class="section-heading"><div><h2>Générations récentes</h2><p>Les dix dernières demandes, tous propriétaires confondus.</p></div></div>
   <div class="table-wrap activity-table"><table>
-    <thead><tr><th>Propriétaire</th><th>Document</th><th>AVP</th><th>Candidat</th><th>Statut</th><th>Demandée</th><th>Démarrée</th><th>Issue</th><th>Job</th></tr></thead>
+    <thead><tr><th>Propriétaire</th><th>Document</th><th>AVP</th><th>Candidat</th><th>Statut</th><th>Modèle</th><th>Demandée</th><th>Démarrée</th><th>Issue</th><th>Durée</th><th>Job</th></tr></thead>
     <tbody data-activity-recent>{{ job_rows(snapshot.recent) }}</tbody>
   </table><p class="table-empty" data-activity-recent-empty {% if snapshot.recent %}hidden{% endif %}>Aucune génération enregistrée.</p></div>
 
@@ -47,7 +49,7 @@
   </form>
 
   <div class="table-wrap activity-table"><table>
-    <thead><tr><th>Propriétaire</th><th>Document</th><th>AVP</th><th>Candidat</th><th>Statut</th><th>Demandée</th><th>Démarrée</th><th>Issue</th><th>Job</th></tr></thead>
+    <thead><tr><th>Propriétaire</th><th>Document</th><th>AVP</th><th>Candidat</th><th>Statut</th><th>Modèle</th><th>Demandée</th><th>Démarrée</th><th>Issue</th><th>Durée</th><th>Job</th></tr></thead>
     <tbody data-activity-history>{{ job_rows(snapshot.history) }}</tbody>
   </table><p class="table-empty" data-activity-history-empty {% if snapshot.history %}hidden{% endif %}>Aucune génération ne correspond aux filtres.</p></div>
   <nav class="pagination activity-pagination" aria-label="Pagination de l’historique">

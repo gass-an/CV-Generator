@@ -6,9 +6,11 @@ x-generator-environment: &generator-environment
   LOG_LEVEL: ${LOG_LEVEL}
   DATABASE_URL: ${DATABASE_URL}
   OPT_AVP_BASE_URL: ${OPT_AVP_BASE_URL}
-  LLM_BASE_URL: ${LLM_BASE_URL:-http://llm:8080}
-  LLM_MODEL: ${LLM_MODEL}
-  LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS}
+  # En production le worker utilise toujours le Router du réseau Docker.
+  LLM_BASE_URL: http://llm:8080
+  LLM_MODEL: ${LLM_MODEL:-ggml-org/Qwen3-14B-GGUF:Q4_K_M}
+  # Inclut le chargement initial du modèle par le Router après un redémarrage.
+  LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-600}
   WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS}
   WORKER_STALE_JOB_TIMEOUT_SECONDS: ${WORKER_STALE_JOB_TIMEOUT_SECONDS}
   LIBREOFFICE_EXECUTABLE: ${LIBREOFFICE_EXECUTABLE:-libreoffice}
@@ -31,9 +33,10 @@ services:
       retries: 10
       start_period: 10s
     restart: unless-stopped
+    networks: [application]
 
   llm:
-    image: ghcr.io/ggml-org/llama.cpp@sha256:936e9d2afab78662a05fd300c4a829ba931777bcd8372334da629b468511f90e
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda-b11889@sha256:b51c252687249a6990ae1c168156cb215c954bfd71f9c434eda9a065b1a40dbe
     container_name: cv-llm
 
     deploy:
@@ -51,8 +54,6 @@ services:
       - llm-models:/models
 
     command:
-      - "-hf"
-      - "${LLM_MODEL}"
       - "--host"
       - "0.0.0.0"
       - "--port"
@@ -61,11 +62,11 @@ services:
       - "${LLM_CTX_SIZE}"
       - "--n-gpu-layers"
       - "99"
-
-    ports:
-      - "127.0.0.1:8080:8080"
+      - "--models-max"
+      - "1"
 
     restart: unless-stopped
+    networks: [llm-control]
 
   generator-migrate:
     image: ghcr.io/gass-an/cv-generator:${APP_VERSION}
@@ -75,6 +76,7 @@ services:
       postgres:
         condition: service_healthy
     restart: "no"
+    networks: [application]
 
   generator-api:
     image: ghcr.io/gass-an/cv-generator:${APP_VERSION}
@@ -86,6 +88,7 @@ services:
       generator-migrate:
         condition: service_completed_successfully
     restart: unless-stopped
+    networks: [application]
 
   generator-worker:
     image: ghcr.io/gass-an/cv-generator:${APP_VERSION}
@@ -97,6 +100,7 @@ services:
       llm:
         condition: service_started
     restart: unless-stopped
+    networks: [application, llm-control]
 
   generator-admin:
     image: ghcr.io/gass-an/cv-generator-admin:${APP_VERSION}
@@ -115,18 +119,31 @@ services:
       ADMIN_LOGIN_WINDOW_SECONDS: ${ADMIN_LOGIN_WINDOW_SECONDS:-900}
       ADMIN_LOGIN_MAX_ATTEMPTS: ${ADMIN_LOGIN_MAX_ATTEMPTS:-5}
       ADMIN_TRUSTED_PROXY_IPS: ${ADMIN_TRUSTED_PROXY_IPS:-}
+      LLM_BASE_URL: http://llm:8080
+      LLM_MODEL: ${LLM_MODEL:-ggml-org/Qwen3-14B-GGUF:Q4_K_M}
+      LLM_MANAGEMENT_ENABLED: "true"
+      LLM_MANAGEMENT_TIMEOUT_SECONDS: ${LLM_MANAGEMENT_TIMEOUT_SECONDS:-30}
+      LLM_ACTIVATION_TIMEOUT_SECONDS: ${LLM_ACTIVATION_TIMEOUT_SECONDS:-600}
     ports:
       - "127.0.0.1:8001:8001"
     depends_on:
       generator-migrate:
         condition: service_completed_successfully
+      llm:
+        condition: service_started
     restart: unless-stopped
+    networks: [application, llm-control]
 
   generator-web:
     image: ghcr.io/gass-an/cv-generator-web:${APP_VERSION}
     ports:
       - "127.0.0.1:${WEB_PORT:-8082}:80"
     restart: unless-stopped
+    networks: [application]
+
+networks:
+  application:
+  llm-control:
 
 volumes:
   llm-models:

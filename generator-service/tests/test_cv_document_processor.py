@@ -50,7 +50,8 @@ class FakeLlmClient:
         self.result = result
         self.messages: list[dict[str, str]] | None = None
 
-    async def generate(self, messages: list[dict[str, str]]) -> str:
+    async def generate(self, messages: list[dict[str, str]], *, model: str) -> str:
+        assert model
         self.messages = messages
         if isinstance(self.result, Exception):
             raise self.result
@@ -73,6 +74,7 @@ def make_job(document_type: DocumentType = DocumentType.CV) -> DocumentJobData:
         avp_number=AVP.reference,
         resume_data={"skills": [{"name": "Python"}]},
         started_at=REFERENCE_TIME,
+        llm_model="test/model-GGUF:Q4_K_M",
     )
 
 
@@ -173,6 +175,7 @@ async def test_process_rejects_unsupported_document_type() -> None:
         avp_number=job.avp_number,
         resume_data=job.resume_data,
         started_at=job.started_at,
+        llm_model=job.llm_model,
     )
     processor, _, _ = make_processor()
     with pytest.raises(DocumentProcessingError) as caught:

@@ -5,6 +5,16 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+## [0.8.0] - 2026-10-26
+
+### Ajouts
+
+- Gestion sécurisée des modèles GGUF depuis l’administration privée : téléchargement suivi, activation, déchargement, sélection PostgreSQL persistante et historique du modèle réellement utilisé.
+
+### Modifications
+
+- Passage de llama.cpp au mode Router, limité à un modèle simultanément en VRAM, avec cache Docker existant conservé et image CUDA reproductible.
+
 ## [0.7.2] - 2026-10-18
 
 ### Ajouts

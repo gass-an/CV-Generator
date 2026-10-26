@@ -3,6 +3,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from cv_generator_shared.llm import (
+    get_llm_configuration_for_update,
+    lock_llm_configuration,
+)
 from cv_generator_shared.models import ApiKey
 from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +27,7 @@ class DocumentHistoryRecord:
     started_at: datetime | None
     completed_at: datetime | None
     cancelled_at: datetime | None = None
+    llm_model: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +56,7 @@ class DocumentJobRepository:
         document_type: DocumentType,
         avp_number: str,
         resume_data: dict[str, Any],
+        llm_model: str,
     ) -> DocumentJob:
         job = DocumentJob(
             client_id=client_id,
@@ -59,6 +65,7 @@ class DocumentJobRepository:
             status=DocumentJobStatus.PENDING,
             avp_number=avp_number,
             resume_data=resume_data,
+            llm_model=llm_model,
         )
         self._session.add(job)
         await self._session.flush()
@@ -118,6 +125,7 @@ class DocumentJobRepository:
                 DocumentJob.started_at,
                 DocumentJob.completed_at,
                 DocumentJob.cancelled_at,
+                DocumentJob.llm_model,
             )
             .where(*filters)
             .order_by(DocumentJob.created_at.desc(), DocumentJob.id.desc())
@@ -139,6 +147,7 @@ class DocumentJobRepository:
                 started_at=row.started_at,
                 completed_at=row.completed_at,
                 cancelled_at=row.cancelled_at,
+                llm_model=row.llm_model,
             )
             for row in rows
         ]
@@ -178,6 +187,11 @@ class DocumentJobRepository:
         Le verrou PostgreSQL `FOR UPDATE SKIP LOCKED` empêche plusieurs workers
         de réserver simultanément le même job.
         """
+        from app.core.config import get_settings
+
+        configuration = await get_llm_configuration_for_update(
+            self._session, fallback_model=get_settings().llm_model
+        )
         statement = (
             select(DocumentJob)
             .where(DocumentJob.status == DocumentJobStatus.PENDING)
@@ -190,6 +204,8 @@ class DocumentJobRepository:
             return None
 
         job.status = DocumentJobStatus.PROCESSING
+        if job.llm_model is None:
+            job.llm_model = configuration.selected_model
         job.started_at = now
         job.updated_at = now
         await self._session.flush()
@@ -262,6 +278,9 @@ class DocumentJobRepository:
         now: datetime,
     ) -> StaleJobRecovery:
         """Réactive ou annule les traitements périmés selon leur clé."""
+        # Même premier verrou que création, réservation et activation. Une
+        # activation ne peut ainsi observer aucun interstice PROCESSING -> PENDING.
+        await lock_llm_configuration(self._session)
         stale_filters = (
             DocumentJob.status == DocumentJobStatus.PROCESSING,
             DocumentJob.started_at < cutoff,

@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from cv_generator_shared.exceptions import ApiKeyNotFoundError
+from cv_generator_shared.llm import get_llm_configuration_for_update
 from cv_generator_shared.repositories import ApiClientRepository, ApiKeyRepository
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,9 +29,15 @@ class DocumentJobService:
         self,
         session: AsyncSession,
         repository: DocumentJobRepository | None = None,
+        fallback_model: str | None = None,
     ) -> None:
         self._session = session
         self._repository = repository or DocumentJobRepository(session)
+        if fallback_model is None:
+            from app.core.config import get_settings
+
+            fallback_model = get_settings().llm_model
+        self._fallback_model = fallback_model
 
     async def create_job(
         self,
@@ -42,6 +49,9 @@ class DocumentJobService:
         resume_data: dict[str, Any],
     ) -> DocumentJob:
         async with self._session.begin():
+            configuration = await get_llm_configuration_for_update(
+                self._session, fallback_model=self._fallback_model
+            )
             key = await ApiKeyRepository(self._session).get_by_id(
                 api_key_id, for_update=True
             )
@@ -62,6 +72,7 @@ class DocumentJobService:
                 document_type=document_type,
                 avp_number=avp_number,
                 resume_data=resume_data,
+                llm_model=configuration.selected_model,
             )
 
     async def get_job(self, job_id: uuid.UUID, *, client_id: uuid.UUID) -> DocumentJob:

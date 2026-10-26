@@ -29,6 +29,13 @@ from app.admin_security import (
 )
 from app.config import get_settings
 from app.database import get_business_session, get_security_session
+from app.llm_router import LlmRouterClient, LlmRouterError
+from app.llm_service import (
+    AdminLlmService,
+    LlmModelConflictError,
+    LlmModelNotFoundError,
+    LlmModelSnapshot,
+)
 
 ROOT = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=ROOT / "templates")
@@ -50,9 +57,17 @@ BusinessSession = Annotated[AsyncSession, Depends(get_business_session)]
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-    del application
-    get_settings().validate_security()
-    yield
+    settings = get_settings()
+    settings.validate_security()
+    application.state.llm_router = LlmRouterClient(
+        base_url=settings.llm_base_url,
+        timeout=settings.llm_management_timeout_seconds,
+        activation_timeout=settings.llm_activation_timeout_seconds,
+    )
+    try:
+        yield
+    finally:
+        await application.state.llm_router.aclose()
 
 
 app = FastAPI(
@@ -196,6 +211,199 @@ JOB_STATUS_LABELS = {
     "failed": "Échouée",
     "cancelled": "Annulée",
 }
+
+LLM_STATUS_LABELS = {
+    "unloaded": "Disponible",
+    "loaded": "Chargé",
+    "loading": "Chargement en cours",
+    "downloading": "Téléchargement en cours",
+    "incomplete": "Incomplet",
+    "sleeping": "En veille",
+    "error": "Erreur",
+}
+
+
+def _llm_router(request: Request) -> LlmRouterClient:
+    router = getattr(request.app.state, "llm_router", None)
+    if router is None:
+        settings = get_settings()
+        router = LlmRouterClient(
+            base_url=settings.llm_base_url,
+            timeout=settings.llm_management_timeout_seconds,
+            activation_timeout=settings.llm_activation_timeout_seconds,
+        )
+        request.app.state.llm_router = router
+    return router
+
+
+def _require_llm_management() -> None:
+    settings = get_settings()
+    if not settings.llm_management_enabled or not settings.llm_base_url:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La gestion des modèles LLM est désactivée.",
+        )
+
+
+def _llm_model_json(
+    model: object, selected: str, loaded: str | None
+) -> dict[str, object]:
+    from app.llm_router import RouterModel
+
+    assert isinstance(model, RouterModel)
+    percentage = None
+    if model.progress_done is not None and model.progress_total:
+        percentage = round(model.progress_done * 100 / model.progress_total, 1)
+    effective_status = "error" if model.failed else model.status
+    return {
+        "id": model.id,
+        "quantization": model.quantization,
+        "status": effective_status,
+        "status_label": LLM_STATUS_LABELS.get(effective_status, effective_status),
+        "size": model.size,
+        "progress_done": model.progress_done,
+        "progress_total": model.progress_total,
+        "progress_percentage": percentage,
+        "selected": model.id == selected,
+        "loaded": model.id == loaded,
+    }
+
+
+@app.get("/llm-models", response_class=HTMLResponse)
+async def llm_models_page(
+    request: Request,
+    principal: PageAdmin,
+    session: BusinessSession,
+    message: str | None = None,
+    error: str | None = None,
+) -> HTMLResponse:
+    settings = get_settings()
+    snapshot = None
+    router_error = None
+    if settings.llm_management_enabled and settings.llm_base_url:
+        service = AdminLlmService(
+            session, _llm_router(request), fallback_model=settings.llm_model
+        )
+        try:
+            snapshot = await service.snapshot()
+        except LlmRouterError as exc:
+            router_error = str(exc)
+            snapshot = LlmModelSnapshot(
+                models=[],
+                selected_model=await service.selected_model(),
+                loaded_model=None,
+            )
+    return templates.TemplateResponse(
+        request=request,
+        name="llm_models.html",
+        context={
+            "principal": principal,
+            "csrf_token": principal.csrf_token,
+            "snapshot": snapshot,
+            "management_enabled": settings.llm_management_enabled,
+            "router_error": router_error,
+            "message": message,
+            "error": error,
+            "status_labels": LLM_STATUS_LABELS,
+        },
+    )
+
+
+@app.get("/llm-models/data")
+async def llm_models_data(
+    request: Request, principal: CurrentAdmin, session: BusinessSession
+) -> dict[str, object]:
+    del principal
+    _require_llm_management()
+    settings = get_settings()
+    try:
+        snapshot = await AdminLlmService(
+            session, _llm_router(request), fallback_model=settings.llm_model
+        ).snapshot()
+    except LlmRouterError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    return {
+        "selected_model": snapshot.selected_model,
+        "loaded_model": snapshot.loaded_model,
+        "models": [
+            _llm_model_json(model, snapshot.selected_model, snapshot.loaded_model)
+            for model in snapshot.models
+        ],
+    }
+
+
+async def _llm_action(
+    action: str,
+    model: str,
+    request: Request,
+    principal: AdminPrincipal,
+    session: AsyncSession,
+    csrf_token: str,
+) -> RedirectResponse:
+    _verify_csrf(request, principal, csrf_token)
+    _require_llm_management()
+    settings = get_settings()
+    service = AdminLlmService(
+        session, _llm_router(request), fallback_model=settings.llm_model
+    )
+    try:
+        if action == "download":
+            normalized = await service.download(model)
+            success = f"Téléchargement lancé pour {normalized}."
+        elif action == "activate":
+            await service.activate(model)
+            success = f"Le modèle {model.strip()} est sélectionné et chargé."
+        else:
+            await service.unload(model)
+            success = f"Le modèle {model.strip()} a été déchargé."
+    except ValueError as exc:
+        code, detail = 422, str(exc)
+    except LlmModelNotFoundError as exc:
+        code, detail = 404, str(exc)
+    except LlmModelConflictError as exc:
+        code, detail = 409, str(exc)
+    except LlmRouterError as exc:
+        code, detail = 503, str(exc)
+    else:
+        return RedirectResponse(
+            f"/llm-models?message={quote(success, safe='')}", status_code=303
+        )
+    return RedirectResponse(
+        f"/llm-models?error={quote(detail, safe='')}&code={code}", status_code=303
+    )
+
+
+@app.post("/llm-models/download")
+async def download_llm_model(
+    request: Request,
+    principal: PageAdmin,
+    session: BusinessSession,
+    model: Annotated[str, Form()],
+    csrf_token: Annotated[str, Form()],
+) -> RedirectResponse:
+    return await _llm_action("download", model, request, principal, session, csrf_token)
+
+
+@app.post("/llm-models/activate")
+async def activate_llm_model(
+    request: Request,
+    principal: PageAdmin,
+    session: BusinessSession,
+    model: Annotated[str, Form()],
+    csrf_token: Annotated[str, Form()],
+) -> RedirectResponse:
+    return await _llm_action("activate", model, request, principal, session, csrf_token)
+
+
+@app.post("/llm-models/unload")
+async def unload_llm_model(
+    request: Request,
+    principal: PageAdmin,
+    session: BusinessSession,
+    model: Annotated[str, Form()],
+    csrf_token: Annotated[str, Form()],
+) -> RedirectResponse:
+    return await _llm_action("unload", model, request, principal, session, csrf_token)
 
 
 def _safe_next_path(value: str | None) -> str:
@@ -439,6 +647,8 @@ def _activity_job_json(job: ActivityJob) -> dict[str, object]:
         "started_at": admin_datetime(job.started_at),
         "completed_at": admin_datetime(job.completed_at),
         "cancelled_at": admin_datetime(job.cancelled_at),
+        "llm_model": job.llm_model,
+        "duration_seconds": job.duration_seconds,
     }
 
 

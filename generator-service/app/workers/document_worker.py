@@ -55,7 +55,6 @@ async def run_worker() -> None:
     avp_client = AvpClient(base_url=settings.opt_avp_base_url)
     llm_client = LlmClient(
         base_url=settings.llm_base_url,
-        model=settings.llm_model,
         timeout=settings.llm_timeout_seconds,
     )
     worker = DocumentWorkerService(
@@ -79,6 +78,7 @@ async def run_worker() -> None:
         },
         poll_interval_seconds=settings.worker_poll_interval_seconds,
         stale_job_timeout_seconds=settings.worker_stale_job_timeout_seconds,
+        fallback_model=settings.llm_model,
     )
 
     logger.info("Worker de génération démarré")

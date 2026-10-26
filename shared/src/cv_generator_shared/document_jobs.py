@@ -94,6 +94,9 @@ class DocumentJob(Base):
         DateTime(timezone=True), nullable=True
     )
     cancellation_reason: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    llm_model: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, index=True
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

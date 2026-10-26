@@ -60,12 +60,23 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.local.yml down
 
 ## Production
 
-Le Compose de production contient PostgreSQL 18, llama.cpp, les migrations,
+Le Compose de production contient PostgreSQL 18, llama.cpp Router, les migrations,
 l'API, le worker, l'administration et le frontend. L'API et l'administration sont publiées
-respectivement sur `127.0.0.1:8000` et `127.0.0.1:8001`. llama.cpp conserve
-temporairement sa publication sur `127.0.0.1:8080`, car la configuration
-Tailscale Serve existante de la tour peut en dépendre. PostgreSQL et le worker
-ne publient aucun port hôte.
+respectivement sur `127.0.0.1:8000` et `127.0.0.1:8001`. Le Router llama.cpp
+n'est plus publié sur l'hôte : seuls le worker et l'administration peuvent le
+joindre sur le réseau Docker à `http://llm:8080`. PostgreSQL et le worker ne
+publient aucun port hôte.
+
+Le Router utilise l'image CUDA `b11889` épinglée par digest, démarre sans
+`-hf`, conserve `LLAMA_CACHE=/models` sur le volume existant
+`cv-generator-models`, et applique `--models-max 1`, `--ctx-size 8192` et
+`--n-gpu-layers 99` aux instances dynamiques. `LLM_MODEL` sert uniquement à
+initialiser PostgreSQL au premier passage de la migration ; les changements
+suivants sont réalisés dans « Modèles LLM » et ne nécessitent aucun redémarrage.
+En production, le worker et l'administration reçoivent explicitement
+`http://llm:8080` : une ancienne valeur `LLM_BASE_URL` encore présente dans le
+`.env` ne peut pas les détourner du Router interne. Le Compose local conserve
+au contraire sa valeur configurable pour l'accès Tailscale de développement.
 
 Le frontend `ghcr.io/gass-an/cv-generator-web:${APP_VERSION}` est publié
 uniquement sur `127.0.0.1:${WEB_PORT:-8082}`. Les trois images applicatives
@@ -99,6 +110,36 @@ Les volumes de production existants sont volontairement nommés :
 
 Ne changez ni ces noms, ni `name: cv-generator` en tête du Compose. N'utilisez
 jamais `docker compose down -v` ou `docker volume prune` sur la tour.
+
+Avant le premier déploiement Router, vérifier manuellement `tailscale serve
+status`. Aucune route ne doit cibler l'ancien port `127.0.0.1:8080` : les
+endpoints `/models` pilotent désormais des téléchargements et des chargements
+GPU sans authentification propre. Ne publiez pas ce port avec Tailscale Serve,
+Funnel, un autre reverse proxy ou une règle de pare-feu. L'administration HTTPS
+sur `127.0.0.1:8001` est le seul point d'entrée autorisé pour ces opérations.
+
+## Premier déploiement du Router
+
+1. Sauvegarder PostgreSQL et relever les noms des volumes sans les recréer.
+2. Contrôler `tailscale serve status` et retirer manuellement toute route vers
+   `127.0.0.1:8080` avant le démarrage du nouveau Router.
+3. Vérifier que Docker Desktop/WSL2 voit toujours la RTX avec
+   `docker run --rm --gpus all nvidia/cuda:12.8.1-base-ubuntu24.04 nvidia-smi`.
+4. Récupérer les nouvelles images applicatives et l'image llama.cpp épinglée.
+5. Exécuter `generator-migrate` (ou `alembic upgrade head`) avant les services.
+6. Vérifier que `cv-generator-models` est toujours monté sur `/models` et que
+   `GET /models` voit le cache existant depuis le réseau Docker.
+7. Ouvrir l'administration et confirmer que
+   `ggml-org/Qwen3-14B-GGUF:Q4_K_M` est sélectionné et utilisable.
+8. Télécharger puis activer un petit modèle de test depuis l'administration.
+9. Générer un document et contrôler le modèle et la durée dans « Activité ».
+
+En retour arrière applicatif, remettre les images applicatives précédentes en
+conservant PostgreSQL et les volumes. La migration ajoutée est additive ; ne
+pas lancer automatiquement de `alembic downgrade`. L'ancien worker ignore les
+nouvelles colonnes, mais l'ancien service llama.cpp nécessitera à nouveau son
+argument `-hf` : documenter cette modification Compose séparément et ne jamais
+supprimer le cache.
 
 La procédure de sauvegarde et de déploiement Windows est détaillée dans
 [`RELEASING.md`](../RELEASING.md).

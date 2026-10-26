@@ -148,6 +148,7 @@ async def test_activity_attributes_jobs_and_counts_in_admin_timezone(
     assert "Annulée" in page.text
     assert "Issue" in page.text
     assert "Annulée le 15/10/2026 12:30" in page.text
+    assert "Modèle historique inconnu" in page.text
 
     payload = (await browser.get("/activity/data")).json()
     serialized = str(payload)

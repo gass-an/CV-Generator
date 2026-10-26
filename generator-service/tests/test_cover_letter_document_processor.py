@@ -63,7 +63,8 @@ class FakeLlmClient:
     def __init__(self, result: str | Exception) -> None:
         self.result = result
 
-    async def generate(self, messages: list[dict[str, str]]) -> str:
+    async def generate(self, messages: list[dict[str, str]], *, model: str) -> str:
+        assert model
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
@@ -76,6 +77,7 @@ def make_job() -> DocumentJobData:
         avp_number=AVP.reference,
         resume_data=RESUME,
         started_at=REFERENCE_TIME,
+        llm_model="test/model-GGUF:Q4_K_M",
     )
 
 

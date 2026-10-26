@@ -22,6 +22,7 @@
         <a href="/" {% if request.url.path == '/' %}aria-current="page"{% endif %}>Clés API</a>
         <a href="/clients" {% if request.url.path == '/clients' %}aria-current="page"{% endif %}>Propriétaires</a>
         <a href="/activity" {% if request.url.path == '/activity' %}aria-current="page"{% endif %}>Activité</a>
+        <a href="/llm-models" {% if request.url.path.startswith('/llm-models') %}aria-current="page"{% endif %}>Modèles LLM</a>
       </nav>
       <div class="topbar-actions">
         <div class="theme-switcher" role="group" aria-label="Thème d’affichage">

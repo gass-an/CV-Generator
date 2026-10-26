@@ -29,20 +29,26 @@ class LlmClient:
         self,
         *,
         base_url: str,
-        model: str,
         timeout: float,
+        model: str | None = None,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
-        self._model = model
+        self._default_model = model
         self._http_client = http_client or httpx.AsyncClient(timeout=timeout)
 
-    async def generate(self, messages: list[ChatMessage]) -> str:
+    async def generate(
+        self, messages: list[ChatMessage], *, model: str | None = None
+    ) -> str:
         """Génère un contenu textuel et valide la structure minimale de la réponse."""
         try:
             response = await self._http_client.post(
                 f"{self._base_url}/v1/chat/completions",
-                json={"model": self._model, "messages": messages, "stream": False},
+                json={
+                    "model": model or self._default_model,
+                    "messages": messages,
+                    "stream": False,
+                },
             )
             response.raise_for_status()
         except httpx.TimeoutException as error:

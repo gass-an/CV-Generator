@@ -5,6 +5,12 @@ au propriétaire du serveur de créer des propriétaires et leurs clés API, de
 renouveler ou révoquer une clé et de désactiver un propriétaire. Elle partage
 uniquement le package `cv-generator-shared` et PostgreSQL avec l'API publique.
 
+La rubrique « Modèles LLM » relaie côté serveur les opérations officielles du
+Router llama.cpp. Le navigateur ne reçoit jamais son URL et ne le contacte pas
+directement. En production, `LLM_MANAGEMENT_ENABLED=true` et `LLM_BASE_URL` est
+fixée à `http://llm:8080` dans Compose ; en développement la rubrique reste
+désactivée par défaut afin de préserver un llama.cpp distant non administrable.
+
 ## Installation locale
 
 Depuis la racine du dépôt :

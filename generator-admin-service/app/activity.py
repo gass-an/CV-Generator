@@ -49,6 +49,13 @@ class ActivityJob:
     started_at: datetime | None
     completed_at: datetime | None
     cancelled_at: datetime | None
+    llm_model: str | None
+
+    @property
+    def duration_seconds(self) -> float | None:
+        if self.started_at is None or self.completed_at is None:
+            return None
+        return max(0.0, (self.completed_at - self.started_at).total_seconds())
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,6 +201,7 @@ class AdminActivityService:
                 DocumentJob.started_at,
                 DocumentJob.completed_at,
                 DocumentJob.cancelled_at,
+                DocumentJob.llm_model,
             )
             .outerjoin(ApiClient, ApiClient.id == DocumentJob.client_id)
             .where(*conditions)

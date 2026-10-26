@@ -13,6 +13,7 @@ from cv_generator_shared.dto import (
     CreatedApiKey,
     CreatedClientApiKey,
 )
+from cv_generator_shared.llm_models import LlmConfiguration
 from cv_generator_shared.models import ApiClient, ApiKey
 from cv_generator_shared.services import ApiKeyService
 
@@ -32,4 +33,5 @@ __all__ = [
     "DocumentJob",
     "DocumentJobStatus",
     "DocumentType",
+    "LlmConfiguration",
 ]

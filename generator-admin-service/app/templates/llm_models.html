@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Modèles LLM{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">Inférence</p><h1>Modèles LLM</h1><p>Modèles GGUF conservés sur le SSD et chargement en VRAM.</p></div>
+  <div class="refresh-state" role="status" aria-live="polite"><span data-models-refresh>État fourni par llama.cpp Router.</span></div>
+</div>
+
+{% if message %}<p class="notice" role="status">{{ message }}</p>{% endif %}
+{% if error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+{% if not management_enabled %}
+<p class="warning" role="status">La gestion des modèles est désactivée dans cet environnement. Les générations existantes restent disponibles.</p>
+{% else %}
+<p class="alert" role="alert" data-models-error {% if not router_error %}hidden{% endif %}>{% if router_error %}Serveur LLM indisponible : {{ router_error }} — nouvelle tentative automatique.{% endif %}</p>
+<section class="panel model-add-panel">
+  <h2>Ajouter un modèle</h2>
+  <p>Référence Hugging Face GGUF au format <code>organisation/modele-GGUF:Q4_K_M</code>.</p>
+  <form method="post" action="/llm-models/download" data-single-submit>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="llm-model-reference">Référence Hugging Face</label>
+    <input id="llm-model-reference" name="model" required maxlength="255" autocomplete="off" spellcheck="false" placeholder="organisation/modele-GGUF:Q4_K_M">
+    <div class="actions"><button class="button primary" type="submit">Télécharger</button></div>
+  </form>
+</section>
+
+<section class="models-section" data-models-root data-csrf-token="{{ csrf_token }}" aria-busy="false">
+  <div class="section-heading"><div><h2>Modèles connus</h2><p>Le modèle sélectionné est affecté aux nouveaux jobs ; le modèle chargé occupe actuellement la VRAM.</p></div></div>
+  <div class="model-summary">
+    <p><strong>Sélectionné :</strong> <code data-selected-model>{{ snapshot.selected_model }}</code></p>
+    <p><strong>Chargé :</strong> <code data-loaded-model>{{ snapshot.loaded_model or 'Aucun' }}</code></p>
+  </div>
+  <div class="table-wrap"><table class="models-table">
+    <thead><tr><th>Modèle</th><th>Quantification</th><th>Taille</th><th>État</th><th>Progression</th><th>Rôle</th><th>Actions</th></tr></thead>
+    <tbody data-models-body>
+    {% for model in snapshot.models %}
+      <tr data-model-id="{{ model.id }}">
+        <td><strong>{{ model.id }}</strong></td>
+        <td>{{ model.quantization or '—' }}</td>
+        <td data-model-size="{{ model.size or '' }}">{{ model.size or '—' }}</td>
+        <td><span class="badge status-{{ 'error' if model.failed else model.status }}">{{ 'Erreur' if model.failed else status_labels.get(model.status, model.status) }}</span></td>
+        <td>{% if model.progress_total %}{{ model.progress_done }} / {{ model.progress_total }} octets ({{ (model.progress_done * 100 / model.progress_total)|round(1) }} %){% else %}—{% endif %}</td>
+        <td>{% if model.id == snapshot.selected_model %}<span class="badge status-active">Sélectionné</span>{% endif %} {% if model.id == snapshot.loaded_model %}<span class="badge status-processing">En VRAM</span>{% endif %}</td>
+        <td class="model-actions">
+          {% if model.status not in ['downloading', 'incomplete', 'loading'] and model.id != snapshot.loaded_model %}<form method="post" action="/llm-models/activate" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model.id }}"><button class="button primary compact" type="submit">Activer</button></form>{% endif %}
+          {% if model.id == snapshot.loaded_model and model.id != snapshot.selected_model %}<form method="post" action="/llm-models/unload" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model.id }}"><button class="button secondary compact" type="submit">Décharger</button></form>{% endif %}
+          {% if model.status == 'incomplete' %}<form method="post" action="/llm-models/download" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model.id }}"><button class="button secondary compact" type="submit">Reprendre</button></form>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table><p class="table-empty" data-models-empty {% if snapshot.models %}hidden{% endif %}>Aucun modèle trouvé dans le cache du Router.</p></div>
+</section>
+{% endif %}
+{% endblock %}

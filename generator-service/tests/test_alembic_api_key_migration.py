@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -302,6 +303,27 @@ def test_interview_prep_migration_preserves_existing_types_and_extends_check() -
         _run_alembic(database_url, "upgrade", "head")
 
 
+def test_dynamic_llm_migration_preserves_unknown_history() -> None:
+    database_url = _migration_database_url()
+    _run_alembic(database_url, "downgrade", "base")
+    try:
+        _run_alembic(database_url, "upgrade", "20261018_0008")
+        asyncio.run(_insert_jobs_before_llm_migration(database_url))
+        _run_alembic(database_url, "upgrade", "20261026_0009")
+        rows = asyncio.run(_llm_models_by_status(database_url))
+        expected_model = (
+            os.getenv("LLM_MODEL", "ggml-org/Qwen3-14B-GGUF:Q4_K_M").strip()
+            or "ggml-org/Qwen3-14B-GGUF:Q4_K_M"
+        )
+        assert rows["completed"] is None
+        assert rows["failed"] is None
+        assert rows["cancelled"] is None
+        assert rows["pending"] == expected_model
+        assert rows["processing"] == expected_model
+    finally:
+        _run_alembic(database_url, "upgrade", "head")
+
+
 async def _insert_document(database_url: str) -> None:
     engine = create_async_engine(database_url)
     try:
@@ -315,5 +337,48 @@ async def _insert_document(database_url: str) -> None:
                 ).bindparams(bindparam("id", type_=Uuid(as_uuid=True))),
                 {"id": DOCUMENT_ID},
             )
+    finally:
+        await engine.dispose()
+
+
+async def _insert_jobs_before_llm_migration(database_url: str) -> None:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.begin() as connection:
+            for index, status in enumerate(
+                ("completed", "failed", "cancelled", "pending", "processing"),
+                start=1,
+            ):
+                await connection.execute(
+                    text(
+                        "INSERT INTO document_job "
+                        "(id, document_type, status, avp_number, resume_data, "
+                        "started_at) VALUES (:id, 'cv', :status, :avp, "
+                        "CAST('{}' AS jsonb), :started_at)"
+                    ).bindparams(bindparam("id", type_=Uuid(as_uuid=True))),
+                    {
+                        "id": uuid.UUID(f"00000000-0000-4000-8000-{index:012d}"),
+                        "status": status,
+                        "avp": f"TEST-LLM-MIGRATION-{status}",
+                        "started_at": datetime.now(UTC)
+                        if status == "processing"
+                        else None,
+                    },
+                )
+    finally:
+        await engine.dispose()
+
+
+async def _llm_models_by_status(database_url: str) -> dict[str, str | None]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            rows = await connection.execute(
+                text(
+                    "SELECT status, llm_model FROM document_job "
+                    "WHERE avp_number LIKE 'TEST-LLM-MIGRATION-%'"
+                )
+            )
+            return {row.status: row.llm_model for row in rows}
     finally:
         await engine.dispose()

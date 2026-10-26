@@ -13,6 +13,7 @@ from app.repositories.document_job_repository import (
 )
 from app.services.document_worker_service import DocumentWorkerService
 from app.workers.document_worker import validate_worker_configuration
+from cv_generator_shared.llm_models import LlmConfiguration
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -64,13 +65,17 @@ async def test_repository_reserves_pending_job_with_skip_locked() -> None:
     session = AsyncMock(spec=AsyncSession)
     result = Mock()
     result.scalar_one_or_none.return_value = job
-    session.execute.return_value = result
+    config_result = Mock()
+    config_result.scalar_one_or_none.return_value = LlmConfiguration(
+        id=1, selected_model="test/model-GGUF:Q4_K_M"
+    )
+    session.execute.side_effect = [Mock(), config_result, result]
     repository = DocumentJobRepository(session)
     now = REFERENCE_TIME
 
     reserved = await repository.reserve_next_pending(now=now)
 
-    statement = session.execute.await_args.args[0]
+    statement = session.execute.await_args_list[-1].args[0]
     sql = str(statement.compile(dialect=postgresql.dialect()))
     assert "FOR UPDATE SKIP LOCKED" in sql
     assert reserved is job
@@ -85,7 +90,11 @@ async def test_repository_returns_none_when_no_job_is_available() -> None:
     session = AsyncMock(spec=AsyncSession)
     result = Mock()
     result.scalar_one_or_none.return_value = None
-    session.execute.return_value = result
+    config_result = Mock()
+    config_result.scalar_one_or_none.return_value = LlmConfiguration(
+        id=1, selected_model="test/model-GGUF:Q4_K_M"
+    )
+    session.execute.side_effect = [Mock(), config_result, result]
 
     reserved = await DocumentJobRepository(session).reserve_next_pending(
         now=REFERENCE_TIME

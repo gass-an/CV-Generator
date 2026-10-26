@@ -273,6 +273,21 @@ async def test_health_remains_public(
     assert response.status_code == 200
 
 
+@pytest.mark.asyncio
+async def test_public_api_does_not_expose_router_management(
+    secured_api: tuple[httpx.AsyncClient, FakeDocumentJobService, FakeApiKeyService],
+) -> None:
+    client, _, _ = secured_api
+    for method, path in (
+        ("GET", "/api/v1/models"),
+        ("POST", "/api/v1/models"),
+        ("POST", "/api/v1/models/load"),
+        ("POST", "/api/v1/models/unload"),
+    ):
+        response = await client.request(method, path, json={"model": "org/model:Q4"})
+        assert response.status_code == 404
+
+
 def test_openapi_declares_api_key_security_on_all_document_operations() -> None:
     schema = app.openapi()
     assert schema["components"]["securitySchemes"]["X-API-Key"] == {

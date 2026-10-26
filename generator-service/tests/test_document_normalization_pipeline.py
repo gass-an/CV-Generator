@@ -36,7 +36,8 @@ class FakePromptBuilder:
 
 
 class MarkdownLlmClient:
-    async def generate(self, messages: list[dict[str, str]]) -> str:
+    async def generate(self, messages: list[dict[str, str]], *, model: str) -> str:
+        assert model
         return "# Document\n\n- **Élément :** contenu\n  - Détail  "
 
 
@@ -63,6 +64,7 @@ async def test_all_document_processors_store_normalized_asciidoc(
         avp_number=AVP.reference,
         resume_data={"basics": {}},
         started_at=REFERENCE_TIME,
+        llm_model="test/model-GGUF:Q4_K_M",
     )
 
     result = await processor.process(job)

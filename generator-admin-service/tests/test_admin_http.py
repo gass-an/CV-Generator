@@ -602,3 +602,10 @@ async def test_invalid_local_expiration_is_a_form_error(
     assert response.status_code == 422
     async with async_session_factory() as session:
         assert (await session.scalars(select(ApiClient))).all() == []
+
+
+@pytest.mark.asyncio
+async def test_llm_management_requires_authentication(
+    browser: httpx.AsyncClient,
+) -> None:
+    assert (await browser.get("/llm-models/data")).status_code == 401

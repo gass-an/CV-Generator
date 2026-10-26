@@ -232,6 +232,7 @@ async def list_document_history(
                 started_at=item.started_at,
                 completed_at=item.completed_at,
                 cancelled_at=item.cancelled_at,
+                llm_model=item.llm_model,
             )
             for item in items
         ],
@@ -290,6 +291,7 @@ async def get_document_status(
         started_at=job.started_at,
         completed_at=job.completed_at,
         cancelled_at=job.cancelled_at,
+        llm_model=job.llm_model,
     )
 
 

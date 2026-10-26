@@ -540,3 +540,326 @@ test("le polling ne remplace pas une table contenant le focus clavier", async ()
   await harness.runTimer();
   assert.equal(harness.historyBody.replacementCount, 0);
 });
+
+class ModelElement {
+  constructor(tagName = "div") {
+    this.tagName = tagName.toUpperCase();
+    this.attributes = {};
+    this.children = [];
+    this.className = "";
+    this.dataset = {};
+    this.disabled = false;
+    this.hidden = false;
+    this.listeners = new Map();
+    this.textContent = "";
+  }
+
+  addEventListener(type, listener) {
+    this.listeners.set(type, listener);
+  }
+
+  append(...children) {
+    this.children.push(...children);
+  }
+
+  closest(selector) {
+    return selector === "[data-model-action]" && "modelAction" in this.dataset
+      ? this
+      : null;
+  }
+
+  querySelector(selector) {
+    if (selector === "button" || selector === "button[type='submit']") {
+      return this.children.find((child) => child?.tagName === "BUTTON") || null;
+    }
+    return null;
+  }
+
+  replaceChildren(...children) {
+    this.children = children;
+  }
+
+  setAttribute(name, value) {
+    this.attributes[name] = value;
+  }
+}
+
+function modelPayload(models = []) {
+  return {
+    selected_model: "org/selected-GGUF:Q4_K_M",
+    loaded_model: "org/loaded-GGUF:Q5_K_M",
+    models,
+  };
+}
+
+function modelState(id, status, overrides = {}) {
+  return {
+    id,
+    loaded: false,
+    progress_done: null,
+    progress_percentage: null,
+    progress_total: null,
+    quantization: "Q4_K_M",
+    selected: false,
+    size: 2048,
+    status,
+    status_label: status,
+    ...overrides,
+  };
+}
+
+function createModelsHarness(fetchImplementation) {
+  const documentListeners = new Map();
+  const windowListeners = new Map();
+  const timers = new Map();
+  let timerId = 0;
+  const redirects = [];
+  const body = new ModelElement("tbody");
+  const empty = new ModelElement("p");
+  const error = new ModelElement("p");
+  error.hidden = true;
+  const refreshed = new ModelElement("span");
+  const selected = new ModelElement("code");
+  const loaded = new ModelElement("code");
+  const root = new ModelElement("section");
+  root.dataset.csrfToken = "csrf-test";
+  root.querySelector = (selector) => {
+    if (selector === "[data-models-body]") return body;
+    if (selector === "[data-models-empty]") return empty;
+    return null;
+  };
+  const selectors = new Map([
+    ["[data-models-root]", root],
+    ["[data-models-error]", error],
+    ["[data-models-refresh]", refreshed],
+    ["[data-selected-model]", selected],
+    ["[data-loaded-model]", loaded],
+  ]);
+  const document = {
+    documentElement: { dataset: {}, removeAttribute() {} },
+    visibilityState: "visible",
+    addEventListener(type, listener) {
+      documentListeners.set(type, [
+        ...(documentListeners.get(type) || []),
+        listener,
+      ]);
+    },
+    createElement: (tagName) => new ModelElement(tagName),
+    querySelector: (selector) => selectors.get(selector) || null,
+    querySelectorAll: () => [],
+  };
+  const window = {
+    document,
+    localStorage: { getItem: () => null, setItem() {} },
+    matchMedia: () => ({ matches: false, addEventListener() {} }),
+    addEventListener(type, listener) {
+      windowListeners.set(type, [
+        ...(windowListeners.get(type) || []),
+        listener,
+      ]);
+    },
+    clearTimeout(id) {
+      timers.delete(id);
+    },
+    setTimeout(callback, delay) {
+      timerId += 1;
+      timers.set(timerId, { callback, delay });
+      return timerId;
+    },
+    location: { assign: (value) => redirects.push(value) },
+    confirm: () => true,
+  };
+  vm.runInContext(
+    script,
+    vm.createContext({
+      console,
+      Date,
+      document,
+      fetch: fetchImplementation,
+      Promise,
+      Set,
+      window,
+    }),
+    { filename: "admin.js" },
+  );
+  documentListeners.get("DOMContentLoaded").forEach((listener) => listener());
+
+  return {
+    body,
+    document,
+    empty,
+    error,
+    loaded,
+    redirects,
+    refreshed,
+    root,
+    selected,
+    timers,
+    async runTimer() {
+      const entry = timers.entries().next().value;
+      assert.ok(entry, "un rafraîchissement devait être planifié");
+      const [id, timer] = entry;
+      timers.delete(id);
+      await timer.callback();
+      await settle();
+    },
+    pagehide() {
+      windowListeners.get("pagehide").forEach((listener) => listener());
+    },
+    visibility(value) {
+      document.visibilityState = value;
+      documentListeners
+        .get("visibilitychange")
+        .forEach((listener) => listener());
+    },
+  };
+}
+
+function jsonResponse(payload) {
+  return { ok: true, status: 200, json: async () => payload };
+}
+
+test("les modèles et tous leurs états Router sont affichés", async () => {
+  const states = ["loaded", "loading", "downloading", "incomplete", "error"];
+  const payload = modelPayload(
+    states.map((state) =>
+      modelState(`org/${state}-GGUF:Q4_K_M`, state, {
+        status_label: `Libellé ${state}`,
+      }),
+    ),
+  );
+  const harness = createModelsHarness(async () => jsonResponse(payload));
+
+  await harness.runTimer();
+
+  assert.equal(harness.body.children.length, states.length);
+  assert.deepEqual(
+    harness.body.children.map((row) => row.children[3].children[0].className),
+    states.map((state) => `badge status-${state}`),
+  );
+  assert.equal(harness.empty.hidden, true);
+});
+
+test("la progression et les modèles sélectionné et chargé restent distincts", async () => {
+  const payload = modelPayload([
+    modelState("org/selected-GGUF:Q4_K_M", "downloading", {
+      progress_done: 1024,
+      progress_total: 4096,
+      progress_percentage: 25,
+      selected: true,
+    }),
+    modelState("org/loaded-GGUF:Q5_K_M", "loaded", {
+      loaded: true,
+      quantization: "Q5_K_M",
+    }),
+  ]);
+  const harness = createModelsHarness(async () => jsonResponse(payload));
+
+  await harness.runTimer();
+
+  assert.equal(harness.selected.textContent, payload.selected_model);
+  assert.equal(harness.loaded.textContent, payload.loaded_model);
+  assert.equal(harness.body.children[0].children[4].textContent, "1.0 Kio / 4.0 Kio (25 %)");
+  assert.equal(harness.body.children[0].children[5].children[0].textContent, "Sélectionné");
+  assert.equal(harness.body.children[1].children[5].children[0].textContent, "En VRAM");
+});
+
+test("les formulaires d’activation et de reprise contiennent modèle et CSRF", async () => {
+  const payload = modelPayload([
+    modelState("org/available-GGUF:Q4_K_M", "unloaded"),
+    modelState("org/partial-GGUF:Q4_K_M", "incomplete"),
+  ]);
+  const harness = createModelsHarness(async () => jsonResponse(payload));
+  await harness.runTimer();
+
+  const activate = harness.body.children[0].children[6].children[0];
+  const resume = harness.body.children[1].children[6].children[0];
+  assert.equal(activate.action, "/llm-models/activate");
+  assert.equal(resume.action, "/llm-models/download");
+  for (const form of [activate, resume]) {
+    assert.deepEqual(form.children.slice(0, 2).map((input) => input.value), [
+      "csrf-test",
+      form === activate
+        ? "org/available-GGUF:Q4_K_M"
+        : "org/partial-GGUF:Q4_K_M",
+    ]);
+  }
+});
+
+test("une double soumission d’action est bloquée", async () => {
+  const harness = createModelsHarness(async () =>
+    jsonResponse(modelPayload([modelState("org/model-GGUF:Q4_K_M", "unloaded")])),
+  );
+  await harness.runTimer();
+  const form = harness.body.children[0].children[6].children[0];
+  const submit = harness.root.listeners.get("submit");
+  const first = { target: form, preventDefault() { this.prevented = true; } };
+  const second = { target: form, preventDefault() { this.prevented = true; } };
+
+  submit(first);
+  submit(second);
+
+  assert.equal(first.prevented, undefined);
+  assert.equal(second.prevented, true);
+  assert.equal(form.children[2].disabled, true);
+});
+
+test("le polling des modèles est adaptatif et ne se duplique pas", async () => {
+  let payload = modelPayload([modelState("org/model-GGUF:Q4_K_M", "loading")]);
+  const harness = createModelsHarness(async () => jsonResponse(payload));
+  assert.equal([...harness.timers.values()][0].delay, 5000);
+
+  await harness.runTimer();
+  assert.equal(harness.timers.size, 1);
+  assert.equal([...harness.timers.values()][0].delay, 3000);
+
+  payload = modelPayload([modelState("org/model-GGUF:Q4_K_M", "loaded")]);
+  harness.visibility("hidden");
+  assert.equal(harness.timers.size, 0);
+  harness.visibility("visible");
+  await settle();
+  assert.equal(harness.timers.size, 1);
+  assert.equal([...harness.timers.values()][0].delay, 30000);
+});
+
+test("l’interface récupère après une indisponibilité du Router", async () => {
+  let callCount = 0;
+  const harness = createModelsHarness(async () => {
+    callCount += 1;
+    if (callCount === 1) throw new Error("internal network detail");
+    return jsonResponse(modelPayload([modelState("org/model-GGUF:Q4_K_M", "loaded")]));
+  });
+
+  await harness.runTimer();
+  assert.equal(harness.error.hidden, false);
+  assert.equal(harness.error.textContent.includes("nouvelle tentative"), true);
+  assert.equal([...harness.timers.values()][0].delay, 10000);
+
+  await harness.runTimer();
+  assert.equal(harness.error.hidden, true);
+  assert.equal(harness.body.children.length, 1);
+  assert.equal(harness.refreshed.textContent, "État actualisé.");
+});
+
+test("quitter la page arrête le polling des modèles", async () => {
+  let fetchCount = 0;
+  const harness = createModelsHarness(async () => {
+    fetchCount += 1;
+    return jsonResponse(modelPayload());
+  });
+  harness.pagehide();
+  assert.equal(harness.timers.size, 0);
+  harness.visibility("visible");
+  await settle();
+  assert.equal(fetchCount, 0);
+  assert.equal(harness.timers.size, 0);
+});
+
+test("une session expirée arrête le polling des modèles", async () => {
+  const harness = createModelsHarness(async () => ({ ok: false, status: 401 }));
+  await harness.runTimer();
+  assert.deepEqual(harness.redirects, [
+    "/login?next=%2Fllm-models&expired=1",
+  ]);
+  assert.equal(harness.timers.size, 0);
+});

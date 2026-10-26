@@ -87,6 +87,7 @@ function activityRow(job) {
   badge.textContent = job.status_label;
   status.append(badge);
   row.append(status);
+  row.append(activityCell(job.llm_model || "Modèle historique inconnu"));
   row.append(activityCell(job.created_at));
   row.append(activityCell(job.started_at));
   row.append(
@@ -96,6 +97,13 @@ function activityRow(job) {
         : job.completed_at
           ? `Terminée le ${job.completed_at}`
           : null,
+    ),
+  );
+  row.append(
+    activityCell(
+      Number.isFinite(job.duration_seconds)
+        ? `${job.duration_seconds.toFixed(1)} s`
+        : null,
     ),
   );
 
@@ -263,6 +271,164 @@ document.addEventListener("submit", (event) => {
     button.disabled = true;
     button.textContent = "Création…";
   }
+});
+
+function formatModelBytes(value) {
+  if (!Number.isFinite(value) || value < 0) return "—";
+  const units = ["o", "Kio", "Mio", "Gio", "Tio"];
+  let amount = value;
+  let index = 0;
+  while (amount >= 1024 && index < units.length - 1) {
+    amount /= 1024;
+    index += 1;
+  }
+  return `${amount.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const root = document.querySelector("[data-models-root]");
+  if (!root) return;
+  const body = root.querySelector("[data-models-body]");
+  const empty = root.querySelector("[data-models-empty]");
+  const errorBox = document.querySelector("[data-models-error]");
+  const refreshState = document.querySelector("[data-models-refresh]");
+  let timer;
+  let inFlight = false;
+  let stopped = false;
+
+  function clearScheduledRefresh() {
+    if (timer) window.clearTimeout(timer);
+    timer = undefined;
+  }
+
+  function scheduleRefresh(delay) {
+    clearScheduledRefresh();
+    if (!stopped && document.visibilityState === "visible") {
+      timer = window.setTimeout(refresh, delay);
+    }
+  }
+
+  function actionForm(action, model, label, className) {
+    const form = document.createElement("form");
+    form.method = "post";
+    form.action = `/llm-models/${action}`;
+    form.dataset.modelAction = "";
+    for (const [name, value] of Object.entries({
+      csrf_token: root.dataset.csrfToken,
+      model,
+    })) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      form.append(input);
+    }
+    const button = document.createElement("button");
+    button.type = "submit";
+    button.className = `button ${className} compact`;
+    button.textContent = label;
+    form.append(button);
+    return form;
+  }
+
+  function render(payload) {
+    body.replaceChildren();
+    document.querySelector("[data-selected-model]").textContent = payload.selected_model;
+    document.querySelector("[data-loaded-model]").textContent = payload.loaded_model || "Aucun";
+    for (const model of payload.models) {
+      const row = document.createElement("tr");
+      const cells = Array.from({ length: 7 }, () => document.createElement("td"));
+      const name = document.createElement("strong");
+      name.textContent = model.id;
+      cells[0].append(name);
+      cells[1].textContent = model.quantization || "—";
+      cells[2].textContent = formatModelBytes(model.size);
+      const state = document.createElement("span");
+      state.className = `badge status-${model.status}`;
+      state.textContent = model.status_label;
+      cells[3].append(state);
+      cells[4].textContent = model.progress_total
+        ? `${formatModelBytes(model.progress_done)} / ${formatModelBytes(model.progress_total)} (${model.progress_percentage} %)`
+        : "—";
+      if (model.selected) {
+        const selected = document.createElement("span");
+        selected.className = "badge status-active";
+        selected.textContent = "Sélectionné";
+        cells[5].append(selected, " ");
+      }
+      if (model.loaded) {
+        const loaded = document.createElement("span");
+        loaded.className = "badge status-processing";
+        loaded.textContent = "En VRAM";
+        cells[5].append(loaded);
+      }
+      cells[6].className = "model-actions";
+      if (!["downloading", "incomplete", "loading"].includes(model.status) && !model.loaded) {
+        cells[6].append(actionForm("activate", model.id, "Activer", "primary"));
+      }
+      if (model.loaded && !model.selected) {
+        cells[6].append(actionForm("unload", model.id, "Décharger", "secondary"));
+      }
+      if (model.status === "incomplete") {
+        cells[6].append(actionForm("download", model.id, "Reprendre", "secondary"));
+      }
+      row.append(...cells);
+      body.append(row);
+    }
+    empty.hidden = payload.models.length !== 0;
+    const busy = payload.models.some((model) =>
+      ["downloading", "loading"].includes(model.status),
+    );
+    scheduleRefresh(busy ? 3000 : 30000);
+  }
+
+  async function refresh() {
+    clearScheduledRefresh();
+    if (stopped || inFlight || document.visibilityState !== "visible") return;
+    inFlight = true;
+    root.setAttribute("aria-busy", "true");
+    try {
+      const response = await fetch("/llm-models/data", {
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (response.status === 401) {
+        stopped = true;
+        window.location.assign("/login?next=%2Fllm-models&expired=1");
+        return;
+      }
+      if (!response.ok) throw new Error("models-refresh-failed");
+      render(await response.json());
+      errorBox.hidden = true;
+      refreshState.textContent = "État actualisé.";
+    } catch {
+      errorBox.textContent = "Serveur LLM indisponible — nouvelle tentative automatique.";
+      errorBox.hidden = false;
+      scheduleRefresh(10000);
+    } finally {
+      inFlight = false;
+      root.setAttribute("aria-busy", "false");
+    }
+  }
+  root.addEventListener("submit", (event) => {
+    const form = event.target.closest("[data-model-action]");
+    if (!form || form.dataset.submitted === "true") {
+      if (form) event.preventDefault();
+      return;
+    }
+    form.dataset.submitted = "true";
+    form.querySelector("button").disabled = true;
+  });
+  document.addEventListener("visibilitychange", () => {
+    clearScheduledRefresh();
+    if (document.visibilityState === "visible") refresh();
+  });
+  window.addEventListener("pagehide", () => {
+    stopped = true;
+    clearScheduledRefresh();
+  });
+  scheduleRefresh(5000);
 });
 
 const CSRF_RENEWAL_MARGIN_MS = 5 * 60 * 1000;

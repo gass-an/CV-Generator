@@ -34,6 +34,11 @@ class AdminSettings(BaseSettings):
     admin_login_window_seconds: int = Field(default=900, ge=60, le=86400)
     admin_login_max_attempts: int = Field(default=5, ge=2, le=100)
     admin_trusted_proxy_ips: str = ""
+    llm_base_url: str = ""
+    llm_model: str = "ggml-org/Qwen3-14B-GGUF:Q4_K_M"
+    llm_management_enabled: bool = False
+    llm_management_timeout_seconds: float = Field(default=30, gt=0, le=300)
+    llm_activation_timeout_seconds: float = Field(default=600, gt=0, le=1800)
 
     @field_validator("admin_username")
     @classmethod

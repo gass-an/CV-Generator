@@ -29,6 +29,7 @@ async def test_history_uses_filtered_projection_stable_order_and_separate_total(
             started_at=None,
             completed_at=None,
             cancelled_at=None,
+            llm_model="ggml-org/Qwen3-14B-GGUF:Q4_K_M",
         )
     ]
     count_result = Mock()
