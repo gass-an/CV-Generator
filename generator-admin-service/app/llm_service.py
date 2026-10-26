@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 
 from cv_generator_shared.document_jobs import DocumentJob, DocumentJobStatus
@@ -10,6 +11,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm_router import LlmRouterClient, LlmRouterError, RouterModel
+
+logger = logging.getLogger(__name__)
 
 
 class LlmModelConflictError(Exception):
@@ -94,41 +97,160 @@ class AdminLlmService:
                     "Le modèle n’est pas entièrement téléchargé"
                 )
             previous_id = configuration.selected_model
-            previous_loaded = next(
-                (item.id for item in models if item.status == "loaded"), None
+            previous_active = next(
+                (
+                    item
+                    for item in models
+                    if item.status in {"loaded", "loading", "sleeping"}
+                ),
+                None,
             )
             try:
-                if previous_loaded and previous_loaded != model_id:
-                    await self._router.unload(previous_loaded)
-                if target.status != "loaded":
-                    await self._router.load(model_id)
-                    await self._router.wait_until_loaded(model_id)
+                if previous_active and previous_active.id != model_id:
+                    logger.info(
+                        "Déchargement du modèle LLM actuel model=%s target=%s",
+                        previous_active.id,
+                        model_id,
+                    )
+                    await self._unload_and_wait(previous_active.id)
+                    logger.info(
+                        "Déchargement du modèle LLM confirmé model=%s",
+                        previous_active.id,
+                    )
+                await self._ensure_model_ready(target)
             except LlmRouterError as load_error:
-                if previous_loaded and previous_loaded != model_id:
+                logger.warning(
+                    "Échec de la bascule du modèle LLM target=%s previous=%s cause=%s",
+                    model_id,
+                    previous_active.id if previous_active else None,
+                    type(load_error).__name__,
+                    exc_info=True,
+                )
+                if previous_active and previous_active.id != model_id:
                     try:
-                        # Libère une instance cible encore en chargement avant
-                        # de restaurer l'unique emplacement VRAM.
-                        current = await self._router.list_models()
-                        target_now = next(
-                            (item for item in current if item.id == model_id), None
+                        await self._prepare_rollback(model_id, previous_active.id)
+                        restored_status, preserved = await self._restore_previous(
+                            previous_active.id
                         )
-                        if target_now is not None and target_now.status in {
-                            "loaded",
-                            "loading",
-                            "sleeping",
-                        }:
-                            await self._router.unload(model_id)
-                        await self._router.load(previous_loaded)
-                        await self._router.wait_until_loaded(previous_loaded)
+                        logger.info(
+                            "Restauration du modèle LLM confirmée model=%s état=%s",
+                            previous_active.id,
+                            restored_status,
+                        )
                     except LlmRouterError as restore_error:
+                        state = await self._observed_router_state()
+                        logger.error(
+                            "Échec de restauration du modèle LLM model=%s "
+                            "target=%s cause=%s state=%s",
+                            previous_active.id,
+                            model_id,
+                            type(restore_error).__name__,
+                            state,
+                            exc_info=True,
+                        )
                         raise LlmModelActivationError(
                             "Le nouveau modèle n’a pas été activé et l’ancien "
                             "modèle n’a pas pu être restauré. Aucun changement "
-                            "n’a été enregistré ; vérifiez l’état du Router."
+                            f"n’a été enregistré. Au dernier contrôle : {state}."
                         ) from restore_error
+                    raise LlmModelActivationError(
+                        "Le nouveau modèle n’a pas été activé ; l’ancien modèle "
+                        "était déjà chargé et a été conservé. La sélection "
+                        "précédente est conservée."
+                        if preserved and restored_status == "loaded"
+                        else (
+                            "Le nouveau modèle n’a pas été activé ; l’ancien "
+                            "modèle restait actif et a été conservé. La sélection "
+                            "précédente est conservée."
+                            if preserved and restored_status == "sleeping"
+                            else "Le nouveau modèle n’a pas été activé ; l’ancien "
+                            "modèle a été restauré. La sélection précédente est "
+                            "conservée."
+                        )
+                    ) from load_error
                 raise load_error
             configuration.selected_model = model_id
             return previous_id
+
+    async def _ensure_model_ready(self, model: RouterModel) -> str:
+        """Confirme l'état prêt sans répéter une opération déjà en cours."""
+        if model.status in {"loaded", "sleeping"}:
+            if model.status == "sleeping":
+                # b11889 garde le processus enfant vivant en sleeping et le
+                # réveille sur la prochaine requête. `/models/load` refuse
+                # alors l'opération car l'instance est déjà en cours.
+                logger.info(
+                    "Modèle LLM déjà actif à l’état sleeping model=%s",
+                    model.id,
+                )
+            return model.status
+        if model.status == "loading":
+            logger.info("Attente du chargement LLM déjà en cours model=%s", model.id)
+            await self._router.wait_until_loaded(model.id)
+            return "loaded"
+        if model.status == "unloaded":
+            logger.info("Chargement du modèle LLM target=%s", model.id)
+            await self._router.load(model.id)
+            await self._router.wait_until_loaded(model.id)
+            logger.info("Chargement du modèle LLM confirmé target=%s", model.id)
+            return "loaded"
+        raise LlmRouterError(
+            f"Le modèle ne peut pas être activé depuis l’état {model.status}"
+        )
+
+    async def _prepare_rollback(self, target_id: str, previous_id: str) -> None:
+        """Libère l'unique slot Router avant de restaurer l'ancien modèle."""
+        current = await self._router.list_models()
+        target = next((item for item in current if item.id == target_id), None)
+        if target is not None and target.status in {"loaded", "loading", "sleeping"}:
+            logger.info("Nettoyage du modèle LLM cible target=%s", target_id)
+            await self._unload_and_wait(target_id)
+
+        current = await self._router.list_models()
+        previous = next((item for item in current if item.id == previous_id), None)
+        if previous is None:
+            raise LlmRouterError("L’ancien modèle a disparu du serveur LLM")
+        if previous.status not in {"loaded", "loading", "sleeping", "unloaded"}:
+            raise LlmRouterError(
+                "L’ancien modèle ne peut pas être restauré depuis l’état "
+                f"{previous.status}"
+            )
+
+    async def _restore_previous(self, model_id: str) -> tuple[str, bool]:
+        current = await self._router.list_models()
+        previous = next((item for item in current if item.id == model_id), None)
+        if previous is None:
+            raise LlmRouterError("L’ancien modèle a disparu du serveur LLM")
+        if previous.status in {"loaded", "sleeping"}:
+            return previous.status, True
+        return await self._ensure_model_ready(previous), False
+
+    async def _unload_and_wait(self, model_id: str) -> None:
+        try:
+            await self._router.unload(model_id)
+        except LlmRouterError:
+            # Le moniteur peut publier `unloaded` entre le GET et le POST. Dans
+            # ce seul cas, le refus "not running" confirme déjà le résultat.
+            current = await self._router.list_models()
+            model = next((item for item in current if item.id == model_id), None)
+            if model is None or model.status != "unloaded":
+                raise
+            return
+        await self._router.wait_until_unloaded(model_id)
+
+    async def _observed_router_state(self) -> str:
+        try:
+            models = await self._router.list_models()
+        except LlmRouterError:
+            return "l’état du Router est indisponible"
+        active = [
+            f"{item.id} ({item.status})"
+            for item in models
+            if item.status in {"loaded", "loading", "sleeping"}
+        ]
+        if not active:
+            return "aucun modèle n’est chargé"
+        return "instance active " + ", ".join(active)
 
     async def unload(self, raw_model: str) -> None:
         model_id = normalize_hf_model_reference(raw_model)
@@ -147,4 +269,4 @@ class AdminLlmService:
                 raise LlmModelConflictError(
                     "Le modèle sélectionné ne peut pas être déchargé"
                 )
-            await self._router.unload(model_id)
+            await self._unload_and_wait(model_id)

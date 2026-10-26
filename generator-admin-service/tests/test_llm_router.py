@@ -8,6 +8,7 @@ from app.llm_router import (
     LlmRouterInvalidResponseError,
     LlmRouterLoadTimeoutError,
     LlmRouterUnavailableError,
+    LlmRouterUnloadTimeoutError,
 )
 
 
@@ -206,4 +207,53 @@ async def test_loading_timeout_is_bounded() -> None:
     )
     with pytest.raises(LlmRouterLoadTimeoutError):
         await client.wait_until_loaded("org/model-GGUF:Q4_K_M", poll_interval=0)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_waits_for_loaded_model_to_become_unloaded() -> None:
+    statuses = iter(["loaded", "loaded", "unloaded"])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "id": "org/model-GGUF:Q4_K_M",
+                        "status": {"value": next(statuses)},
+                    }
+                ]
+            },
+        )
+
+    client = client_for(httpx.MockTransport(handler))
+    await client.wait_until_unloaded("org/model-GGUF:Q4_K_M", poll_interval=0)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_unloading_timeout_is_bounded() -> None:
+    client = LlmRouterClient(
+        base_url="http://router.internal:8080",
+        timeout=5,
+        activation_timeout=0.001,
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={
+                        "data": [
+                            {
+                                "id": "org/model-GGUF:Q4_K_M",
+                                "status": {"value": "loaded"},
+                            }
+                        ]
+                    },
+                )
+            )
+        ),
+    )
+    with pytest.raises(LlmRouterUnloadTimeoutError):
+        await client.wait_until_unloaded("org/model-GGUF:Q4_K_M", poll_interval=0)
     await client.aclose()

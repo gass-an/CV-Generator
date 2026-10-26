@@ -6,6 +6,11 @@ from app.config import get_settings
 from app.database import async_session_factory
 from app.llm_router import LlmRouterError, RouterModel
 from app.main import app
+from cv_generator_shared.document_jobs import (
+    DocumentJob,
+    DocumentJobStatus,
+    DocumentType,
+)
 from cv_generator_shared.llm_models import LlmConfiguration
 from sqlalchemy import select
 
@@ -21,10 +26,14 @@ class FakeRouter:
         self.loaded = MODEL_A
         self.downloaded: list[str] = []
         self.failed_loads: set[str] = set()
+        self.failed_loads_still_running: set[str] = set()
+        self.failed_unloads: set[str] = set()
+        self.status_sequences: dict[str, list[str]] = {}
         self.load_delay = 0.0
         self.loads_in_flight = 0
         self.max_loads_in_flight = 0
         self.unavailable = False
+        self.events: list[tuple[str, str]] = []
 
     async def list_models(self) -> list[RouterModel]:
         if self.unavailable:
@@ -32,7 +41,13 @@ class FakeRouter:
         return [
             RouterModel(
                 id=model,
-                status="loaded" if model == self.loaded else "unloaded",
+                status=(
+                    self.status_sequences[model].pop(0)
+                    if self.status_sequences.get(model)
+                    else "loaded"
+                    if model == self.loaded
+                    else "unloaded"
+                ),
                 size=1024,
                 progress_done=None,
                 progress_total=None,
@@ -45,6 +60,7 @@ class FakeRouter:
         self.downloaded.append(model)
 
     async def load(self, model: str) -> None:
+        self.events.append(("load", model))
         self.loads_in_flight += 1
         self.max_loads_in_flight = max(self.max_loads_in_flight, self.loads_in_flight)
         try:
@@ -55,13 +71,23 @@ class FakeRouter:
             self.loads_in_flight -= 1
 
     async def wait_until_loaded(self, model: str) -> None:
+        self.events.append(("wait_loaded", model))
         if model in self.failed_loads:
-            self.loaded = ""
+            if model not in self.failed_loads_still_running:
+                self.loaded = ""
             raise LlmRouterError(f"Échec simulé pour {model}")
 
     async def unload(self, model: str) -> None:
+        self.events.append(("unload", model))
+        if model in self.failed_unloads:
+            raise LlmRouterError(f"Déchargement simulé en échec pour {model}")
         if self.loaded == model:
             self.loaded = ""
+
+    async def wait_until_unloaded(self, model: str) -> None:
+        self.events.append(("wait_unloaded", model))
+        if model in self.failed_unloads:
+            raise LlmRouterError(f"Déchargement simulé en échec pour {model}")
 
 
 @pytest.fixture
@@ -157,6 +183,12 @@ async def test_activation_is_confirmed_before_persistence(
     assert response.status_code == 303
     assert "message=" in response.headers["location"]
     assert managed_router.loaded == MODEL_B
+    assert managed_router.events == [
+        ("unload", MODEL_A),
+        ("wait_unloaded", MODEL_A),
+        ("load", MODEL_B),
+        ("wait_loaded", MODEL_B),
+    ]
     async with async_session_factory() as session:
         selected = await session.scalar(select(LlmConfiguration.selected_model))
     assert selected == MODEL_B
@@ -167,17 +199,124 @@ async def test_failed_activation_restores_previous_model_and_selection(
     browser: httpx.AsyncClient, managed_router: FakeRouter
 ) -> None:
     managed_router.failed_loads.add(MODEL_B)
+    managed_router.failed_loads_still_running.add(MODEL_B)
     csrf = await login(browser)
     response = await browser.post(
         "/llm-models/activate",
         data={"csrf_token": csrf, "model": MODEL_B},
     )
     assert response.status_code == 303
-    assert "error=" in response.headers["location"]
+    location = response.headers["location"]
+    assert "error=" in location
+    assert "ancien%20mod%C3%A8le%20a%20%C3%A9t%C3%A9%20restaur%C3%A9" in location
     assert managed_router.loaded == MODEL_A
+    assert managed_router.events == [
+        ("unload", MODEL_A),
+        ("wait_unloaded", MODEL_A),
+        ("load", MODEL_B),
+        ("wait_loaded", MODEL_B),
+        ("unload", MODEL_B),
+        ("wait_unloaded", MODEL_B),
+        ("load", MODEL_A),
+        ("wait_loaded", MODEL_A),
+    ]
     async with async_session_factory() as session:
         selected = await session.scalar(select(LlmConfiguration.selected_model))
     assert selected == MODEL_A
+
+
+@pytest.mark.asyncio
+async def test_failed_unload_keeps_loaded_previous_without_retrying_it(
+    browser: httpx.AsyncClient, managed_router: FakeRouter
+) -> None:
+    managed_router.failed_unloads.add(MODEL_A)
+    managed_router.failed_loads.add(MODEL_B)
+    csrf = await login(browser)
+    response = await browser.post(
+        "/llm-models/activate",
+        data={"csrf_token": csrf, "model": MODEL_B},
+    )
+    assert response.status_code == 303
+    assert managed_router.events == [("unload", MODEL_A)]
+    assert managed_router.loaded == MODEL_A
+    async with async_session_factory() as session:
+        assert await session.scalar(select(LlmConfiguration.selected_model)) == MODEL_A
+
+
+@pytest.mark.asyncio
+async def test_rollback_waits_for_previous_loading_without_reloading(
+    browser: httpx.AsyncClient, managed_router: FakeRouter
+) -> None:
+    managed_router.failed_loads.add(MODEL_B)
+    managed_router.failed_loads_still_running.add(MODEL_B)
+    managed_router.status_sequences[MODEL_A] = [
+        "loaded",
+        "unloaded",
+        "loading",
+        "loading",
+        "loaded",
+    ]
+    csrf = await login(browser)
+    response = await browser.post(
+        "/llm-models/activate",
+        data={"csrf_token": csrf, "model": MODEL_B},
+    )
+    assert response.status_code == 303
+    assert managed_router.events == [
+        ("unload", MODEL_A),
+        ("wait_unloaded", MODEL_A),
+        ("load", MODEL_B),
+        ("wait_loaded", MODEL_B),
+        ("unload", MODEL_B),
+        ("wait_unloaded", MODEL_B),
+        ("wait_loaded", MODEL_A),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sleeping_previous_model_is_kept_active_without_reload(
+    browser: httpx.AsyncClient, managed_router: FakeRouter
+) -> None:
+    managed_router.status_sequences[MODEL_A] = [
+        "sleeping",
+        "unloaded",
+        "sleeping",
+        "sleeping",
+    ]
+    managed_router.failed_loads.add(MODEL_B)
+    managed_router.failed_loads_still_running.add(MODEL_B)
+    csrf = await login(browser)
+    response = await browser.post(
+        "/llm-models/activate",
+        data={"csrf_token": csrf, "model": MODEL_B},
+    )
+    assert response.status_code == 303
+    assert managed_router.events == [
+        ("unload", MODEL_A),
+        ("wait_unloaded", MODEL_A),
+        ("load", MODEL_B),
+        ("wait_loaded", MODEL_B),
+        ("unload", MODEL_B),
+        ("wait_unloaded", MODEL_B),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_activation_waits_for_target_already_loading(
+    browser: httpx.AsyncClient, managed_router: FakeRouter
+) -> None:
+    managed_router.status_sequences[MODEL_B] = ["loading"]
+    csrf = await login(browser)
+    response = await browser.post(
+        "/llm-models/activate",
+        data={"csrf_token": csrf, "model": MODEL_B},
+    )
+    assert response.status_code == 303
+    assert managed_router.events == [
+        ("unload", MODEL_A),
+        ("wait_unloaded", MODEL_A),
+        ("wait_loaded", MODEL_B),
+    ]
 
 
 @pytest.mark.asyncio
@@ -192,6 +331,7 @@ async def test_failed_rollback_is_reported_without_persisting_target(
     )
     assert response.status_code == 303
     assert "ancien%20mod%C3%A8le" in response.headers["location"]
+    assert "aucun%20mod%C3%A8le" in response.headers["location"]
     async with async_session_factory() as session:
         selected = await session.scalar(select(LlmConfiguration.selected_model))
     assert selected == MODEL_A
@@ -215,3 +355,30 @@ async def test_concurrent_activations_are_serialized(
     )
     assert all(response.status_code == 303 for response in responses)
     assert managed_router.max_loads_in_flight == 1
+
+
+@pytest.mark.asyncio
+async def test_pending_job_still_blocks_model_switch(
+    browser: httpx.AsyncClient, managed_router: FakeRouter
+) -> None:
+    async with async_session_factory() as session, session.begin():
+        session.add(
+            DocumentJob(
+                document_type=DocumentType.CV,
+                status=DocumentJobStatus.PENDING,
+                avp_number="TEST-ADMIN-LLM-LOCK",
+                resume_data={"basics": {}},
+                llm_model=MODEL_A,
+            )
+        )
+    csrf = await login(browser)
+    response = await browser.post(
+        "/llm-models/activate",
+        data={"csrf_token": csrf, "model": MODEL_B},
+    )
+    assert response.status_code == 303
+    assert "error=" in response.headers["location"]
+    assert managed_router.events == []
+    async with async_session_factory() as session:
+        selected = await session.scalar(select(LlmConfiguration.selected_model))
+    assert selected == MODEL_A

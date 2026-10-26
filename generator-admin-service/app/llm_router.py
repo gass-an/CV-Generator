@@ -22,6 +22,10 @@ class LlmRouterLoadTimeoutError(LlmRouterError):
     pass
 
 
+class LlmRouterUnloadTimeoutError(LlmRouterError):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class RouterModel:
     id: str
@@ -99,6 +103,32 @@ class LlmRouterClient:
 
     async def unload(self, model: str) -> None:
         await self._request_success("POST", "/models/unload", json={"model": model})
+
+    async def wait_until_unloaded(
+        self,
+        model: str,
+        *,
+        poll_interval: float = 0.5,
+    ) -> None:
+        """Attend que le processus enfant du modèle soit effectivement arrêté."""
+        deadline = time.monotonic() + self._activation_timeout
+        while True:
+            models = await self.list_models()
+            target = next((item for item in models if item.id == model), None)
+            if target is None:
+                raise LlmRouterError("Le modèle a disparu du serveur LLM")
+            if target.status == "unloaded":
+                return
+            if target.status not in {"loaded", "loading", "sleeping"}:
+                raise LlmRouterError(
+                    f"Le déchargement du modèle s’est arrêté à l’état {target.status}"
+                )
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise LlmRouterUnloadTimeoutError(
+                    "Le déchargement du modèle n’a pas été confirmé avant le délai"
+                )
+            await asyncio.sleep(min(poll_interval, remaining))
 
     async def aclose(self) -> None:
         await self._client.aclose()

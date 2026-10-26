@@ -24,6 +24,11 @@ def hidden_value(html: str, name: str) -> str:
     return match.group(1)
 
 
+def test_production_router_keeps_single_model_limit() -> None:
+    compose = (ROOT.parent / "deploy" / "docker-compose.prod.yml").read_text()
+    assert '      - "--models-max"\n      - "1"' in compose
+
+
 def test_session_secrets_are_hidden_from_representations() -> None:
     expiry = datetime(2030, 1, 1, tzinfo=UTC)
     issued = IssuedAdminSession("session-brute", "csrf-brut", expiry)
