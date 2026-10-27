@@ -595,6 +595,7 @@ function modelPayload(models = []) {
 function modelState(id, status, overrides = {}) {
   return {
     id,
+    name: id.split("/").at(-1).split(":")[0].replace(/-GGUF$/, ""),
     loaded: false,
     progress_done: null,
     progress_percentage: null,
@@ -602,6 +603,10 @@ function modelState(id, status, overrides = {}) {
     quantization: "Q4_K_M",
     selected: false,
     size: 2048,
+    size_label: "2 Mio",
+    vram_estimate_label: "3 Gio",
+    progress_done_label: "1 Mio",
+    progress_total_label: "4 Mio",
     status,
     status_label: status,
     ...overrides,
@@ -614,17 +619,17 @@ function createModelsHarness(fetchImplementation) {
   const timers = new Map();
   let timerId = 0;
   const redirects = [];
-  const body = new ModelElement("tbody");
+  const body = new ModelElement("div");
+  const primary = new ModelElement("div");
   const empty = new ModelElement("p");
   const error = new ModelElement("p");
   error.hidden = true;
   const refreshed = new ModelElement("span");
-  const selected = new ModelElement("code");
-  const loaded = new ModelElement("code");
   const root = new ModelElement("section");
   root.dataset.csrfToken = "csrf-test";
   root.querySelector = (selector) => {
-    if (selector === "[data-models-body]") return body;
+    if (selector === "[data-primary-model]") return primary;
+    if (selector === "[data-other-models]") return body;
     if (selector === "[data-models-empty]") return empty;
     return null;
   };
@@ -632,8 +637,6 @@ function createModelsHarness(fetchImplementation) {
     ["[data-models-root]", root],
     ["[data-models-error]", error],
     ["[data-models-refresh]", refreshed],
-    ["[data-selected-model]", selected],
-    ["[data-loaded-model]", loaded],
   ]);
   const document = {
     documentElement: { dataset: {}, removeAttribute() {} },
@@ -689,11 +692,10 @@ function createModelsHarness(fetchImplementation) {
     document,
     empty,
     error,
-    loaded,
+    primary,
     redirects,
     refreshed,
     root,
-    selected,
     timers,
     async runTimer() {
       const entry = timers.entries().next().value;
@@ -733,14 +735,15 @@ test("les modèles et tous leurs états Router sont affichés", async () => {
   await harness.runTimer();
 
   assert.equal(harness.body.children.length, states.length);
-  assert.deepEqual(
-    harness.body.children.map((row) => row.children[3].children[0].className),
-    states.map((state) => `badge status-${state}`),
+  assert.deepEqual(harness.body.children.map((card) => card.children[0].children[1].className), states.map((state) => `badge status-${state}`));
+  assert.equal(
+    harness.body.children[0].children[1].children[2].children[0].textContent,
+    "VRAM estimée (indicative)",
   );
   assert.equal(harness.empty.hidden, true);
 });
 
-test("la progression et les modèles sélectionné et chargé restent distincts", async () => {
+test("le modèle principal reste distinct du modèle réellement chargé", async () => {
   const payload = modelPayload([
     modelState("org/selected-GGUF:Q4_K_M", "downloading", {
       progress_done: 1024,
@@ -757,15 +760,10 @@ test("la progression et les modèles sélectionné et chargé restent distincts"
 
   await harness.runTimer();
 
-  assert.equal(harness.selected.textContent, payload.selected_model);
-  assert.equal(harness.loaded.textContent, payload.loaded_model);
-  assert.equal(harness.body.children[0].children[4].textContent, "1.0 Kio / 4.0 Kio (25 %)");
-  const selectedRoles = harness.body.children[0].children[5].children[0];
-  const loadedRoles = harness.body.children[1].children[5].children[0];
-  assert.equal(selectedRoles.className, "model-roles");
-  assert.equal(loadedRoles.className, "model-roles");
-  assert.equal(selectedRoles.children[0].textContent, "Sélectionné");
-  assert.equal(loadedRoles.children[0].textContent, "En VRAM");
+  assert.equal(harness.primary.children.length, 1);
+  assert.equal(harness.primary.children[0].children[0].children[1].textContent, "downloading");
+  assert.equal(harness.body.children.length, 1);
+  assert.equal(harness.body.children[0].children[0].children[1].textContent, "loaded");
 });
 
 test("les formulaires d’activation et de reprise contiennent modèle et CSRF", async () => {
@@ -776,12 +774,8 @@ test("les formulaires d’activation et de reprise contiennent modèle et CSRF",
   const harness = createModelsHarness(async () => jsonResponse(payload));
   await harness.runTimer();
 
-  const activateCell = harness.body.children[0].children[6];
-  const resumeCell = harness.body.children[1].children[6];
-  const activateLayout = activateCell.children[0];
-  const resumeLayout = resumeCell.children[0];
-  assert.equal(activateCell.tagName, "TD");
-  assert.equal(activateCell.className, "");
+  const activateLayout = harness.body.children[0].children.at(-1).children[1];
+  const resumeLayout = harness.body.children[1].children.at(-1).children[1];
   assert.equal(activateLayout.className, "model-actions");
   assert.equal(resumeLayout.className, "model-actions");
   const activate = activateLayout.children[0];
@@ -803,7 +797,7 @@ test("une double soumission d’action est bloquée", async () => {
     jsonResponse(modelPayload([modelState("org/model-GGUF:Q4_K_M", "unloaded")])),
   );
   await harness.runTimer();
-  const form = harness.body.children[0].children[6].children[0].children[0];
+  const form = harness.body.children[0].children.at(-1).children[1].children[0];
   const submit = harness.root.listeners.get("submit");
   const first = { target: form, preventDefault() { this.prevented = true; } };
   const second = { target: form, preventDefault() { this.prevented = true; } };

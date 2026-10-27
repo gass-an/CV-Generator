@@ -29,6 +29,7 @@ from app.admin_security import (
 )
 from app.config import get_settings
 from app.database import get_business_session, get_security_session
+from app.llm_metadata import format_bytes, readable_model_name
 from app.llm_router import LlmRouterClient, LlmRouterError
 from app.llm_service import (
     AdminLlmService,
@@ -213,11 +214,11 @@ JOB_STATUS_LABELS = {
 }
 
 LLM_STATUS_LABELS = {
-    "unloaded": "Disponible",
-    "loaded": "Chargé",
+    "unloaded": "Disponible sur SSD",
+    "loaded": "En VRAM",
     "loading": "Chargement en cours",
     "downloading": "Téléchargement en cours",
-    "incomplete": "Incomplet",
+    "incomplete": "Téléchargement incomplet",
     "sleeping": "En veille",
     "error": "Erreur",
 }
@@ -254,15 +255,31 @@ def _llm_model_json(
     percentage = None
     if model.progress_done is not None and model.progress_total:
         percentage = round(model.progress_done * 100 / model.progress_total, 1)
-    effective_status = "error" if model.failed else model.status
+    effective_status = (
+        "error"
+        if model.failed
+        else "loaded"
+        if model.status == "sleeping"
+        else model.status
+    )
     return {
         "id": model.id,
+        "name": readable_model_name(model.id),
         "quantization": model.quantization,
         "status": effective_status,
         "status_label": LLM_STATUS_LABELS.get(effective_status, effective_status),
         "size": model.size,
+        "size_label": format_bytes(model.size),
+        "vram_estimate": model.vram_estimate,
+        "vram_estimate_label": (
+            format_bytes(model.vram_estimate)
+            if model.vram_estimate is not None
+            else "Estimation indisponible"
+        ),
         "progress_done": model.progress_done,
         "progress_total": model.progress_total,
+        "progress_done_label": format_bytes(model.progress_done),
+        "progress_total_label": format_bytes(model.progress_total),
         "progress_percentage": percentage,
         "selected": model.id == selected,
         "loaded": model.id == loaded,
@@ -282,7 +299,12 @@ async def llm_models_page(
     router_error = None
     if settings.llm_management_enabled and settings.llm_base_url:
         service = AdminLlmService(
-            session, _llm_router(request), fallback_model=settings.llm_model
+            session,
+            _llm_router(request),
+            fallback_model=settings.llm_model,
+            cache_path=settings.llm_cache_path,
+            context_size=settings.llm_context_size,
+            gpu_layers=settings.llm_gpu_layers,
         )
         try:
             snapshot = await service.snapshot()
@@ -305,6 +327,12 @@ async def llm_models_page(
             "message": message,
             "error": error,
             "status_labels": LLM_STATUS_LABELS,
+            "model_data": [
+                _llm_model_json(model, snapshot.selected_model, snapshot.loaded_model)
+                for model in snapshot.models
+            ]
+            if snapshot
+            else [],
         },
     )
 
@@ -318,7 +346,12 @@ async def llm_models_data(
     settings = get_settings()
     try:
         snapshot = await AdminLlmService(
-            session, _llm_router(request), fallback_model=settings.llm_model
+            session,
+            _llm_router(request),
+            fallback_model=settings.llm_model,
+            cache_path=settings.llm_cache_path,
+            context_size=settings.llm_context_size,
+            gpu_layers=settings.llm_gpu_layers,
         ).snapshot()
     except LlmRouterError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
@@ -344,7 +377,12 @@ async def _llm_action(
     _require_llm_management()
     settings = get_settings()
     service = AdminLlmService(
-        session, _llm_router(request), fallback_model=settings.llm_model
+        session,
+        _llm_router(request),
+        fallback_model=settings.llm_model,
+        cache_path=settings.llm_cache_path,
+        context_size=settings.llm_context_size,
+        gpu_layers=settings.llm_gpu_layers,
     )
     try:
         if action == "download":

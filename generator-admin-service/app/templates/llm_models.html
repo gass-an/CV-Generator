@@ -1,56 +1,20 @@
 {% extends "base.html" %}
 {% block title %}Modèles LLM{% endblock %}
+{% macro facts(model) %}<dl class="model-facts"><div><dt>Quantification</dt><dd>{{ model.quantization or 'Non renseignée' }}</dd></div><div><dt>SSD</dt><dd>{{ model.size_label }}</dd></div><div><dt>VRAM estimée (indicative)</dt><dd>{{ model.vram_estimate_label }}</dd></div></dl>{% endmacro %}
+{% macro action(action_name, model, label, style='primary') %}<form method="post" action="/llm-models/{{ action_name }}" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model }}"><button class="button {{ style }} compact" type="submit">{{ label }}</button></form>{% endmacro %}
 {% block content %}
-<div class="page-heading">
-  <div><p class="eyebrow">Inférence</p><h1>Modèles LLM</h1><p>Modèles GGUF conservés sur le SSD et chargement en VRAM.</p></div>
-  <div class="refresh-state" role="status" aria-live="polite"><span data-models-refresh>État fourni par llama.cpp Router.</span></div>
-</div>
-
-{% if message %}<p class="notice" role="status">{{ message }}</p>{% endif %}
-{% if error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
-{% if not management_enabled %}
-<p class="warning" role="status">La gestion des modèles est désactivée dans cet environnement. Les générations existantes restent disponibles.</p>
-{% else %}
+<div class="page-heading"><div><p class="eyebrow">Inférence</p><h1>Modèles LLM</h1><p>Choisissez le modèle des générations et contrôlez son occupation de la VRAM.</p></div><div class="refresh-state" role="status" aria-live="polite"><span data-models-refresh>État fourni par llama.cpp Router.</span></div></div>
+{% if message %}<p class="notice" role="status">{{ message }}</p>{% endif %}{% if error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+{% if not management_enabled %}<p class="warning" role="status">La gestion des modèles est désactivée dans cet environnement.</p>{% else %}
 <p class="alert" role="alert" data-models-error {% if not router_error %}hidden{% endif %}>{% if router_error %}Serveur LLM indisponible : {{ router_error }} — nouvelle tentative automatique.{% endif %}</p>
-<section class="panel model-add-panel">
-  <h2>Ajouter un modèle</h2>
-  <p>Référence Hugging Face GGUF au format <code>organisation/modele-GGUF:Q4_K_M</code>.</p>
-  <form method="post" action="/llm-models/download" data-single-submit>
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label for="llm-model-reference">Référence Hugging Face</label>
-    <input id="llm-model-reference" name="model" required maxlength="255" autocomplete="off" spellcheck="false" placeholder="organisation/modele-GGUF:Q4_K_M">
-    <div class="actions"><button class="button primary" type="submit">Télécharger</button></div>
-  </form>
-</section>
-
-<section class="models-section" data-models-root data-csrf-token="{{ csrf_token }}" aria-busy="false">
-  <div class="section-heading"><div><h2>Modèles connus</h2><p>Le modèle sélectionné est affecté aux nouveaux jobs ; le modèle chargé occupe actuellement la VRAM.</p></div></div>
-  <div class="model-summary">
-    <p><strong>Sélectionné :</strong> <code data-selected-model>{{ snapshot.selected_model }}</code></p>
-    <p><strong>Chargé :</strong> <code data-loaded-model>{{ snapshot.loaded_model or 'Aucun' }}</code></p>
-  </div>
-  <div class="table-wrap"><table class="models-table">
-    <thead><tr><th>Modèle</th><th>Quantification</th><th>Taille</th><th>État</th><th>Progression</th><th>Rôle</th><th>Actions</th></tr></thead>
-    <tbody data-models-body>
-    {% for model in snapshot.models %}
-      <tr data-model-id="{{ model.id }}">
-        <td><strong>{{ model.id }}</strong></td>
-        <td>{{ model.quantization or '—' }}</td>
-        <td data-model-size="{{ model.size or '' }}">{{ model.size or '—' }}</td>
-        <td><span class="badge status-{{ 'error' if model.failed else model.status }}">{{ 'Erreur' if model.failed else status_labels.get(model.status, model.status) }}</span></td>
-        <td>{% if model.progress_total %}{{ model.progress_done }} / {{ model.progress_total }} octets ({{ (model.progress_done * 100 / model.progress_total)|round(1) }} %){% else %}—{% endif %}</td>
-        <td><div class="model-roles">{% if model.id == snapshot.selected_model %}<span class="badge status-active">Sélectionné</span>{% endif %}{% if model.id == snapshot.loaded_model %}<span class="badge status-processing">En VRAM</span>{% endif %}</div></td>
-        <td>
-          <div class="model-actions">
-            {% if model.status not in ['downloading', 'incomplete', 'loading'] and model.id != snapshot.loaded_model %}<form method="post" action="/llm-models/activate" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model.id }}"><button class="button primary compact" type="submit">Activer</button></form>{% endif %}
-            {% if model.id == snapshot.loaded_model and model.id != snapshot.selected_model %}<form method="post" action="/llm-models/unload" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model.id }}"><button class="button secondary compact" type="submit">Décharger</button></form>{% endif %}
-            {% if model.status == 'incomplete' %}<form method="post" action="/llm-models/download" data-model-action><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="model" value="{{ model.id }}"><button class="button secondary compact" type="submit">Reprendre</button></form>{% endif %}
-          </div>
-        </td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table><p class="table-empty" data-models-empty {% if snapshot.models %}hidden{% endif %}>Aucun modèle trouvé dans le cache du Router.</p></div>
-</section>
-{% endif %}
-{% endblock %}
+<main class="models-section" data-models-root data-csrf-token="{{ csrf_token }}" aria-busy="false">
+  <section aria-labelledby="primary-model-title"><div class="section-heading"><div><h2 id="primary-model-title">Modèle principal</h2><p>Modèle conservé pour les prochaines générations.</p></div></div><div data-primary-model>
+    {% set primary = model_data | selectattr('selected') | first %}{% if primary %}
+    <article class="model-card model-card-primary"><div class="model-card-heading"><div><h3>{{ primary.name }}</h3><code title="{{ primary.id }}">{{ primary.id }}</code></div><span class="badge status-{{ primary.status }}">{{ primary.status_label }}</span></div>{{ facts(primary) }}<div class="model-card-footer"><p>{% if primary.loaded %}Prêt pour la génération.{% elif primary.status == 'unloaded' %}Il sera rechargé automatiquement à la prochaine génération.{% else %}État réel communiqué par le Router.{% endif %}</p><div class="model-actions">{% if primary.loaded or primary.status == 'sleeping' %}{{ action('unload', primary.id, 'Décharger de la VRAM', 'secondary') }}{% elif primary.status == 'unloaded' %}{{ action('activate', primary.id, 'Charger en VRAM') }}{% endif %}</div></div></article>
+    {% else %}<div class="empty compact-empty"><p>Le modèle sélectionné <code>{{ snapshot.selected_model }}</code> n’est pas visible dans le cache. Vérifiez le Router.</p></div>{% endif %}
+  </div></section>
+  <section aria-labelledby="available-models-title"><div class="section-heading"><div><h2 id="available-models-title">Autres modèles disponibles</h2><p>Modèles GGUF présents sur le SSD.</p></div></div><div class="model-list" data-other-models>
+    {% for model in model_data if not model.selected %}<article class="model-card"><div class="model-card-heading"><div><h3>{{ model.name }}</h3><code title="{{ model.id }}">{{ model.id }}</code></div><span class="badge status-{{ model.status }}">{{ model.status_label }}</span></div>{{ facts(model) }}{% if model.status in ['downloading', 'incomplete'] %}<div class="download-progress">{% if model.progress_total %}<progress max="{{ model.progress_total }}" value="{{ model.progress_done or 0 }}"></progress><span>{{ model.progress_percentage }} % · {{ model.progress_done_label }} / {{ model.progress_total_label }}</span>{% else %}<progress></progress><span>Volume total inconnu</span>{% endif %}</div>{% endif %}<div class="model-card-footer"><p>{{ model.status_label }}</p><div class="model-actions">{% if model.status == 'unloaded' %}{{ action('activate', model.id, 'Utiliser') }}{% elif model.status == 'incomplete' %}{{ action('download', model.id, 'Reprendre', 'secondary') }}{% endif %}</div></div></article>{% endfor %}
+  </div><div class="empty compact-empty" data-models-empty {% if model_data | rejectattr('selected') | list %}hidden{% endif %}><p>Aucun autre modèle n’est disponible.</p></div></section>
+  <details class="panel model-add-panel"><summary>+ Ajouter un modèle depuis Hugging Face</summary><div class="model-add-content"><p>Le téléchargement conserve le GGUF sur le SSD sans le charger en VRAM.</p><form method="post" action="/llm-models/download" data-single-submit><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label for="llm-model-reference">Référence GGUF</label><input id="llm-model-reference" name="model" required maxlength="255" autocomplete="off" spellcheck="false" placeholder="organisation/modele-GGUF:Q4_K_M" aria-describedby="llm-model-help"><small id="llm-model-help">Exemple : <code>ggml-org/Qwen3-4B-GGUF:Q4_K_M</code></small><div class="actions"><button class="button primary" type="submit">Télécharger</button></div></form></div></details>
+</main>{% endif %}{% endblock %}

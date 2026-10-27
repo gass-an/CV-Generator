@@ -39,6 +39,9 @@ class AdminSettings(BaseSettings):
     llm_management_enabled: bool = False
     llm_management_timeout_seconds: float = Field(default=30, gt=0, le=300)
     llm_activation_timeout_seconds: float = Field(default=600, gt=0, le=1800)
+    llm_cache_path: str = "/models"
+    llm_context_size: int = Field(default=8192, ge=128, le=1048576)
+    llm_gpu_layers: int = Field(default=99, ge=0, le=10000)
 
     @field_validator("admin_username")
     @classmethod

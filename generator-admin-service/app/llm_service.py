@@ -1,5 +1,7 @@
+import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from pathlib import Path
 
 from cv_generator_shared.document_jobs import DocumentJob, DocumentJobStatus
 from cv_generator_shared.llm import (
@@ -10,6 +12,7 @@ from cv_generator_shared.llm import (
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.llm_metadata import inspect_model
 from app.llm_router import LlmRouterClient, LlmRouterError, RouterModel
 
 logger = logging.getLogger(__name__)
@@ -41,18 +44,49 @@ class AdminLlmService:
         router: LlmRouterClient,
         *,
         fallback_model: str,
+        cache_path: str = "/models",
+        context_size: int = 8192,
+        gpu_layers: int = 99,
     ) -> None:
         self._session = session
         self._router = router
         self._fallback_model = fallback_model
+        self._cache_path = Path(cache_path)
+        self._context_size = context_size
+        self._gpu_layers = gpu_layers
 
     async def snapshot(self) -> LlmModelSnapshot:
         selected = await self.selected_model()
         models = await self._router.list_models()
-        loaded = next((model.id for model in models if model.status == "loaded"), None)
+        models = await asyncio.to_thread(self._with_local_metadata, models)
+        loaded = next(
+            (model.id for model in models if model.status in {"loaded", "sleeping"}),
+            None,
+        )
         return LlmModelSnapshot(
             models=models, selected_model=selected, loaded_model=loaded
         )
+
+    def _with_local_metadata(self, models: list[RouterModel]) -> list[RouterModel]:
+        enriched = []
+        for model in models:
+            local = inspect_model(
+                model.path,
+                cache_root=self._cache_path,
+                context_size=self._context_size,
+                gpu_layers=self._gpu_layers,
+                cache_unavailable=model.status not in {"downloading", "incomplete"},
+            )
+            enriched.append(
+                replace(
+                    model,
+                    size=(
+                        local.size_bytes if local.size_bytes is not None else model.size
+                    ),
+                    vram_estimate=local.vram_estimate_bytes,
+                )
+            )
+        return enriched
 
     async def selected_model(self) -> str:
         async with self._session.begin():
@@ -255,18 +289,22 @@ class AdminLlmService:
     async def unload(self, raw_model: str) -> None:
         model_id = normalize_hf_model_reference(raw_model)
         async with self._session.begin():
-            configuration = await get_llm_configuration_for_update(
+            await get_llm_configuration_for_update(
                 self._session, fallback_model=self._fallback_model
             )
             busy = await self._session.scalar(
                 select(func.count(DocumentJob.id)).where(
-                    DocumentJob.status == DocumentJobStatus.PROCESSING
+                    DocumentJob.status.in_(
+                        [DocumentJobStatus.PENDING, DocumentJobStatus.PROCESSING]
+                    )
                 )
             )
             if busy:
                 raise LlmModelConflictError("Une génération est en cours")
-            if configuration.selected_model == model_id:
-                raise LlmModelConflictError(
-                    "Le modèle sélectionné ne peut pas être déchargé"
-                )
+            models = await self._router.list_models()
+            target = next((item for item in models if item.id == model_id), None)
+            if target is None:
+                raise LlmModelNotFoundError("Le modèle est introuvable")
+            if target.status == "unloaded":
+                return
             await self._unload_and_wait(model_id)

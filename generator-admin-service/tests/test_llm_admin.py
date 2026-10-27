@@ -122,6 +122,8 @@ async def test_models_page_and_data_are_private(
     response = await browser.get("/llm-models/data")
     assert response.status_code == 200
     assert response.json()["loaded_model"] == MODEL_A
+    assert response.json()["models"][0]["size"] == 1024
+    assert response.json()["models"][0]["vram_estimate"] is None
 
 
 @pytest.mark.asyncio
@@ -141,15 +143,16 @@ async def test_unavailable_page_keeps_automatic_recovery_root(
 
 
 @pytest.mark.asyncio
-async def test_models_page_keeps_table_cells_around_flexible_content(
+async def test_models_page_renders_primary_card_and_collapsible_download(
     browser: httpx.AsyncClient, managed_router: FakeRouter
 ) -> None:
     await login(browser)
     page = await browser.get("/llm-models")
     assert page.status_code == 200
-    assert '<div class="model-roles">' in page.text
-    assert '<div class="model-actions">' in page.text
-    assert '<td class="model-actions">' not in page.text
+    assert 'class="model-card model-card-primary"' in page.text
+    assert "Décharger de la VRAM" in page.text
+    assert "+ Ajouter un modèle depuis Hugging Face" in page.text
+    assert "Modèles connus" not in page.text
 
 
 @pytest.mark.asyncio
@@ -382,3 +385,46 @@ async def test_pending_job_still_blocks_model_switch(
     async with async_session_factory() as session:
         selected = await session.scalar(select(LlmConfiguration.selected_model))
     assert selected == MODEL_A
+
+
+@pytest.mark.asyncio
+async def test_selected_model_can_be_unloaded_without_changing_selection(
+    browser: httpx.AsyncClient, managed_router: FakeRouter
+) -> None:
+    csrf = await login(browser)
+    response = await browser.post(
+        "/llm-models/unload",
+        data={"csrf_token": csrf, "model": MODEL_A},
+    )
+    assert response.status_code == 303
+    assert managed_router.loaded == ""
+    assert managed_router.events == [
+        ("unload", MODEL_A),
+        ("wait_unloaded", MODEL_A),
+    ]
+    async with async_session_factory() as session:
+        assert await session.scalar(select(LlmConfiguration.selected_model)) == MODEL_A
+
+
+@pytest.mark.asyncio
+async def test_pending_job_blocks_manual_unload(
+    browser: httpx.AsyncClient, managed_router: FakeRouter
+) -> None:
+    async with async_session_factory() as session, session.begin():
+        session.add(
+            DocumentJob(
+                document_type=DocumentType.CV,
+                status=DocumentJobStatus.PENDING,
+                avp_number="TEST-ADMIN-LLM-UNLOAD-LOCK",
+                resume_data={"basics": {}},
+                llm_model=MODEL_A,
+            )
+        )
+    csrf = await login(browser)
+    response = await browser.post(
+        "/llm-models/unload",
+        data={"csrf_token": csrf, "model": MODEL_A},
+    )
+    assert response.status_code == 303
+    assert "error=" in response.headers["location"]
+    assert managed_router.events == []

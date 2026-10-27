@@ -273,22 +273,11 @@ document.addEventListener("submit", (event) => {
   }
 });
 
-function formatModelBytes(value) {
-  if (!Number.isFinite(value) || value < 0) return "—";
-  const units = ["o", "Kio", "Mio", "Gio", "Tio"];
-  let amount = value;
-  let index = 0;
-  while (amount >= 1024 && index < units.length - 1) {
-    amount /= 1024;
-    index += 1;
-  }
-  return `${amount.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
-}
-
 document.addEventListener("DOMContentLoaded", () => {
   const root = document.querySelector("[data-models-root]");
   if (!root) return;
-  const body = root.querySelector("[data-models-body]");
+  const primaryRoot = root.querySelector("[data-primary-model]");
+  const otherRoot = root.querySelector("[data-other-models]");
   const empty = root.querySelector("[data-models-empty]");
   const errorBox = document.querySelector("[data-models-error]");
   const refreshState = document.querySelector("[data-models-refresh]");
@@ -331,56 +320,95 @@ document.addEventListener("DOMContentLoaded", () => {
     return form;
   }
 
-  function render(payload) {
-    body.replaceChildren();
-    document.querySelector("[data-selected-model]").textContent = payload.selected_model;
-    document.querySelector("[data-loaded-model]").textContent = payload.loaded_model || "Aucun";
-    for (const model of payload.models) {
-      const row = document.createElement("tr");
-      const cells = Array.from({ length: 7 }, () => document.createElement("td"));
-      const name = document.createElement("strong");
-      name.textContent = model.id;
-      cells[0].append(name);
-      cells[1].textContent = model.quantization || "—";
-      cells[2].textContent = formatModelBytes(model.size);
-      const state = document.createElement("span");
-      state.className = `badge status-${model.status}`;
-      state.textContent = model.status_label;
-      cells[3].append(state);
-      cells[4].textContent = model.progress_total
-        ? `${formatModelBytes(model.progress_done)} / ${formatModelBytes(model.progress_total)} (${model.progress_percentage} %)`
-        : "—";
-      const roles = document.createElement("div");
-      roles.className = "model-roles";
-      if (model.selected) {
-        const selected = document.createElement("span");
-        selected.className = "badge status-active";
-        selected.textContent = "Sélectionné";
-        roles.append(selected);
-      }
-      if (model.loaded) {
-        const loaded = document.createElement("span");
-        loaded.className = "badge status-processing";
-        loaded.textContent = "En VRAM";
-        roles.append(loaded);
-      }
-      cells[5].append(roles);
-      const actions = document.createElement("div");
-      actions.className = "model-actions";
-      if (!["downloading", "incomplete", "loading"].includes(model.status) && !model.loaded) {
-        actions.append(actionForm("activate", model.id, "Activer", "primary"));
-      }
-      if (model.loaded && !model.selected) {
-        actions.append(actionForm("unload", model.id, "Décharger", "secondary"));
-      }
-      if (model.status === "incomplete") {
-        actions.append(actionForm("download", model.id, "Reprendre", "secondary"));
-      }
-      cells[6].append(actions);
-      row.append(...cells);
-      body.append(row);
+  function modelFacts(model) {
+    const facts = document.createElement("dl");
+    facts.className = "model-facts";
+    for (const [term, value] of [
+      ["Quantification", model.quantization || "Non renseignée"],
+      ["SSD", model.size_label],
+      ["VRAM estimée (indicative)", model.vram_estimate_label],
+    ]) {
+      const item = document.createElement("div");
+      const dt = document.createElement("dt");
+      const dd = document.createElement("dd");
+      dt.textContent = term;
+      dd.textContent = value;
+      item.append(dt, dd);
+      facts.append(item);
     }
-    empty.hidden = payload.models.length !== 0;
+    return facts;
+  }
+
+  function modelCard(model, primary = false) {
+    const card = document.createElement("article");
+    card.className = `model-card${primary ? " model-card-primary" : ""}`;
+    const heading = document.createElement("div");
+    heading.className = "model-card-heading";
+    const identity = document.createElement("div");
+    const name = document.createElement("h3");
+    const reference = document.createElement("code");
+    name.textContent = model.name;
+    reference.textContent = model.id;
+    reference.title = model.id;
+    identity.append(name, reference);
+    const badge = document.createElement("span");
+    badge.className = `badge status-${model.status}`;
+    badge.textContent = model.status_label;
+    heading.append(identity, badge);
+    card.append(heading, modelFacts(model));
+
+    if (["downloading", "incomplete"].includes(model.status)) {
+      const download = document.createElement("div");
+      download.className = "download-progress";
+      const progress = document.createElement("progress");
+      const label = document.createElement("span");
+      if (model.progress_total) {
+        progress.max = model.progress_total;
+        progress.value = model.progress_done || 0;
+        label.textContent = `${model.progress_percentage} % · ${model.progress_done_label} / ${model.progress_total_label}`;
+      } else {
+        label.textContent = "Volume total inconnu";
+      }
+      download.append(progress, label);
+      card.append(download);
+    }
+    const footer = document.createElement("div");
+    footer.className = "model-card-footer";
+    const description = document.createElement("p");
+    description.textContent = primary && model.loaded
+      ? "Prêt pour la génération."
+      : primary && model.status === "unloaded"
+        ? "Il sera rechargé automatiquement à la prochaine génération."
+        : model.status_label;
+    const actions = document.createElement("div");
+    actions.className = "model-actions";
+    if (primary && ["loaded", "sleeping"].includes(model.status)) {
+      actions.append(actionForm("unload", model.id, "Décharger de la VRAM", "secondary"));
+    } else if (primary && model.status === "unloaded") {
+      actions.append(actionForm("activate", model.id, "Charger en VRAM", "primary"));
+    } else if (!primary && model.status === "unloaded") {
+      actions.append(actionForm("activate", model.id, "Utiliser", "primary"));
+    } else if (!primary && model.status === "incomplete") {
+      actions.append(actionForm("download", model.id, "Reprendre", "secondary"));
+    }
+    footer.append(description, actions);
+    card.append(footer);
+    return card;
+  }
+
+  function render(payload) {
+    const primary = payload.models.find((model) => model.selected);
+    primaryRoot.replaceChildren();
+    if (primary) primaryRoot.append(modelCard(primary, true));
+    else {
+      const missing = document.createElement("div");
+      missing.className = "empty compact-empty";
+      missing.textContent = `Le modèle sélectionné ${payload.selected_model} n’est pas visible dans le cache.`;
+      primaryRoot.append(missing);
+    }
+    const others = payload.models.filter((model) => !model.selected);
+    otherRoot.replaceChildren(...others.map((model) => modelCard(model)));
+    empty.hidden = others.length !== 0;
     const busy = payload.models.some((model) =>
       ["downloading", "loading"].includes(model.status),
     );

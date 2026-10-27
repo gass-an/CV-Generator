@@ -5,6 +5,22 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+## [0.8.0] - 2026-10-27
+
+### Ajouts
+
+- Estimation prudente de la VRAM des modèles GGUF à partir de leurs métadonnées locales, du contexte configuré et des buffers CUDA, avec prise en charge des fichiers répartis en plusieurs shards.
+- Chargement et déchargement manuel du modèle principal sans perdre la sélection PostgreSQL ni le rechargement automatique à la prochaine génération.
+
+### Modifications
+
+- Refonte responsive de la page « Modèles LLM » en cartes : modèle principal, modèles disponibles, progression contextuelle et ajout Hugging Face repliable.
+- Lecture en accès seul du cache GGUF par l’administration afin d’afficher la taille SSD réelle des modèles déchargés, sans téléchargement supplémentaire.
+
+### Corrections
+
+- Inspection GGUF déplacée hors de la boucle asynchrone, mise en cache avec invalidation par shard et protégée contre les fichiers incomplets, instables ou malformés.
+
 ## [0.8.0] - 2026-10-26
 
 ### Ajouts

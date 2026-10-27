@@ -34,6 +34,9 @@ class RouterModel:
     progress_done: int | None
     progress_total: int | None
     failed: bool
+    path: str | None = None
+    metadata: dict[str, object] | None = None
+    vram_estimate: int | None = None
 
     @property
     def quantization(self) -> str | None:
@@ -194,4 +197,6 @@ class LlmRouterClient:
             progress_done=done,
             progress_total=total,
             failed=status_data.get("failed") is True,
+            path=item.get("path") if isinstance(item.get("path"), str) else None,
+            metadata=meta,
         )
