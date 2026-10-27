@@ -29,6 +29,16 @@ def test_production_router_keeps_single_model_limit() -> None:
     assert '      - "--models-max"\n      - "1"' in compose
 
 
+def test_production_router_sleeps_after_configurable_fifteen_minutes() -> None:
+    production = (ROOT.parent / "deploy" / "docker-compose.prod.yml").read_text()
+    local = (ROOT.parent / "deploy" / "docker-compose.local.yml").read_text()
+
+    assert (
+        '      - "--sleep-idle-seconds"\n      - "${LLM_SLEEP_IDLE_SECONDS:-900}"'
+    ) in production
+    assert "--sleep-idle-seconds" not in local
+
+
 def test_session_secrets_are_hidden_from_representations() -> None:
     expiry = datetime(2030, 1, 1, tzinfo=UTC)
     issued = IssuedAdminSession("session-brute", "csrf-brut", expiry)

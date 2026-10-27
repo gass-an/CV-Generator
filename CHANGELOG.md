@@ -5,6 +5,16 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
+## [0.8.5] - 2026-10-27
+
+### Ajouts
+
+- Mise en veille automatique du modèle llama.cpp après 15 minutes d’inactivité, avec réveil à la génération suivante et délai configurable.
+
+### Corrections
+
+- Conservation et affichage distincts de l’état Router `sleeping`, avec déchargement complet manuel toujours disponible.
+
 ## [0.8.3] - 2026-10-27
 
 ### Ajouts

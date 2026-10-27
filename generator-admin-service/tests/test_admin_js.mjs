@@ -722,7 +722,7 @@ function jsonResponse(payload) {
 }
 
 test("les modèles et tous leurs états Router sont affichés", async () => {
-  const states = ["loaded", "loading", "downloading", "incomplete", "error"];
+  const states = ["loaded", "sleeping", "loading", "downloading", "incomplete", "error"];
   const payload = modelPayload(
     states.map((state) =>
       modelState(`org/${state}-GGUF:Q4_K_M`, state, {
@@ -741,6 +741,26 @@ test("les modèles et tous leurs états Router sont affichés", async () => {
     "VRAM estimée (indicative)",
   );
   assert.equal(harness.empty.hidden, true);
+});
+
+test("un modèle principal en veille n’est pas présenté comme chargé", async () => {
+  const payload = modelPayload([
+    modelState("org/selected-GGUF:Q4_K_M", "sleeping", {
+      selected: true,
+      status_label: "En veille",
+    }),
+  ]);
+  const harness = createModelsHarness(async () => jsonResponse(payload));
+
+  await harness.runTimer();
+
+  const card = harness.primary.children[0];
+  const badge = card.children[0].children[1];
+  const footer = card.children.at(-1);
+  assert.equal(badge.textContent, "En veille");
+  assert.match(footer.children[0].textContent, /automatiquement réactivé/);
+  assert.equal(footer.children[1].children[0].children[2].textContent, "Décharger complètement");
+  assert.doesNotMatch(footer.children[0].textContent, /Prêt pour la génération/);
 });
 
 test("le modèle principal reste distinct du modèle réellement chargé", async () => {

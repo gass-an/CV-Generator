@@ -54,6 +54,30 @@ async def test_lists_models_and_real_download_progress() -> None:
 
 
 @pytest.mark.asyncio
+async def test_preserves_sleeping_status_from_router() -> None:
+    client = client_for(
+        httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "id": "org/model-GGUF:Q4_K_M",
+                            "status": {"value": "sleeping"},
+                        }
+                    ]
+                },
+            )
+        )
+    )
+
+    models = await client.list_models()
+
+    assert models[0].status == "sleeping"
+    await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_download_posts_only_model_reference() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/models"

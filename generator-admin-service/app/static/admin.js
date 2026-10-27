@@ -375,18 +375,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const footer = document.createElement("div");
     footer.className = "model-card-footer";
     const description = document.createElement("p");
-    description.textContent = primary && model.loaded
+    description.textContent = primary && model.status === "loaded"
       ? "Prêt pour la génération."
-      : primary && model.status === "unloaded"
+      : primary && model.status === "sleeping"
+        ? "Modèle mis en veille après une période d’inactivité. Il sera automatiquement réactivé à la prochaine génération."
+        : primary && model.status === "unloaded"
         ? "Il sera rechargé automatiquement à la prochaine génération."
         : model.status_label;
     const actions = document.createElement("div");
     actions.className = "model-actions";
-    if (primary && ["loaded", "sleeping"].includes(model.status)) {
+    if (primary && model.status === "loaded") {
       actions.append(actionForm("unload", model.id, "Décharger de la VRAM", "secondary"));
+    } else if (primary && model.status === "sleeping") {
+      actions.append(actionForm("unload", model.id, "Décharger complètement", "secondary"));
     } else if (primary && model.status === "unloaded") {
       actions.append(actionForm("activate", model.id, "Charger en VRAM", "primary"));
-    } else if (!primary && model.status === "unloaded") {
+    } else if (!primary && ["unloaded", "sleeping"].includes(model.status)) {
       actions.append(actionForm("activate", model.id, "Utiliser", "primary"));
     } else if (!primary && model.status === "incomplete") {
       actions.append(actionForm("download", model.id, "Reprendre", "secondary"));

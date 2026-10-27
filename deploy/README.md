@@ -69,8 +69,12 @@ publient aucun port hôte.
 
 Le Router utilise l'image CUDA `b11889` épinglée par digest, démarre sans
 `-hf`, conserve `LLAMA_CACHE=/models` sur le volume existant
-`cv-generator-models`, et applique `--models-max 1`, `--ctx-size 8192` et
-`--n-gpu-layers 99` aux instances dynamiques. `LLM_MODEL` sert uniquement à
+`cv-generator-models`, et applique `--models-max 1`, `--ctx-size 8192`,
+`--n-gpu-layers 99` et une mise en veille après 900 secondes d’inactivité aux
+instances dynamiques. Ce délai est configurable avec
+`LLM_SLEEP_IDLE_SECONDS`. La configuration locale ne lance pas de Router : le
+délai de veille relève donc du serveur distant indiqué par `LLM_BASE_URL`.
+`LLM_MODEL` sert uniquement à
 initialiser PostgreSQL au premier passage de la migration ; les changements
 suivants sont réalisés dans « Modèles LLM » et ne nécessitent aucun redémarrage.
 En production, le worker et l'administration reçoivent explicitement

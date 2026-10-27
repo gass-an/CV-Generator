@@ -255,13 +255,7 @@ def _llm_model_json(
     percentage = None
     if model.progress_done is not None and model.progress_total:
         percentage = round(model.progress_done * 100 / model.progress_total, 1)
-    effective_status = (
-        "error"
-        if model.failed
-        else "loaded"
-        if model.status == "sleeping"
-        else model.status
-    )
+    effective_status = "error" if model.failed else model.status
     return {
         "id": model.id,
         "name": readable_model_name(model.id),
@@ -282,7 +276,7 @@ def _llm_model_json(
         "progress_total_label": format_bytes(model.progress_total),
         "progress_percentage": percentage,
         "selected": model.id == selected,
-        "loaded": model.id == loaded,
+        "loaded": model.id == loaded and effective_status == "loaded",
     }
 
 

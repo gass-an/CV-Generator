@@ -211,6 +211,27 @@ async def test_models_page_renders_primary_card_and_collapsible_download(
 
 
 @pytest.mark.asyncio
+async def test_sleeping_model_keeps_exact_status_and_sleep_actions(
+    browser: httpx.AsyncClient, managed_router: FakeRouter
+) -> None:
+    managed_router.status_sequences[MODEL_A] = ["sleeping", "sleeping"]
+    await login(browser)
+
+    data = await browser.get("/llm-models/data")
+    page = await browser.get("/llm-models")
+
+    selected = next(model for model in data.json()["models"] if model["selected"])
+    assert selected["status"] == "sleeping"
+    assert selected["status_label"] == "En veille"
+    assert selected["loaded"] is False
+    assert data.json()["loaded_model"] == MODEL_A
+    assert "En veille" in page.text
+    assert "Décharger complètement" in page.text
+    assert "Prêt pour la génération" not in page.text
+    assert managed_router.events == []
+
+
+@pytest.mark.asyncio
 async def test_invalid_reference_and_csrf_are_rejected(
     browser: httpx.AsyncClient, managed_router: FakeRouter
 ) -> None:
@@ -250,6 +271,29 @@ async def test_activation_is_confirmed_before_persistence(
     async with async_session_factory() as session:
         selected = await session.scalar(select(LlmConfiguration.selected_model))
     assert selected == MODEL_B
+
+
+@pytest.mark.asyncio
+async def test_activation_unloads_sleeping_previous_model_before_switch(
+    browser: httpx.AsyncClient, managed_router: FakeRouter
+) -> None:
+    managed_router.status_sequences[MODEL_A] = ["sleeping"]
+    csrf = await login(browser)
+
+    response = await browser.post(
+        "/llm-models/activate",
+        data={"csrf_token": csrf, "model": MODEL_B},
+    )
+
+    assert response.status_code == 303
+    assert managed_router.events == [
+        ("unload", MODEL_A),
+        ("wait_unloaded", MODEL_A),
+        ("load", MODEL_B),
+        ("wait_loaded", MODEL_B),
+    ]
+    async with async_session_factory() as session:
+        assert await session.scalar(select(LlmConfiguration.selected_model)) == MODEL_B
 
 
 @pytest.mark.asyncio
@@ -462,14 +506,40 @@ async def test_selected_model_can_be_unloaded_without_changing_selection(
 
 
 @pytest.mark.asyncio
-async def test_pending_job_blocks_manual_unload(
+async def test_sleeping_selected_model_can_be_fully_unloaded(
     browser: httpx.AsyncClient, managed_router: FakeRouter
+) -> None:
+    managed_router.status_sequences[MODEL_A] = ["sleeping"]
+    csrf = await login(browser)
+
+    response = await browser.post(
+        "/llm-models/unload",
+        data={"csrf_token": csrf, "model": MODEL_A},
+    )
+
+    assert response.status_code == 303
+    assert managed_router.events == [
+        ("unload", MODEL_A),
+        ("wait_unloaded", MODEL_A),
+    ]
+    async with async_session_factory() as session:
+        assert await session.scalar(select(LlmConfiguration.selected_model)) == MODEL_A
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "job_status", [DocumentJobStatus.PENDING, DocumentJobStatus.PROCESSING]
+)
+async def test_active_job_blocks_manual_unload(
+    browser: httpx.AsyncClient,
+    managed_router: FakeRouter,
+    job_status: DocumentJobStatus,
 ) -> None:
     async with async_session_factory() as session, session.begin():
         session.add(
             DocumentJob(
                 document_type=DocumentType.CV,
-                status=DocumentJobStatus.PENDING,
+                status=job_status,
                 avp_number="TEST-ADMIN-LLM-UNLOAD-LOCK",
                 resume_data={"basics": {}},
                 llm_model=MODEL_A,

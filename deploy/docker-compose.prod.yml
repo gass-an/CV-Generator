@@ -64,6 +64,8 @@ services:
       - "99"
       - "--models-max"
       - "1"
+      - "--sleep-idle-seconds"
+      - "${LLM_SLEEP_IDLE_SECONDS:-900}"
 
     restart: unless-stopped
     networks: [llm-control]
