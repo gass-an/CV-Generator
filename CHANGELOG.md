@@ -5,7 +5,7 @@ structure est inspirée de [Keep a Changelog](https://keepachangelog.com/fr/1.1.
 
 ## [À venir]
 
-## [0.8.0] - 2026-10-27
+## [0.8.3] - 2026-10-27
 
 ### Ajouts
 
