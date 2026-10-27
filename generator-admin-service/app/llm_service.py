@@ -72,6 +72,7 @@ class AdminLlmService:
         for model in models:
             local = inspect_model(
                 model.path,
+                model_id=model.id,
                 cache_root=self._cache_path,
                 context_size=self._context_size,
                 gpu_layers=self._gpu_layers,

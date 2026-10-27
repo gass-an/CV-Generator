@@ -1,4 +1,6 @@
 import asyncio
+import struct
+from pathlib import Path
 
 import httpx
 import pytest
@@ -19,6 +21,34 @@ from conftest import login
 MODEL_A = "ggml-org/Qwen3-14B-GGUF:Q4_K_M"
 MODEL_B = "org/second-model-GGUF:Q4_K_M"
 MODEL_C = "org/third-model-GGUF:Q5_K_M"
+
+
+def _write_cached_model(cache_root: Path) -> Path:
+    repository = cache_root / "models--ggml-org--Qwen3-14B-GGUF"
+    blob = repository / "blobs" / "model-blob"
+    snapshot = repository / "snapshots" / "revision"
+    blob.parent.mkdir(parents=True)
+    snapshot.mkdir(parents=True)
+    values = {
+        "general.architecture": (8, "qwen3"),
+        "qwen3.block_count": (4, 40),
+        "qwen3.embedding_length": (4, 5120),
+        "qwen3.attention.head_count": (4, 40),
+        "qwen3.attention.head_count_kv": (4, 8),
+    }
+    content = bytearray(b"GGUF" + struct.pack("<IQQ", 3, 0, len(values)))
+    for key, (value_type, value) in values.items():
+        encoded_key = key.encode()
+        content.extend(struct.pack("<Q", len(encoded_key)) + encoded_key)
+        content.extend(struct.pack("<I", value_type))
+        if value_type == 8:
+            encoded_value = value.encode()
+            content.extend(struct.pack("<Q", len(encoded_value)) + encoded_value)
+        else:
+            content.extend(struct.pack("<I", value))
+    blob.write_bytes(content + bytes(1024))
+    (snapshot / "Qwen3-14B-Q4_K_M.gguf").symlink_to(Path("../../blobs/model-blob"))
+    return blob
 
 
 class FakeRouter:
@@ -124,6 +154,31 @@ async def test_models_page_and_data_are_private(
     assert response.json()["loaded_model"] == MODEL_A
     assert response.json()["models"][0]["size"] == 1024
     assert response.json()["models"][0]["vram_estimate"] is None
+
+
+@pytest.mark.asyncio
+async def test_data_discovers_cached_model_when_router_has_no_path(
+    browser: httpx.AsyncClient,
+    managed_router: FakeRouter,
+    tmp_path: Path,
+) -> None:
+    del managed_router
+    blob = _write_cached_model(tmp_path)
+    settings = get_settings()
+    previous_cache_path = settings.llm_cache_path
+    settings.llm_cache_path = str(tmp_path)
+    try:
+        await login(browser)
+        response = await browser.get("/llm-models/data")
+    finally:
+        settings.llm_cache_path = previous_cache_path
+
+    assert response.status_code == 200
+    selected = next(model for model in response.json()["models"] if model["selected"])
+    assert selected["size"] == blob.stat().st_size
+    assert selected["size_label"] != "Taille inconnue"
+    assert selected["vram_estimate"] is not None
+    assert selected["vram_estimate_label"] != "Estimation indisponible"
 
 
 @pytest.mark.asyncio

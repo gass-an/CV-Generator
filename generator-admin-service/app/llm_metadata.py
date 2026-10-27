@@ -94,13 +94,16 @@ class ModelMetadataCache:
         self,
         path_value: str | None,
         *,
+        model_id: str | None = None,
         cache_root: Path,
         context_size: int,
         gpu_layers: int = 99,
         cache_unavailable: bool = True,
     ) -> ModelStorageInfo:
         try:
-            identities = _model_file_identities(path_value, cache_root)
+            identities = _model_file_identities(
+                path_value, cache_root, model_id=model_id
+            )
         except (OSError, ValueError) as error:
             _log_inspection_problem(error)
             return ModelStorageInfo(None, None)
@@ -156,6 +159,7 @@ def readable_model_name(model_id: str) -> str:
 def inspect_model(
     path_value: str | None,
     *,
+    model_id: str | None = None,
     cache_root: Path,
     context_size: int,
     gpu_layers: int = 99,
@@ -163,6 +167,7 @@ def inspect_model(
 ) -> ModelStorageInfo:
     return _metadata_cache.inspect(
         path_value,
+        model_id=model_id,
         cache_root=cache_root,
         context_size=context_size,
         gpu_layers=gpu_layers,
@@ -171,9 +176,18 @@ def inspect_model(
 
 
 def _model_file_identities(
-    path_value: str | None, cache_root: Path
+    path_value: str | None, cache_root: Path, *, model_id: str | None = None
 ) -> tuple[_FileIdentity, ...]:
-    paths = _model_files(path_value, cache_root)
+    paths = []
+    if path_value:
+        try:
+            paths = _model_files(Path(path_value), cache_root)
+        except (OSError, ValueError):
+            paths = []
+    if not paths and model_id:
+        discovered = _discover_huggingface_model(model_id, cache_root)
+        if discovered is not None:
+            paths = _model_files(discovered, cache_root)
     if not paths:
         return ()
     identities = []
@@ -193,30 +207,84 @@ def _model_file_identities(
     return tuple(identities)
 
 
-def _model_files(path_value: str | None, cache_root: Path) -> list[Path]:
-    if not path_value:
-        return []
+def _model_files(logical_path: Path, cache_root: Path) -> list[Path]:
     root = cache_root.resolve(strict=True)
-    resolved = Path(path_value).resolve(strict=True)
-    resolved.relative_to(root)
-    if not resolved.is_file() or resolved.suffix.lower() != ".gguf":
+    if logical_path.suffix.lower() != ".gguf":
         return []
-    match = re.fullmatch(r"(.+)-(\d{5})-of-(\d{5})\.gguf", resolved.name, re.I)
+    resolved = logical_path.resolve(strict=True)
+    resolved.relative_to(root)
+    if not resolved.is_file():
+        return []
+    match = re.fullmatch(r"(.+)-(\d{5})-of-(\d{5})\.gguf", logical_path.name, re.I)
     if not match:
         return [resolved]
     count = int(match.group(3))
     if count < 1 or count > 10_000:
         return []
     shards = []
+    resolved_shards: set[Path] = set()
     for index in range(1, count + 1):
         shard = (
-            resolved.parent / f"{match.group(1)}-{index:05d}-of-{count:05d}.gguf"
-        ).resolve(strict=True)
+            logical_path.parent / f"{match.group(1)}-{index:05d}-of-{count:05d}.gguf"
+        )
+        if shard.suffix.lower() != ".gguf":
+            return []
+        shard = shard.resolve(strict=True)
         shard.relative_to(root)
         if not shard.is_file():
             return []
+        if shard in resolved_shards:
+            return []
+        resolved_shards.add(shard)
         shards.append(shard)
     return shards
+
+
+def _discover_huggingface_model(model_id: str, cache_root: Path) -> Path | None:
+    """Trouve un GGUF par dépôt et quantification sans parcourir tout le cache."""
+    reference, separator, quantization = model_id.rpartition(":")
+    if not separator or reference.count("/") != 1:
+        return None
+    organization, repository = reference.split("/", 1)
+    safe_component = re.compile(r"[A-Za-z0-9._-]+")
+    if not (
+        safe_component.fullmatch(organization)
+        and safe_component.fullmatch(repository)
+        and safe_component.fullmatch(quantization)
+    ):
+        return None
+
+    root = cache_root.resolve(strict=True)
+    repository_root = root / f"models--{organization}--{repository}"
+    snapshots_root = repository_root / "snapshots"
+    snapshots_resolved = snapshots_root.resolve(strict=True)
+    snapshots_resolved.relative_to(root)
+    if not snapshots_resolved.is_dir():
+        return None
+
+    quantization_pattern = re.compile(
+        rf"(?:^|[-_.]){re.escape(quantization)}"
+        r"(?:-\d{5}-of-\d{5})?\.gguf$",
+        re.IGNORECASE,
+    )
+    unique_groups: dict[tuple[Path, ...], Path] = {}
+    for snapshot in sorted(snapshots_resolved.iterdir(), key=lambda path: path.name):
+        if not snapshot.is_dir():
+            continue
+        for logical_path in sorted(snapshot.iterdir(), key=lambda path: path.name):
+            if not quantization_pattern.search(logical_path.name):
+                continue
+            try:
+                files = _model_files(logical_path, root)
+            except (OSError, ValueError):
+                continue
+            if not files:
+                continue
+            resolved_group = tuple(files)
+            unique_groups.setdefault(resolved_group, logical_path)
+    if len(unique_groups) != 1:
+        return None
+    return next(iter(unique_groups.values()))
 
 
 def _inspect_identities(
