@@ -23,6 +23,12 @@
   <a href="https://github.com/gass-an/CV-Generator/releases">Versions</a>
 </p>
 
+
+<p align="center">
+  <img src="generatorweb-service/public/gif/LM.gif" alt="Génération d'une lettre de motivation" width="800">
+</p>
+
+
 ---
 
 CV-Generator génère des **CV**, des **lettres de motivation** et des
